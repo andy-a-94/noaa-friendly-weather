@@ -1,5 +1,8 @@
 const el = (id) => document.getElementById(id);
 
+// EDIT THIS if your Worker URL ever changes
+const WORKER_BASE_URL = "https://noaa-friendly-weather.andy-antle.workers.dev";
+
 const state = {
   lat: null,
   lon: null,
@@ -24,7 +27,7 @@ function formatDayName(iso) {
 }
 
 function safeText(x, fallback = "—") {
-  return (x === null || x === undefined || x === "") ? fallback : String(x);
+  return x === null || x === undefined || x === "" ? fallback : String(x);
 }
 
 function chooseDaily7(periods) {
@@ -44,7 +47,7 @@ function renderCurrent(hourlyPeriods) {
 
   const wind = cur.windSpeed ? `Wind ${cur.windSpeed} ${safeText(cur.windDirection, "")}` : null;
   const pop = cur.probabilityOfPrecipitation?.value;
-  const popTxt = (typeof pop === "number") ? `Precip ${pop}%` : null;
+  const popTxt = typeof pop === "number" ? `Precip ${pop}%` : null;
 
   el("currentMeta").textContent = [wind, popTxt].filter(Boolean).join(" • ") || "—";
 
@@ -140,7 +143,6 @@ function renderDaily(dailyPeriods) {
 
 function renderAlerts(alerts) {
   const section = el("alertsSection");
-  const banner = el("alertBanner");
   const summary = el("alertSummary");
   const detailsWrap = el("alertsDetails");
 
@@ -197,7 +199,9 @@ function renderAlerts(alerts) {
 async function fetchWeather(lat, lon) {
   setStatus("Loading", "Fetching NWS forecast…", { loading: true, showRetry: false });
 
-  const url = `/api/weather?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}`;
+  // UPDATED: call your Worker directly
+  const url = `${WORKER_BASE_URL}/api/weather?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}`;
+
   const res = await fetch(url);
   const data = await res.json().catch(() => null);
 
@@ -210,7 +214,7 @@ async function fetchWeather(lat, lon) {
 }
 
 async function start() {
-  // Radar button: open the official NWS radar display in a new tab. :contentReference[oaicite:5]{index=5}
+  // Radar button: open the official NWS radar display in a new tab.
   el("radarBtn").onclick = () => window.open("https://radar.weather.gov/", "_blank", "noopener,noreferrer");
 
   el("retryBtn").onclick = () => {
