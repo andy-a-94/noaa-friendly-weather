@@ -33,8 +33,116 @@ function chooseDaily7(periods) {
   return src.slice(0, 7);
 }
 
+// ===== Today tile helpers (Morning / Afternoon / Night) =====
+function avg(nums) {
+  if (!nums.length) return null;
+  return nums.reduce((a, b) => a + b, 0) / nums.length;
+}
+
+function mode(strings) {
+  if (!strings.length) return null;
+  const counts = new Map();
+  for (const s of strings) counts.set(s, (counts.get(s) || 0) + 1);
+  let best = null;
+  let bestN = -1;
+  for (const [s, n] of counts.entries()) {
+    if (n > bestN) {
+      best = s;
+      bestN = n;
+    }
+  }
+  return best;
+}
+
+function toLocalDateKey(isoOrDate) {
+  const d = isoOrDate instanceof Date ? isoOrDate : new Date(isoOrDate);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function hourLocal(iso) {
+  return new Date(iso).getHours();
+}
+
+function segmentForHour(h) {
+  if (h >= 6 && h <= 11) return "Morning";
+  if (h >= 12 && h <= 17) return "Afternoon";
+  return "Night"; // 18-23 and 0-5
+}
+
+function buildTodaySegments(hourlyPeriods) {
+  const todayKey = toLocalDateKey(new Date());
+  const todays = (hourlyPeriods || []).filter((p) => toLocalDateKey(p.startTime) === todayKey);
+
+  const buckets = { Morning: [], Afternoon: [], Night: [] };
+  for (const p of todays) {
+    const seg = segmentForHour(hourLocal(p.startTime));
+    buckets[seg].push(p);
+  }
+
+  return ["Morning", "Afternoon", "Night"].map((name) => {
+    const ps = buckets[name];
+    const temps = ps.map((x) => x.temperature).filter((n) => Number.isFinite(n));
+    const pops = ps
+      .map((x) => x.probabilityOfPrecipitation?.value ?? 0)
+      .filter((n) => Number.isFinite(n));
+    const descs = ps.map((x) => x.shortForecast).filter(Boolean);
+
+    return {
+      name,
+      hasData: ps.length > 0,
+      tempAvg: avg(temps),
+      popAvg: avg(pops),
+      desc: mode(descs),
+    };
+  });
+}
+
+function renderToday(hourlyPeriods) {
+  const list = el("todayList");
+  if (!list) return;
+
+  const segments = buildTodaySegments(hourlyPeriods);
+
+  list.innerHTML = segments
+    .map((s) => {
+      if (!s.hasData) {
+        return `
+          <div class="segment-row">
+            <div class="segment-name">${s.name}</div>
+            <div class="segment-desc">No data</div>
+            <div class="segment-right">
+              <div class="segment-temp">—</div>
+              <div class="segment-pop">—</div>
+            </div>
+          </div>
+        `;
+      }
+
+      const t = s.tempAvg == null ? "—" : `${Math.round(s.tempAvg)}°`;
+      const pop = s.popAvg == null ? "—" : `${Math.round(s.popAvg)}% precip`;
+
+      return `
+        <div class="segment-row">
+          <div class="segment-name">${s.name}</div>
+          <div class="segment-desc">${safeText(s.desc, "—")}</div>
+          <div class="segment-right">
+            <div class="segment-temp">${t}</div>
+            <div class="segment-pop">${pop}</div>
+          </div>
+        </div>
+      `;
+    })
+    .join("");
+
+  el("todayCard").hidden = false;
+}
+
 function resetVisibleSections() {
   el("currentCard").hidden = true;
+  el("todayCard").hidden = true;
   el("hourlyCard").hidden = true;
   el("dailyCard").hidden = true;
   el("alertsSection").hidden = true;
@@ -253,6 +361,7 @@ async function loadAndRender(lat, lon, labelOverride = null) {
 
   renderAlerts(data.alerts || []);
   renderCurrent(data.hourlyPeriods || []);
+  renderToday(data.hourlyPeriods || []);
   renderHourly(data.hourlyPeriods || []);
   renderDaily(data.dailyPeriods || []);
 
