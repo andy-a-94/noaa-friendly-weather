@@ -29,6 +29,35 @@
         </div>
       </section>
 
+      <!-- ZIP fallback -->
+      <section id="zipCard" class="card manual" hidden>
+        <div class="card-header">
+          <h2>Enter ZIP code</h2>
+          <p class="hint">Use when location is blocked</p>
+        </div>
+
+        <div class="manual-body">
+          <p class="manual-help" id="zipHelpText">
+            Your computer/browser is not sharing location. Enter a US ZIP code to load your forecast.
+          </p>
+
+          <form id="zipForm" class="manual-form">
+            <label class="field">
+              <span class="field-label">ZIP code</span>
+              <input id="zipInput" class="field-input" inputmode="numeric" placeholder="e.g., 27601" required />
+            </label>
+
+            <div class="manual-actions">
+              <button class="btn btn-primary" type="submit">Use this ZIP</button>
+              <button class="btn" id="useSavedZipBtn" type="button" hidden>Use saved</button>
+              <button class="btn" id="clearSavedZipBtn" type="button" hidden>Clear saved</button>
+            </div>
+
+            <p class="manual-error" id="zipError" hidden></p>
+          </form>
+        </div>
+      </section>
+
       <section id="alertsSection" hidden>
         <div class="alert-banner" id="alertBanner">
           <div class="alert-left">
@@ -73,9 +102,7 @@
       </section>
 
       <footer class="footer">
-        <p class="fineprint">
-          Data: National Weather Service (api.weather.gov). Forecasts are grid-based and cache-friendly by design. :contentReference[oaicite:4]{index=4}
-        </p>
+        <p class="fineprint">Data: National Weather Service (api.weather.gov).</p>
       </footer>
     </main>
 
