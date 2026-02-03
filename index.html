@@ -71,6 +71,7 @@
       </section>
 
       <section class="grid">
+        <!-- Row 1 (desktop): Current (left) + Today (right) -->
         <section class="card" id="currentCard" hidden>
           <div class="card-header">
             <h2>Current</h2>
@@ -85,6 +86,15 @@
           </div>
         </section>
 
+        <section class="card" id="todayCard" hidden>
+          <div class="card-header">
+            <h2>Today</h2>
+            <p class="hint">Morning • Afternoon • Night</p>
+          </div>
+          <div class="today-list" id="todayList"></div>
+        </section>
+
+        <!-- Row 2+: Hourly (full width) then 7-Day (full width) -->
         <section class="card" id="hourlyCard" hidden>
           <div class="card-header">
             <h2>Hourly</h2>
