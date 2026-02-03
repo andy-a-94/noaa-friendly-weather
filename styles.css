@@ -266,5 +266,24 @@ body {
 
 @media (min-width: 900px) {
   .grid { grid-template-columns: 1fr 1fr; }
-  #dailyCard { grid-column: 1 / -1; }
+  /* Make Hourly and 7-day full width tiles on desktop */
+  #hourlyCard, #dailyCard { grid-column: 1 / -1; }
 }
+
+/* Today tile */
+.today-list { padding: 10px 12px 12px; }
+.segment-row {
+  display: grid;
+  grid-template-columns: 110px 1fr auto;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+.segment-row:last-child { border-bottom: none; }
+.segment-name { font-weight: 800; font-size: 12px; letter-spacing: 0.2px; }
+.segment-desc { color: var(--muted); font-size: 12px; }
+.segment-right { text-align: right; }
+.segment-temp { font-weight: 900; font-size: 13px; }
+.segment-pop { color: var(--muted); font-size: 12px; margin-top: 2px; }
+
