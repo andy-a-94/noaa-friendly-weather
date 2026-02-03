@@ -1,7 +1,7 @@
 const el = (id) => document.getElementById(id);
 
 // Worker URL
-const WORKER_BASE_URL = "https://noaa-friendly-weather.andy-antle.workers.dev";
+const WORKER_BASE_URL = "";
 
 // localStorage keys
 const SAVED_ZIP_KEY = "savedWeatherZip";
