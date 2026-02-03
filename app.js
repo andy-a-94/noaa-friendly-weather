@@ -1,13 +1,12 @@
 const el = (id) => document.getElementById(id);
 
-// EDIT THIS if your Worker URL ever changes
+// Worker URL
 const WORKER_BASE_URL = "https://noaa-friendly-weather.andy-antle.workers.dev";
 
-const state = {
-  lat: null,
-  lon: null,
-  data: null,
-};
+// localStorage keys
+const SAVED_ZIP_KEY = "savedWeatherZip";
+
+const state = { lat: null, lon: null, data: null };
 
 function setStatus(title, subtitle, { loading = false, showRetry = false } = {}) {
   el("statusTitle").textContent = title;
@@ -16,26 +15,71 @@ function setStatus(title, subtitle, { loading = false, showRetry = false } = {})
   el("retryBtn").hidden = !showRetry;
 }
 
-function formatHour(iso) {
-  const d = new Date(iso);
-  return d.toLocaleTimeString([], { hour: "numeric" });
-}
-
-function formatDayName(iso) {
-  const d = new Date(iso);
-  return d.toLocaleDateString([], { weekday: "short" });
-}
-
 function safeText(x, fallback = "—") {
   return x === null || x === undefined || x === "" ? fallback : String(x);
 }
 
+function formatHour(iso) {
+  return new Date(iso).toLocaleTimeString([], { hour: "numeric" });
+}
+
+function formatDayName(iso) {
+  return new Date(iso).toLocaleDateString([], { weekday: "short" });
+}
+
 function chooseDaily7(periods) {
-  // The /forecast endpoint often returns 12-hour periods (day/night).
-  // For a simple 7-day display: prefer daytime periods; otherwise take first 7.
   const daytime = periods.filter((p) => p.isDaytime === true);
   const src = daytime.length >= 7 ? daytime : periods;
   return src.slice(0, 7);
+}
+
+function resetVisibleSections() {
+  el("currentCard").hidden = true;
+  el("hourlyCard").hidden = true;
+  el("dailyCard").hidden = true;
+  el("alertsSection").hidden = true;
+  el("alertsDetails").hidden = true;
+  el("alertsDetails").innerHTML = "";
+}
+
+function showZipBox(message) {
+  el("zipHelpText").textContent = message;
+  el("zipCard").hidden = false;
+
+  const savedZip = localStorage.getItem(SAVED_ZIP_KEY);
+  const hasSaved = !!(savedZip && /^\d{5}$/.test(savedZip));
+
+  el("useSavedZipBtn").hidden = !hasSaved;
+  el("clearSavedZipBtn").hidden = !hasSaved;
+
+  if (hasSaved) el("zipInput").value = savedZip;
+}
+
+function hideZipBox() {
+  el("zipCard").hidden = true;
+  el("zipError").hidden = true;
+  el("zipError").textContent = "";
+}
+
+function showZipError(msg) {
+  el("zipError").textContent = msg;
+  el("zipError").hidden = false;
+}
+
+async function fetchLocationFromZip(zip) {
+  const url = `${WORKER_BASE_URL}/api/location?zip=${encodeURIComponent(zip)}`;
+  const res = await fetch(url);
+  const data = await res.json().catch(() => null);
+  if (!res.ok) throw new Error(data?.error || "ZIP lookup failed.");
+  return data; // { zip, lat, lon, label, cached }
+}
+
+async function fetchWeather(lat, lon) {
+  const url = `${WORKER_BASE_URL}/api/weather?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}`;
+  const res = await fetch(url);
+  const data = await res.json().catch(() => null);
+  if (!res.ok) throw new Error(data?.error || "Weather data is unavailable.");
+  return data;
 }
 
 function renderCurrent(hourlyPeriods) {
@@ -92,7 +136,6 @@ function renderHourly(hourlyPeriods) {
     card.appendChild(temp);
     card.appendChild(desc);
     card.appendChild(img);
-
     row.appendChild(card);
   }
 
@@ -184,7 +227,6 @@ function renderAlerts(alerts) {
     detailsWrap.appendChild(card);
   }
 
-  // Banner “Details” toggle
   el("toggleAlertsBtn").onclick = () => {
     const open = !detailsWrap.hidden;
     detailsWrap.hidden = open;
@@ -196,87 +238,115 @@ function renderAlerts(alerts) {
   el("toggleAlertsBtn").textContent = "Details";
 }
 
-async function fetchWeather(lat, lon) {
+async function loadAndRender(lat, lon, labelOverride = null) {
+  hideZipBox();
+  resetVisibleSections();
+
   setStatus("Loading", "Fetching NWS forecast…", { loading: true, showRetry: false });
 
-  // UPDATED: call your Worker directly
-  const url = `${WORKER_BASE_URL}/api/weather?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}`;
+  const data = await fetchWeather(lat, lon);
+  state.data = data;
+  state.lat = lat;
+  state.lon = lon;
 
-  const res = await fetch(url);
-  const data = await res.json().catch(() => null);
+  el("locationName").textContent = labelOverride || data?.location?.name || "Your area";
 
-  if (!res.ok) {
-    const msg = data?.error || "Weather data is unavailable.";
-    throw new Error(msg);
-  }
+  renderAlerts(data.alerts || []);
+  renderCurrent(data.hourlyPeriods || []);
+  renderHourly(data.hourlyPeriods || []);
+  renderDaily(data.dailyPeriods || []);
 
-  return data;
+  setStatus("Updated", `Last updated: ${new Date(data.fetchedAt).toLocaleTimeString()}`, {
+    loading: false,
+    showRetry: false,
+  });
+}
+
+function setupZipHandlers() {
+  el("zipForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    el("zipError").hidden = true;
+
+    const zip = (el("zipInput").value || "").trim();
+    if (!/^\d{5}$/.test(zip)) {
+      showZipError("Please enter a valid 5-digit ZIP code.");
+      return;
+    }
+
+    localStorage.setItem(SAVED_ZIP_KEY, zip);
+
+    try {
+      setStatus("Loading", "Looking up ZIP…", { loading: true, showRetry: false });
+      const loc = await fetchLocationFromZip(zip);
+      await loadAndRender(loc.lat, loc.lon, loc.label || `ZIP ${zip}`);
+    } catch (err) {
+      setStatus("Could not load weather", safeText(err?.message, "Please try again."), {
+        loading: false,
+        showRetry: true,
+      });
+      showZipBox("ZIP lookup failed. Please try again.");
+      showZipError(safeText(err?.message, "ZIP lookup failed."));
+    }
+  });
+
+  el("useSavedZipBtn").addEventListener("click", async () => {
+    const zip = localStorage.getItem(SAVED_ZIP_KEY);
+    if (!zip) return;
+    el("zipInput").value = zip;
+    el("zipForm").requestSubmit();
+  });
+
+  el("clearSavedZipBtn").addEventListener("click", () => {
+    localStorage.removeItem(SAVED_ZIP_KEY);
+    el("zipInput").value = "";
+    el("useSavedZipBtn").hidden = true;
+    el("clearSavedZipBtn").hidden = true;
+    showZipError("Saved ZIP cleared.");
+  });
 }
 
 async function start() {
-  // Radar button: open the official NWS radar display in a new tab.
   el("radarBtn").onclick = () => window.open("https://radar.weather.gov/", "_blank", "noopener,noreferrer");
 
   el("retryBtn").onclick = () => {
-    // Reset visible sections
-    el("currentCard").hidden = true;
-    el("hourlyCard").hidden = true;
-    el("dailyCard").hidden = true;
-    el("alertsSection").hidden = true;
-    el("alertsDetails").hidden = true;
-    el("alertsDetails").innerHTML = "";
+    resetVisibleSections();
+    hideZipBox();
     start();
   };
 
-  if (!("geolocation" in navigator)) {
-    setStatus("Location not supported", "Your browser does not support geolocation.", { loading: false, showRetry: false });
-    return;
-  }
+  setupZipHandlers();
 
   setStatus("Location", "Requesting permission…", { loading: true, showRetry: false });
+
+  if (!("geolocation" in navigator)) {
+    setStatus("Location unavailable", "Enter ZIP code below.", { loading: false, showRetry: false });
+    showZipBox("Geolocation is not available. Enter ZIP code.");
+    return;
+  }
 
   navigator.geolocation.getCurrentPosition(
     async (pos) => {
       try {
-        const lat = pos.coords.latitude;
-        const lon = pos.coords.longitude;
-
-        state.lat = lat;
-        state.lon = lon;
-
-        const data = await fetchWeather(lat, lon);
-        state.data = data;
-
-        el("locationName").textContent = data?.location?.name || "Your area";
-
-        renderAlerts(data.alerts || []);
-        renderCurrent(data.hourlyPeriods || []);
-        renderHourly(data.hourlyPeriods || []);
-        renderDaily(data.dailyPeriods || []);
-
-        setStatus("Updated", `Last updated: ${new Date(data.fetchedAt).toLocaleTimeString()}`, {
-          loading: false,
-          showRetry: false,
-        });
+        await loadAndRender(pos.coords.latitude, pos.coords.longitude);
       } catch (err) {
         setStatus("Could not load weather", safeText(err?.message, "Please try again."), {
           loading: false,
           showRetry: true,
         });
+        showZipBox("Weather failed to load. Enter ZIP code instead.");
       }
     },
-    (err) => {
-      const reason =
-        err?.code === 1
-          ? "Location permission was denied. Please allow location access and try again."
-          : "We couldn’t get your location. Please try again.";
-      setStatus("Location needed", reason, { loading: false, showRetry: true });
+    () => {
+      setStatus("Location blocked", "Enter ZIP code below.", { loading: false, showRetry: true });
+
+      const savedZip = localStorage.getItem(SAVED_ZIP_KEY);
+      if (savedZip && /^\d{5}$/.test(savedZip)) {
+        showZipBox("Location is blocked. You can use your saved ZIP or enter a new one.");
+      } else {
+        showZipBox("Location is blocked on this computer. Enter ZIP code.");
+      }
     },
-    {
-      enableHighAccuracy: false,
-      timeout: 12000,
-      maximumAge: 5 * 60 * 1000,
-    }
+    { enableHighAccuracy: false, timeout: 12000, maximumAge: 5 * 60 * 1000 }
   );
 }
 
