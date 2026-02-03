@@ -101,8 +101,17 @@ function buildTodaySegments(hourlyPeriods) {
 }
 
 function renderToday(hourlyPeriods) {
-  const list = el("todayList");
-  if (!list) return;
+  const card = el("todayCard");
+  if (!card) return;
+
+  // Support either an element with id=todayList or a .today-list inside the card
+  let list = el("todayList");
+  if (!list) list = card.querySelector(".today-list");
+  if (!list) {
+    // Unhide the card so layout changes are visible even if markup is missing
+    card.hidden = false;
+    return;
+  }
 
   const segments = buildTodaySegments(hourlyPeriods);
 
@@ -137,10 +146,27 @@ function renderToday(hourlyPeriods) {
     })
     .join("");
 
-  el("todayCard").hidden = false;
+  card.hidden = false;
 }
 
 function resetVisibleSections() {
+  const setHidden = (id, hidden) => {
+    const node = el(id);
+    if (node) node.hidden = hidden;
+  };
+
+  setHidden("currentCard", true);
+  setHidden("todayCard", true);
+  setHidden("hourlyCard", true);
+  setHidden("dailyCard", true);
+  setHidden("alertsSection", true);
+  setHidden("alertsDetails", true);
+
+  const details = el("alertsDetails");
+  if (details) details.innerHTML = "";
+}
+
+function showZipBox(message) {
   el("currentCard").hidden = true;
   el("todayCard").hidden = true;
   el("hourlyCard").hidden = true;
