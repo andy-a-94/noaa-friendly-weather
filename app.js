@@ -8,11 +8,14 @@ const SAVED_ZIP_KEY = "savedWeatherZip";
 
 const state = { lat: null, lon: null, data: null };
 
-function setStatus(title, subtitle, { loading = false, showRetry = false } = {}) {
-  el("statusTitle").textContent = title;
-  el("statusSubtitle").textContent = subtitle;
-  el("spinner").style.display = loading ? "inline-block" : "none";
-  el("retryBtn").hidden = !showRetry;
+function setStatus(title, subtitle, { loading = false } = {}) {
+  const titleEl = el("statusTitle");
+  const subEl = el("statusSubtitle");
+  const spinEl = el("spinner");
+
+  if (titleEl) titleEl.textContent = title;
+  if (subEl) subEl.textContent = subtitle;
+  if (spinEl) spinEl.style.display = loading ? "inline-block" : "none";
 }
 
 function safeText(x, fallback = "—") {
@@ -37,11 +40,10 @@ function chooseDaily7(periods) {
 function pickTodayTonight(dailyPeriods) {
   const periods = Array.isArray(dailyPeriods) ? dailyPeriods : [];
 
-  // NWS dailyPeriods are typically ordered: Today, Tonight, Fri, Fri Night, ...
+  // Typically ordered: Today, Tonight, next day, next night...
   const firstTwo = periods.slice(0, 2);
   if (firstTwo.length === 2) return firstTwo;
 
-  // Fallback: name matching
   const today = periods.find((p) => (p?.name || "").toLowerCase() === "today");
   const tonight = periods.find((p) => (p?.name || "").toLowerCase() === "tonight");
   return [today, tonight].filter(Boolean);
@@ -63,8 +65,7 @@ function renderToday(dailyPeriods) {
   const card = el("todayCard");
   if (!card) return;
 
-  let list = el("todayList");
-  if (!list) list = card.querySelector(".today-list");
+  const list = el("todayList") || card.querySelector(".today-list");
   if (!list) {
     card.hidden = false;
     return;
@@ -80,15 +81,11 @@ function renderToday(dailyPeriods) {
       const temp = `${safeText(p?.temperature, "--")}°${safeText(p?.temperatureUnit, "")}`;
 
       const pop = p?.probabilityOfPrecipitation?.value;
-      const chanceLine = formatChance(pop);
+      const chanceLine = formatChance(pop) || "—";
 
-      const windLine = formatWind(p?.windDirection, p?.windSpeed);
+      const windLine = formatWind(p?.windDirection, p?.windSpeed) || "—";
 
       const iconUrl = safeText(p?.icon, "");
-
-      // Lines under temp: % Chance (top) then Wind (bottom)
-      const line1 = chanceLine || "—";
-      const line2 = windLine || "—";
 
       return `
         <div class="segment-row">
@@ -101,8 +98,8 @@ function renderToday(dailyPeriods) {
           <div class="segment-right">
             <div class="segment-temp">${temp}</div>
             <div class="segment-meta">
-              <div class="segment-line">${line1}</div>
-              <div class="segment-line">${line2}</div>
+              <div class="segment-line">${chanceLine}</div>
+              <div class="segment-line">${windLine}</div>
             </div>
           </div>
         </div>
@@ -114,47 +111,39 @@ function renderToday(dailyPeriods) {
 }
 
 function resetVisibleSections() {
-  const setHidden = (id, hidden) => {
+  const ids = ["currentCard", "todayCard", "hourlyCard", "dailyCard", "alertsSection", "alertsDetails"];
+  for (const id of ids) {
     const node = el(id);
-    if (node) node.hidden = hidden;
-  };
-
-  setHidden("currentCard", true);
-  setHidden("todayCard", true);
-  setHidden("hourlyCard", true);
-  setHidden("dailyCard", true);
-  setHidden("alertsSection", true);
-  setHidden("alertsDetails", true);
-
+    if (node) node.hidden = true;
+  }
   const details = el("alertsDetails");
   if (details) details.innerHTML = "";
 }
 
 function showZipBox(message) {
-  // If you still have zipCard in your HTML, keep using it.
-  // If you later move ZIP to the hamburger menu only, you can remove this.
   const zipCard = el("zipCard");
   if (!zipCard) return;
 
-  el("zipHelpText").textContent = message;
+  const help = el("zipHelpText");
+  if (help) help.textContent = message;
+
   zipCard.hidden = false;
 
   const savedZip = localStorage.getItem(SAVED_ZIP_KEY);
   const hasSaved = !!(savedZip && /^\d{5}$/.test(savedZip));
 
-  const useSavedBtn = el("useSavedZipBtn");
-  const clearSavedBtn = el("clearSavedZipBtn");
-  if (useSavedBtn) useSavedBtn.hidden = !hasSaved;
-  if (clearSavedBtn) clearSavedBtn.hidden = !hasSaved;
+  const useSaved = el("useSavedZipBtn");
+  const clearSaved = el("clearSavedZipBtn");
+  if (useSaved) useSaved.hidden = !hasSaved;
+  if (clearSaved) clearSaved.hidden = !hasSaved;
 
-  if (hasSaved) el("zipInput").value = savedZip;
+  const input = el("zipInput");
+  if (hasSaved && input) input.value = savedZip;
 }
 
 function hideZipBox() {
   const zipCard = el("zipCard");
-  if (!zipCard) return;
-
-  zipCard.hidden = true;
+  if (zipCard) zipCard.hidden = true;
 
   const err = el("zipError");
   if (err) {
@@ -212,9 +201,11 @@ function renderCurrent(hourlyPeriods) {
 
 function renderHourly(hourlyPeriods) {
   const row = el("hourlyRow");
-  row.innerHTML = "";
+  if (!row) return;
 
+  row.innerHTML = "";
   const next12 = (hourlyPeriods || []).slice(0, 12);
+
   for (const p of next12) {
     const card = document.createElement("div");
     card.className = "hour-card";
@@ -248,6 +239,8 @@ function renderHourly(hourlyPeriods) {
 
 function renderDaily(dailyPeriods) {
   const list = el("dailyList");
+  if (!list) return;
+
   list.innerHTML = "";
 
   const days = chooseDaily7(dailyPeriods || []);
@@ -288,12 +281,32 @@ function renderDaily(dailyPeriods) {
   el("dailyCard").hidden = false;
 }
 
-function renderAlerts(alerts) {
+/**
+ * Alerts may come as:
+ *  - an array of { headline, description, ... }
+ *  - OR GeoJSON FeatureCollection: { features: [ { properties: {...} } ] }
+ */
+function normalizeAlerts(alerts) {
+  if (!alerts) return [];
+  if (Array.isArray(alerts)) return alerts;
+
+  const features = alerts?.features;
+  if (Array.isArray(features)) return features.map((f) => f?.properties).filter(Boolean);
+
+  return [];
+}
+
+function renderAlerts(alertsRaw) {
   const section = el("alertsSection");
   const summary = el("alertSummary");
   const detailsWrap = el("alertsDetails");
+  const toggleBtn = el("toggleAlertsBtn");
 
-  if (!alerts || alerts.length === 0) {
+  if (!section || !summary || !detailsWrap || !toggleBtn) return;
+
+  const alerts = normalizeAlerts(alertsRaw);
+
+  if (!alerts.length) {
     section.hidden = true;
     detailsWrap.hidden = true;
     detailsWrap.innerHTML = "";
@@ -327,26 +340,90 @@ function renderAlerts(alerts) {
     card.appendChild(s);
     card.appendChild(meta);
     card.appendChild(body);
-
     detailsWrap.appendChild(card);
   }
 
-  el("toggleAlertsBtn").onclick = () => {
+  toggleBtn.onclick = () => {
     const open = !detailsWrap.hidden;
     detailsWrap.hidden = open;
-    el("toggleAlertsBtn").textContent = open ? "Details" : "Hide";
+    toggleBtn.textContent = open ? "Details" : "Hide";
     if (!open) detailsWrap.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
   detailsWrap.hidden = true;
-  el("toggleAlertsBtn").textContent = "Details";
+  toggleBtn.textContent = "Details";
+}
+
+// ===== Hamburger ZIP menu =====
+function setupHamburgerZipMenu() {
+  const btn = el("menuBtn");
+  const panel = el("topbarMenu");
+  const form = el("menuZipForm");
+  const input = el("menuZipInput");
+  const errorEl = el("menuZipError");
+
+  if (!btn || !panel) return;
+
+  const setOpen = (open) => {
+    panel.hidden = !open;
+    btn.setAttribute("aria-expanded", open ? "true" : "false");
+    if (open) {
+      if (errorEl) { errorEl.hidden = true; errorEl.textContent = ""; }
+      setTimeout(() => input && input.focus(), 0);
+    }
+  };
+
+  btn.addEventListener("click", () => setOpen(panel.hidden));
+
+  // Close on Escape
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") setOpen(false);
+  });
+
+  // Close if clicking outside the menu area
+  document.addEventListener("click", (e) => {
+    const target = e.target;
+    const clickedInside = panel.contains(target) || btn.contains(target);
+    if (!clickedInside) setOpen(false);
+  });
+
+  if (form && input) {
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      if (errorEl) { errorEl.hidden = true; errorEl.textContent = ""; }
+
+      const zip = (input.value || "").trim();
+      if (!/^\d{5}$/.test(zip)) {
+        if (errorEl) {
+          errorEl.textContent = "Please enter a valid 5-digit ZIP code.";
+          errorEl.hidden = false;
+        }
+        return;
+      }
+
+      localStorage.setItem(SAVED_ZIP_KEY, zip);
+
+      try {
+        setStatus("Loading", "Looking up ZIP…", { loading: true });
+        const loc = await fetchLocationFromZip(zip);
+        setOpen(false);
+        await loadAndRender(loc.lat, loc.lon, loc.label || `ZIP ${zip}`);
+      } catch (err) {
+        if (errorEl) {
+          errorEl.textContent = safeText(err?.message, "ZIP lookup failed.");
+          errorEl.hidden = false;
+        }
+        setStatus("Location could not be found", "Please search by ZIP code.", { loading: false });
+      }
+    });
+  }
 }
 
 async function loadAndRender(lat, lon, labelOverride = null) {
   hideZipBox();
   resetVisibleSections();
 
-  setStatus("Loading", "Connecting to National Weather Service…", { loading: true, showRetry: false });
+  setStatus("Loading", "Connecting to National Weather Service…", { loading: true });
 
   const data = await fetchWeather(lat, lon);
   state.data = data;
@@ -355,16 +432,13 @@ async function loadAndRender(lat, lon, labelOverride = null) {
 
   el("locationName").textContent = labelOverride || data?.location?.name || "Your area";
 
-  renderAlerts(data.alerts || []);
+  renderAlerts(data.alerts);
   renderCurrent(data.hourlyPeriods || []);
   renderToday(data.dailyPeriods || []);
   renderHourly(data.hourlyPeriods || []);
   renderDaily(data.dailyPeriods || []);
 
-  setStatus("Updated", `Last updated: ${new Date(data.fetchedAt).toLocaleTimeString()}`, {
-    loading: false,
-    showRetry: false,
-  });
+  setStatus("Updated", `Last updated: ${new Date(data.fetchedAt).toLocaleTimeString()}`, { loading: false });
 }
 
 function setupZipHandlers() {
@@ -373,8 +447,9 @@ function setupZipHandlers() {
 
   zipForm.addEventListener("submit", async (e) => {
     e.preventDefault();
-    const err = el("zipError");
-    if (err) err.hidden = true;
+
+    const errEl = el("zipError");
+    if (errEl) errEl.hidden = true;
 
     const zip = (el("zipInput").value || "").trim();
     if (!/^\d{5}$/.test(zip)) {
@@ -385,22 +460,19 @@ function setupZipHandlers() {
     localStorage.setItem(SAVED_ZIP_KEY, zip);
 
     try {
-      setStatus("Loading", "Looking up ZIP…", { loading: true, showRetry: false });
+      setStatus("Loading", "Looking up ZIP…", { loading: true });
       const loc = await fetchLocationFromZip(zip);
       await loadAndRender(loc.lat, loc.lon, loc.label || `ZIP ${zip}`);
-    } catch (error) {
-      setStatus("Could not load weather", safeText(error?.message, "Please try again."), {
-        loading: false,
-        showRetry: true,
-      });
-      showZipBox("ZIP lookup failed. Please try again.");
-      showZipError(safeText(error?.message, "ZIP lookup failed."));
+    } catch (err) {
+      setStatus("Location could not be found", "Please search by ZIP code.", { loading: false });
+      showZipBox("Location could not be found. Please search by ZIP code.");
+      showZipError(safeText(err?.message, "ZIP lookup failed."));
     }
   });
 
-  const useSavedBtn = el("useSavedZipBtn");
-  if (useSavedBtn) {
-    useSavedBtn.addEventListener("click", () => {
+  const useSaved = el("useSavedZipBtn");
+  if (useSaved) {
+    useSaved.addEventListener("click", () => {
       const zip = localStorage.getItem(SAVED_ZIP_KEY);
       if (!zip) return;
       el("zipInput").value = zip;
@@ -408,36 +480,27 @@ function setupZipHandlers() {
     });
   }
 
-  const clearSavedBtn = el("clearSavedZipBtn");
-  if (clearSavedBtn) {
-    clearSavedBtn.addEventListener("click", () => {
+  const clearSaved = el("clearSavedZipBtn");
+  if (clearSaved) {
+    clearSaved.addEventListener("click", () => {
       localStorage.removeItem(SAVED_ZIP_KEY);
       el("zipInput").value = "";
-      if (useSavedBtn) useSavedBtn.hidden = true;
-      clearSavedBtn.hidden = true;
+      useSaved.hidden = true;
+      clearSaved.hidden = true;
       showZipError("Saved ZIP cleared.");
     });
   }
 }
 
 async function start() {
-  // If radarBtn exists in your HTML, this will work; otherwise it won’t throw.
-  const radarBtn = el("radarBtn");
-  if (radarBtn) radarBtn.onclick = () => window.open("https://radar.weather.gov/", "_blank", "noopener,noreferrer");
-
-  el("retryBtn").onclick = () => {
-    resetVisibleSections();
-    hideZipBox();
-    start();
-  };
-
+  setupHamburgerZipMenu();
   setupZipHandlers();
 
-  setStatus("Location", "Requesting permission…", { loading: true, showRetry: false });
+  setStatus("Location", "Requesting permission…", { loading: true });
 
   if (!("geolocation" in navigator)) {
-    setStatus("Location unavailable", "Enter ZIP code below.", { loading: false, showRetry: false });
-    showZipBox("Geolocation is not available. Enter ZIP code.");
+    setStatus("Location could not be found", "Please search by ZIP code.", { loading: false });
+    showZipBox("Location could not be found. Please search by ZIP code.");
     return;
   }
 
@@ -445,23 +508,14 @@ async function start() {
     async (pos) => {
       try {
         await loadAndRender(pos.coords.latitude, pos.coords.longitude);
-      } catch (error) {
-        setStatus("Could not load weather", safeText(error?.message, "Please try again."), {
-          loading: false,
-          showRetry: true,
-        });
-        showZipBox("Weather failed to load. Enter ZIP code instead.");
+      } catch (err) {
+        setStatus("Could not load weather", safeText(err?.message, "Please try again."), { loading: false });
+        showZipBox("Weather failed to load. Please search by ZIP code.");
       }
     },
     () => {
-      setStatus("Location blocked", "Enter ZIP code below.", { loading: false, showRetry: true });
-
-      const savedZip = localStorage.getItem(SAVED_ZIP_KEY);
-      if (savedZip && /^\d{5}$/.test(savedZip)) {
-        showZipBox("Location is blocked. You can use your saved ZIP or enter a new one.");
-      } else {
-        showZipBox("Location is blocked on this computer. Enter ZIP code.");
-      }
+      setStatus("Location could not be found", "Please search by ZIP code.", { loading: false });
+      showZipBox("Location could not be found. Please search by ZIP code.");
     },
     { enableHighAccuracy: false, timeout: 12000, maximumAge: 5 * 60 * 1000 }
   );
