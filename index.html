@@ -15,28 +15,25 @@
         </div>
 
         <div class="topbar-actions">
-          <!-- Hamburger menu button (replaces Radar) -->
-          <button class="btn" id="menuBtn" type="button" aria-haspopup="true" aria-expanded="false" aria-label="Search by ZIP">
+          <!-- Hamburger -->
+          <button class="btn" id="menuBtn" type="button" aria-expanded="false" aria-controls="topbarMenu" aria-label="Search by ZIP">
             ☰
           </button>
-
-          <button class="btn btn-primary" id="retryBtn" type="button" hidden>Retry</button>
         </div>
       </div>
 
       <!-- Dropdown panel -->
-      <div class="topbar-menu" id="menuPanel" hidden>
+      <div class="topbar-menu" id="topbarMenu" hidden>
         <div class="menu-inner">
-          <p class="menu-hint" id="menuZipHint">Search by ZIP code</p>
+          <p class="menu-hint">Search by ZIP code</p>
 
-          <form id="menuZipForm" class="menu-form">
+          <form class="menu-form" id="menuZipForm" autocomplete="on">
             <label class="field">
               <span class="field-label">ZIP code</span>
               <input
                 id="menuZipInput"
                 class="field-input"
                 inputmode="numeric"
-                autocomplete="postal-code"
                 placeholder="e.g., 27601"
                 required
               />
@@ -46,7 +43,7 @@
               <button class="btn btn-primary" type="submit">Search</button>
             </div>
 
-            <p class="manual-error" id="menuZipError" hidden></p>
+            <p id="menuZipError" hidden></p>
           </form>
         </div>
       </div>
@@ -61,7 +58,7 @@
         </div>
       </section>
 
-      <!-- ZIP fallback section (kept for now; can remove later if you want) -->
+      <!-- ZIP fallback card (keep this for blocked-location situations) -->
       <section id="zipCard" class="card manual" hidden>
         <div class="card-header">
           <h2>Enter ZIP code</h2>
@@ -103,7 +100,6 @@
       </section>
 
       <section class="grid">
-        <!-- Row 1 (desktop): Current (left) + Today (right) -->
         <section class="card" id="currentCard" hidden>
           <div class="card-header">
             <h2>Current</h2>
@@ -121,12 +117,11 @@
         <section class="card" id="todayCard" hidden>
           <div class="card-header">
             <h2>Today</h2>
-            <p class="hint">Today • Tonight</p>
+            <!-- removed the “Today–Tonight” label/hint here on purpose -->
           </div>
           <div class="today-list" id="todayList"></div>
         </section>
 
-        <!-- Row 2+: Hourly (full width) then 7-Day (full width) -->
         <section class="card" id="hourlyCard" hidden>
           <div class="card-header">
             <h2>Hourly</h2>
