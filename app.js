@@ -1,6 +1,6 @@
 const el = (id) => document.getElementById(id);
 
-// Worker URL
+// Worker URL (same-origin)
 const WORKER_BASE_URL = "";
 
 // localStorage keys
@@ -8,6 +8,7 @@ const SAVED_ZIP_KEY = "savedWeatherZip";
 
 const state = { lat: null, lon: null, data: null };
 
+// ---------- Status ----------
 function setStatus(title, subtitle, { loading = false, showRetry = false } = {}) {
   el("statusTitle").textContent = title;
   el("statusSubtitle").textContent = subtitle;
@@ -33,113 +34,59 @@ function chooseDaily7(periods) {
   return src.slice(0, 7);
 }
 
-// ===== Today tile helpers (Morning / Afternoon / Night) =====
-function avg(nums) {
-  if (!nums.length) return null;
-  return nums.reduce((a, b) => a + b, 0) / nums.length;
+// ---------- Today tile (Today / Tonight) ----------
+function pickTodayTonight(dailyPeriods) {
+  const periods = Array.isArray(dailyPeriods) ? dailyPeriods : [];
+  const firstTwo = periods.slice(0, 2);
+  if (firstTwo.length === 2) return firstTwo;
+
+  const today = periods.find((p) => (p?.name || "").toLowerCase() === "today");
+  const tonight = periods.find((p) => (p?.name || "").toLowerCase() === "tonight");
+  return [today, tonight].filter(Boolean);
 }
 
-function mode(strings) {
-  if (!strings.length) return null;
-  const counts = new Map();
-  for (const s of strings) counts.set(s, (counts.get(s) || 0) + 1);
-  let best = null;
-  let bestN = -1;
-  for (const [s, n] of counts.entries()) {
-    if (n > bestN) {
-      best = s;
-      bestN = n;
-    }
-  }
-  return best;
+function formatWind(dir, speed) {
+  const s = safeText(speed, "").trim();
+  const d = safeText(dir, "").trim();
+  if (!s && !d) return null;
+  if (s && d) return `${d} ${s}`;
+  return s || d;
 }
 
-function toLocalDateKey(isoOrDate) {
-  const d = isoOrDate instanceof Date ? isoOrDate : new Date(isoOrDate);
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-}
-
-function hourLocal(iso) {
-  return new Date(iso).getHours();
-}
-
-function segmentForHour(h) {
-  if (h >= 6 && h <= 11) return "Morning";
-  if (h >= 12 && h <= 17) return "Afternoon";
-  return "Night"; // 18-23 and 0-5
-}
-
-function buildTodaySegments(hourlyPeriods) {
-  const todayKey = toLocalDateKey(new Date());
-  const todays = (hourlyPeriods || []).filter((p) => toLocalDateKey(p.startTime) === todayKey);
-
-  const buckets = { Morning: [], Afternoon: [], Night: [] };
-  for (const p of todays) {
-    const seg = segmentForHour(hourLocal(p.startTime));
-    buckets[seg].push(p);
-  }
-
-  return ["Morning", "Afternoon", "Night"].map((name) => {
-    const ps = buckets[name];
-    const temps = ps.map((x) => x.temperature).filter((n) => Number.isFinite(n));
-    const pops = ps
-      .map((x) => x.probabilityOfPrecipitation?.value ?? 0)
-      .filter((n) => Number.isFinite(n));
-    const descs = ps.map((x) => x.shortForecast).filter(Boolean);
-
-    return {
-      name,
-      hasData: ps.length > 0,
-      tempAvg: avg(temps),
-      popAvg: avg(pops),
-      desc: mode(descs),
-    };
-  });
-}
-
-function renderToday(hourlyPeriods) {
+function renderToday(dailyPeriods) {
   const card = el("todayCard");
   if (!card) return;
 
-  // Support either an element with id=todayList or a .today-list inside the card
   let list = el("todayList");
   if (!list) list = card.querySelector(".today-list");
   if (!list) {
-    // Unhide the card so layout changes are visible even if markup is missing
     card.hidden = false;
     return;
   }
 
-  const segments = buildTodaySegments(hourlyPeriods);
+  const picks = pickTodayTonight(dailyPeriods);
 
-  list.innerHTML = segments
-    .map((s) => {
-      if (!s.hasData) {
-        return `
-          <div class="segment-row">
-            <div class="segment-name">${s.name}</div>
-            <div class="segment-desc">No data</div>
-            <div class="segment-right">
-              <div class="segment-temp">—</div>
-              <div class="segment-pop">—</div>
-            </div>
-          </div>
-        `;
-      }
+  list.innerHTML = picks
+    .map((p) => {
+      const name = safeText(p?.name, "—");
+      const desc = safeText(p?.shortForecast, "—");
+      const temp = `${safeText(p?.temperature, "--")}°${safeText(p?.temperatureUnit, "")}`;
 
-      const t = s.tempAvg == null ? "—" : `${Math.round(s.tempAvg)}°`;
-      const pop = s.popAvg == null ? "—" : `${Math.round(s.popAvg)}% precip`;
+      const pop = p?.probabilityOfPrecipitation?.value;
+      const popTxt = typeof pop === "number" ? `${pop}% precip` : null;
 
+      const windTxt = formatWind(p?.windDirection, p?.windSpeed);
+      const meta = [popTxt, windTxt].filter(Boolean).join(" • ") || "—";
+
+      const iconUrl = safeText(p?.icon, "");
       return `
         <div class="segment-row">
-          <div class="segment-name">${s.name}</div>
-          <div class="segment-desc">${safeText(s.desc, "—")}</div>
+          <img class="segment-icon" alt="" ${iconUrl ? `src="${iconUrl}"` : ""} />
+          <div class="segment-name">${name}</div>
+          <div class="segment-desc">${desc}</div>
           <div class="segment-right">
-            <div class="segment-temp">${t}</div>
-            <div class="segment-pop">${pop}</div>
+            <div class="segment-temp">${temp}</div>
+            <div class="segment-pop">${meta}</div>
           </div>
         </div>
       `;
@@ -149,6 +96,7 @@ function renderToday(hourlyPeriods) {
   card.hidden = false;
 }
 
+// ---------- Render sections ----------
 function resetVisibleSections() {
   const setHidden = (id, hidden) => {
     const node = el(id);
@@ -164,56 +112,6 @@ function resetVisibleSections() {
 
   const details = el("alertsDetails");
   if (details) details.innerHTML = "";
-}
-
-function showZipBox(message) {
-  el("currentCard").hidden = true;
-  el("todayCard").hidden = true;
-  el("hourlyCard").hidden = true;
-  el("dailyCard").hidden = true;
-  el("alertsSection").hidden = true;
-  el("alertsDetails").hidden = true;
-  el("alertsDetails").innerHTML = "";
-}
-
-function showZipBox(message) {
-  el("zipHelpText").textContent = message;
-  el("zipCard").hidden = false;
-
-  const savedZip = localStorage.getItem(SAVED_ZIP_KEY);
-  const hasSaved = !!(savedZip && /^\d{5}$/.test(savedZip));
-
-  el("useSavedZipBtn").hidden = !hasSaved;
-  el("clearSavedZipBtn").hidden = !hasSaved;
-
-  if (hasSaved) el("zipInput").value = savedZip;
-}
-
-function hideZipBox() {
-  el("zipCard").hidden = true;
-  el("zipError").hidden = true;
-  el("zipError").textContent = "";
-}
-
-function showZipError(msg) {
-  el("zipError").textContent = msg;
-  el("zipError").hidden = false;
-}
-
-async function fetchLocationFromZip(zip) {
-  const url = `${WORKER_BASE_URL}/api/location?zip=${encodeURIComponent(zip)}`;
-  const res = await fetch(url);
-  const data = await res.json().catch(() => null);
-  if (!res.ok) throw new Error(data?.error || "ZIP lookup failed.");
-  return data; // { zip, lat, lon, label, cached }
-}
-
-async function fetchWeather(lat, lon) {
-  const url = `${WORKER_BASE_URL}/api/weather?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}`;
-  const res = await fetch(url);
-  const data = await res.json().catch(() => null);
-  if (!res.ok) throw new Error(data?.error || "Weather data is unavailable.");
-  return data;
 }
 
 function renderCurrent(hourlyPeriods) {
@@ -372,11 +270,59 @@ function renderAlerts(alerts) {
   el("toggleAlertsBtn").textContent = "Details";
 }
 
-async function loadAndRender(lat, lon, labelOverride = null) {
-  hideZipBox();
-  resetVisibleSections();
+// ---------- ZIP menu (hamburger) helpers ----------
+// This expects these elements in index.html:
+// - button id="menuBtn" (hamburger button)
+// - div/section id="menuPanel" (dropdown container, start hidden)
+// - form id="menuZipForm" and input id="menuZipInput" (zip search UI)
+// Optional: p/span id="menuZipHint" for helper text, p id="menuZipError" for errors
+function setMenuOpen(open) {
+  const panel = el("menuPanel");
+  if (!panel) return;
+  panel.hidden = !open;
 
-  setStatus("Loading", "Fetching NWS forecast…", { loading: true, showRetry: false });
+  if (open) {
+    const input = el("menuZipInput");
+    if (input) setTimeout(() => input.focus(), 0);
+  }
+}
+
+function setMenuHint(text) {
+  const hint = el("menuZipHint");
+  if (hint) hint.textContent = text;
+}
+
+function setMenuError(text) {
+  const err = el("menuZipError");
+  if (!err) return;
+  if (text) {
+    err.textContent = text;
+    err.hidden = false;
+  } else {
+    err.textContent = "";
+    err.hidden = true;
+  }
+}
+
+async function fetchLocationFromZip(zip) {
+  const url = `${WORKER_BASE_URL}/api/location?zip=${encodeURIComponent(zip)}`;
+  const res = await fetch(url);
+  const data = await res.json().catch(() => null);
+  if (!res.ok) throw new Error(data?.error || "ZIP lookup failed.");
+  return data; // { zip, lat, lon, label, cached }
+}
+
+async function fetchWeather(lat, lon) {
+  const url = `${WORKER_BASE_URL}/api/weather?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}`;
+  const res = await fetch(url);
+  const data = await res.json().catch(() => null);
+  if (!res.ok) throw new Error(data?.error || "Weather data is unavailable.");
+  return data;
+}
+
+async function loadAndRender(lat, lon, labelOverride = null) {
+  resetVisibleSections();
+  setStatus("Loading", "Connecting to National Weather Service…", { loading: true, showRetry: false });
 
   const data = await fetchWeather(lat, lon);
   state.data = data;
@@ -387,7 +333,7 @@ async function loadAndRender(lat, lon, labelOverride = null) {
 
   renderAlerts(data.alerts || []);
   renderCurrent(data.hourlyPeriods || []);
-  renderToday(data.hourlyPeriods || []);
+  renderToday(data.dailyPeriods || []);
   renderHourly(data.hourlyPeriods || []);
   renderDaily(data.dailyPeriods || []);
 
@@ -397,14 +343,42 @@ async function loadAndRender(lat, lon, labelOverride = null) {
   });
 }
 
-function setupZipHandlers() {
-  el("zipForm").addEventListener("submit", async (e) => {
-    e.preventDefault();
-    el("zipError").hidden = true;
+function setupMenuZipHandlers() {
+  const menuBtn = el("menuBtn");
+  const panel = el("menuPanel");
+  const form = el("menuZipForm");
+  const input = el("menuZipInput");
 
-    const zip = (el("zipInput").value || "").trim();
+  if (menuBtn) {
+    menuBtn.addEventListener("click", () => setMenuOpen(panel?.hidden ?? true));
+  }
+
+  // Close menu when clicking outside (subtle UX)
+  document.addEventListener("click", (e) => {
+    if (!panel || panel.hidden) return;
+    const target = e.target;
+    if (target === menuBtn || panel.contains(target)) return;
+    setMenuOpen(false);
+  });
+
+  // Close on Escape
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") setMenuOpen(false);
+  });
+
+  if (!form || !input) return;
+
+  // Prefill saved ZIP
+  const savedZip = localStorage.getItem(SAVED_ZIP_KEY);
+  if (savedZip && /^\d{5}$/.test(savedZip)) input.value = savedZip;
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    setMenuError("");
+
+    const zip = (input.value || "").trim();
     if (!/^\d{5}$/.test(zip)) {
-      showZipError("Please enter a valid 5-digit ZIP code.");
+      setMenuError("Enter a valid 5-digit ZIP code.");
       return;
     }
 
@@ -413,49 +387,32 @@ function setupZipHandlers() {
     try {
       setStatus("Loading", "Looking up ZIP…", { loading: true, showRetry: false });
       const loc = await fetchLocationFromZip(zip);
+      setMenuOpen(false);
       await loadAndRender(loc.lat, loc.lon, loc.label || `ZIP ${zip}`);
     } catch (err) {
-      setStatus("Could not load weather", safeText(err?.message, "Please try again."), {
-        loading: false,
-        showRetry: true,
-      });
-      showZipBox("ZIP lookup failed. Please try again.");
-      showZipError(safeText(err?.message, "ZIP lookup failed."));
+      setStatus("Location could not be found", "Please search by ZIP code.", { loading: false, showRetry: false });
+      setMenuError(safeText(err?.message, "ZIP lookup failed."));
     }
-  });
-
-  el("useSavedZipBtn").addEventListener("click", async () => {
-    const zip = localStorage.getItem(SAVED_ZIP_KEY);
-    if (!zip) return;
-    el("zipInput").value = zip;
-    el("zipForm").requestSubmit();
-  });
-
-  el("clearSavedZipBtn").addEventListener("click", () => {
-    localStorage.removeItem(SAVED_ZIP_KEY);
-    el("zipInput").value = "";
-    el("useSavedZipBtn").hidden = true;
-    el("clearSavedZipBtn").hidden = true;
-    showZipError("Saved ZIP cleared.");
   });
 }
 
 async function start() {
-  el("radarBtn").onclick = () => window.open("https://radar.weather.gov/", "_blank", "noopener,noreferrer");
+  // Remove Radar button behavior (Radar button should also be removed from index.html)
+  // If radarBtn still exists, do nothing.
 
   el("retryBtn").onclick = () => {
     resetVisibleSections();
-    hideZipBox();
     start();
   };
 
-  setupZipHandlers();
+  setupMenuZipHandlers();
+  setMenuHint("Search by ZIP code");
 
   setStatus("Location", "Requesting permission…", { loading: true, showRetry: false });
 
   if (!("geolocation" in navigator)) {
-    setStatus("Location unavailable", "Enter ZIP code below.", { loading: false, showRetry: false });
-    showZipBox("Geolocation is not available. Enter ZIP code.");
+    setStatus("Location could not be found", "Please search by ZIP code.", { loading: false, showRetry: false });
+    setMenuOpen(true);
     return;
   }
 
@@ -468,18 +425,14 @@ async function start() {
           loading: false,
           showRetry: true,
         });
-        showZipBox("Weather failed to load. Enter ZIP code instead.");
+        setMenuHint("Location failed. Search by ZIP code.");
+        setMenuOpen(true);
       }
     },
     () => {
-      setStatus("Location blocked", "Enter ZIP code below.", { loading: false, showRetry: true });
-
-      const savedZip = localStorage.getItem(SAVED_ZIP_KEY);
-      if (savedZip && /^\d{5}$/.test(savedZip)) {
-        showZipBox("Location is blocked. You can use your saved ZIP or enter a new one.");
-      } else {
-        showZipBox("Location is blocked on this computer. Enter ZIP code.");
-      }
+      setStatus("Location could not be found", "Please search by ZIP code.", { loading: false, showRetry: false });
+      setMenuHint("Location blocked. Search by ZIP code.");
+      setMenuOpen(true);
     },
     { enableHighAccuracy: false, timeout: 12000, maximumAge: 5 * 60 * 1000 }
   );
