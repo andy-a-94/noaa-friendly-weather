@@ -13,9 +13,41 @@
           <h1 class="app-title">Weather</h1>
           <p class="subtitle" id="locationName">Using your location…</p>
         </div>
+
         <div class="topbar-actions">
-          <button class="btn" id="radarBtn" type="button">Radar</button>
+          <!-- Hamburger menu button (replaces Radar) -->
+          <button class="btn" id="menuBtn" type="button" aria-haspopup="true" aria-expanded="false" aria-label="Search by ZIP">
+            ☰
+          </button>
+
           <button class="btn btn-primary" id="retryBtn" type="button" hidden>Retry</button>
+        </div>
+      </div>
+
+      <!-- Dropdown panel -->
+      <div class="topbar-menu" id="menuPanel" hidden>
+        <div class="menu-inner">
+          <p class="menu-hint" id="menuZipHint">Search by ZIP code</p>
+
+          <form id="menuZipForm" class="menu-form">
+            <label class="field">
+              <span class="field-label">ZIP code</span>
+              <input
+                id="menuZipInput"
+                class="field-input"
+                inputmode="numeric"
+                autocomplete="postal-code"
+                placeholder="e.g., 27601"
+                required
+              />
+            </label>
+
+            <div class="menu-actions">
+              <button class="btn btn-primary" type="submit">Search</button>
+            </div>
+
+            <p class="manual-error" id="menuZipError" hidden></p>
+          </form>
         </div>
       </div>
     </header>
@@ -29,7 +61,7 @@
         </div>
       </section>
 
-      <!-- ZIP fallback -->
+      <!-- ZIP fallback section (kept for now; can remove later if you want) -->
       <section id="zipCard" class="card manual" hidden>
         <div class="card-header">
           <h2>Enter ZIP code</h2>
@@ -89,7 +121,7 @@
         <section class="card" id="todayCard" hidden>
           <div class="card-header">
             <h2>Today</h2>
-            <p class="hint">Morning • Afternoon • Night</p>
+            <p class="hint">Today • Tonight</p>
           </div>
           <div class="today-list" id="todayList"></div>
         </section>
