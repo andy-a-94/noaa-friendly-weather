@@ -13,13 +13,32 @@
 
 * { box-sizing: border-box; }
 html, body { height: 100%; }
+
+/* Base page styling */
 body {
   margin: 0;
   font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
-  background: radial-gradient(1200px 600px at 10% 0%, rgba(70, 120, 255, 0.28), transparent 60%),
-              radial-gradient(900px 500px at 90% 20%, rgba(120, 70, 255, 0.22), transparent 55%),
-              var(--bg);
+  background: var(--bg);
   color: var(--text);
+}
+
+/*
+  Fixed “glow” background: prevents the gradient from “ending” as you scroll,
+  which is what causes the mid-page “restart” look.
+*/
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+
+  /* Softer fades reduce visible banding/seams */
+  background:
+    radial-gradient(1200px 700px at 12% 8%, rgba(70, 120, 255, 0.22), transparent 76%),
+    radial-gradient(1000px 650px at 88% 18%, rgba(120, 70, 255, 0.18), transparent 76%),
+    radial-gradient(1400px 900px at 50% 0%, rgba(70, 120, 255, 0.10), transparent 72%),
+    var(--bg);
 }
 
 .topbar {
@@ -108,7 +127,6 @@ body {
 .menu-form .field { display: block; }
 .menu-actions { margin-top: 10px; display: flex; justify-content: flex-end; }
 
-/* If your project already has .manual-error, this will match it; otherwise provide a subtle default */
 #menuZipError {
   margin: 10px 0 0;
   font-size: 12px;
@@ -320,9 +338,10 @@ body {
 
 /* Today tile */
 .today-list { padding: 10px 12px 12px; }
+
 .segment-row {
   display: grid;
-  grid-template-columns: 26px 92px 1fr auto;
+  grid-template-columns: 92px 1fr 1.2fr auto;
   gap: 10px;
   align-items: center;
   padding: 10px 8px;
@@ -330,15 +349,36 @@ body {
 }
 .segment-row:last-child { border-bottom: none; }
 
+/* Icon: ~30% larger than 22px */
 .segment-icon {
-  width: 22px;
-  height: 22px;
+  width: 29px;
+  height: 29px;
   opacity: 0.95;
-  filter: drop-shadow(0 8px 14px rgba(0,0,0,0.22));
+  filter: drop-shadow(0 10px 16px rgba(0,0,0,0.22));
 }
 
-.segment-name { font-weight: 800; font-size: 12px; letter-spacing: 0.2px; }
-.segment-desc { color: var(--muted); font-size: 12px; }
+.segment-name {
+  font-weight: 800;
+  font-size: 12px;
+  letter-spacing: 0.2px;
+}
+
+.segment-desc {
+  color: var(--muted);
+  font-size: 12px;
+}
+
 .segment-right { text-align: right; }
-.segment-temp { font-weight: 900; font-size: 13px; }
-.segment-pop { color: var(--muted); font-size: 12px; margin-top: 2px; }
+
+.segment-temp {
+  font-weight: 900;
+  font-size: 13px;
+}
+
+.segment-meta { margin-top: 2px; }
+
+.segment-line {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.25;
+}
