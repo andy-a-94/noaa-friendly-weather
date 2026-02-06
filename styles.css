@@ -14,7 +14,6 @@
 * { box-sizing: border-box; }
 html, body { height: 100%; }
 
-/* Base page styling */
 body {
   margin: 0;
   font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
@@ -22,18 +21,13 @@ body {
   color: var(--text);
 }
 
-/*
-  Fixed “glow” background: prevents the gradient from “ending” as you scroll,
-  which is what causes the mid-page “restart” look.
-*/
+/* Fixed glow background (no “restart” while scrolling) */
 body::before {
   content: "";
   position: fixed;
   inset: 0;
   z-index: -1;
   pointer-events: none;
-
-  /* Softer fades reduce visible banding/seams */
   background:
     radial-gradient(1200px 700px at 12% 8%, rgba(70, 120, 255, 0.22), transparent 76%),
     radial-gradient(1000px 650px at 88% 18%, rgba(120, 70, 255, 0.18), transparent 76%),
@@ -92,7 +86,6 @@ body::before {
   background: rgba(120, 160, 255, 0.18);
 }
 
-/* Hamburger button: keep same button style, slightly tighter for icon */
 #menuBtn {
   width: 40px;
   padding: 10px 0;
@@ -106,7 +99,6 @@ body::before {
   border-radius: 12px;
 }
 
-/* Dropdown menu panel (inside topbar, aligned to container width) */
 .topbar-menu {
   border-top: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(11, 18, 32, 0.55);
@@ -123,9 +115,14 @@ body::before {
   font-size: 12px;
 }
 
-/* Reuse your existing field styles by leaning on .field/.field-label/.field-input if present */
-.menu-form .field { display: block; }
-.menu-actions { margin-top: 10px; display: flex; justify-content: flex-end; }
+/* Inline row: input + button */
+.menu-row {
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+}
+.menu-field { flex: 1; min-width: 0; }
+.menu-submit { white-space: nowrap; }
 
 #menuZipError {
   margin: 10px 0 0;
@@ -133,10 +130,9 @@ body::before {
   color: rgba(255, 180, 180, 0.95);
 }
 
-/* Optional: tighten the dropdown on very small screens */
-@media (max-width: 420px) {
-  .menu-actions { justify-content: stretch; }
-  .menu-actions .btn { width: 100%; }
+@media (max-width: 520px) {
+  .menu-row { flex-direction: column; align-items: stretch; }
+  .menu-submit { width: 100%; }
 }
 
 .container {
@@ -257,20 +253,70 @@ body::before {
 .icon-sm { width: 34px; height: 34px; margin-top: 8px; }
 
 .daily-list { padding: 6px; }
-.day-row {
+
+/* Expandable daily rows */
+.day-details {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+.day-details:last-child { border-bottom: none; }
+
+.day-summary {
+  list-style: none;
   display: grid;
   grid-template-columns: 1fr auto auto;
   gap: 10px;
   align-items: center;
   padding: 12px 10px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  cursor: pointer;
 }
-.day-row:last-child { border-bottom: none; }
+.day-summary::-webkit-details-marker { display: none; }
+
+.day-left { display: flex; flex-direction: column; }
 .day-name { font-weight: 700; font-size: 13px; }
 .day-forecast { color: var(--muted); font-size: 12px; margin-top: 2px; }
-.day-left { display: flex; flex-direction: column; }
 .day-temp { font-weight: 800; font-size: 13px; color: var(--text); }
 .day-icon { width: 34px; height: 34px; }
+
+.day-expanded {
+  padding: 0 10px 12px;
+  color: var(--text);
+}
+.day-expanded .day-extra {
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.35;
+  white-space: pre-wrap;
+}
+.day-expanded .day-meta {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* Outlook tile */
+.today-list { padding: 10px 12px 12px; }
+.segment-row {
+  display: grid;
+  grid-template-columns: 92px 1fr 1.2fr auto;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+.segment-row:last-child { border-bottom: none; }
+
+.segment-icon {
+  width: 29px;
+  height: 29px;
+  opacity: 0.95;
+  filter: drop-shadow(0 10px 16px rgba(0,0,0,0.22));
+}
+.segment-name { font-weight: 800; font-size: 12px; letter-spacing: 0.2px; }
+.segment-desc { color: var(--muted); font-size: 12px; }
+.segment-right { text-align: right; }
+.segment-temp { font-weight: 900; font-size: 13px; }
+.segment-pop { color: var(--muted); font-size: 12px; margin-top: 2px; }
 
 .alert-banner {
   margin-bottom: 14px;
@@ -332,53 +378,5 @@ body::before {
 
 @media (min-width: 900px) {
   .grid { grid-template-columns: 1fr 1fr; }
-  /* Make Hourly and 7-day full width tiles on desktop */
   #hourlyCard, #dailyCard { grid-column: 1 / -1; }
-}
-
-/* Today tile */
-.today-list { padding: 10px 12px 12px; }
-
-.segment-row {
-  display: grid;
-  grid-template-columns: 92px 1fr 1.2fr auto;
-  gap: 10px;
-  align-items: center;
-  padding: 10px 8px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-}
-.segment-row:last-child { border-bottom: none; }
-
-/* Icon: ~30% larger than 22px */
-.segment-icon {
-  width: 29px;
-  height: 29px;
-  opacity: 0.95;
-  filter: drop-shadow(0 10px 16px rgba(0,0,0,0.22));
-}
-
-.segment-name {
-  font-weight: 800;
-  font-size: 12px;
-  letter-spacing: 0.2px;
-}
-
-.segment-desc {
-  color: var(--muted);
-  font-size: 12px;
-}
-
-.segment-right { text-align: right; }
-
-.segment-temp {
-  font-weight: 900;
-  font-size: 13px;
-}
-
-.segment-meta { margin-top: 2px; }
-
-.segment-line {
-  color: var(--muted);
-  font-size: 12px;
-  line-height: 1.25;
 }
