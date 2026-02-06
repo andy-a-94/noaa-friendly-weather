@@ -19,31 +19,36 @@
           <button class="btn" id="menuBtn" type="button" aria-expanded="false" aria-controls="topbarMenu" aria-label="Search by ZIP">
             ☰
           </button>
+
+          <!-- Keep retry button in the DOM if your JS references it, but keep it hidden (and we won't show it). -->
+          <button class="btn btn-primary" id="retryBtn" type="button" hidden>Retry</button>
         </div>
       </div>
 
-      <!-- Dropdown panel -->
-      <div class="topbar-menu" id="topbarMenu" hidden>
+      <!-- Dropdown ZIP menu -->
+      <div id="topbarMenu" class="topbar-menu" hidden>
         <div class="menu-inner">
           <p class="menu-hint">Search by ZIP code</p>
 
-          <form class="menu-form" id="menuZipForm" autocomplete="on">
-            <label class="field">
-              <span class="field-label">ZIP code</span>
-              <input
-                id="menuZipInput"
-                class="field-input"
-                inputmode="numeric"
-                placeholder="e.g., 27601"
-                required
-              />
-            </label>
+          <form id="menuZipForm" class="menu-form" autocomplete="on">
+            <div class="menu-row">
+              <label class="field menu-field">
+                <span class="field-label">ZIP code</span>
+                <input
+                  id="menuZipInput"
+                  class="field-input"
+                  inputmode="numeric"
+                  placeholder="e.g., 27601"
+                  minlength="5"
+                  maxlength="5"
+                  required
+                />
+              </label>
 
-            <div class="menu-actions">
-              <button class="btn btn-primary" type="submit">Search</button>
+              <button class="btn btn-primary menu-submit" type="submit">Search</button>
             </div>
 
-            <p id="menuZipError" hidden></p>
+            <p class="manual-error" id="menuZipError" hidden></p>
           </form>
         </div>
       </div>
@@ -55,35 +60,6 @@
         <div>
           <p class="status-title" id="statusTitle">Loading</p>
           <p class="status-subtitle" id="statusSubtitle">Requesting location permission…</p>
-        </div>
-      </section>
-
-      <!-- ZIP fallback card (keep this for blocked-location situations) -->
-      <section id="zipCard" class="card manual" hidden>
-        <div class="card-header">
-          <h2>Enter ZIP code</h2>
-          <p class="hint">Use when location is blocked</p>
-        </div>
-
-        <div class="manual-body">
-          <p class="manual-help" id="zipHelpText">
-            Your computer/browser is not sharing location. Enter a US ZIP code to load your forecast.
-          </p>
-
-          <form id="zipForm" class="manual-form">
-            <label class="field">
-              <span class="field-label">ZIP code</span>
-              <input id="zipInput" class="field-input" inputmode="numeric" placeholder="e.g., 27601" required />
-            </label>
-
-            <div class="manual-actions">
-              <button class="btn btn-primary" type="submit">Use this ZIP</button>
-              <button class="btn" id="useSavedZipBtn" type="button" hidden>Use saved</button>
-              <button class="btn" id="clearSavedZipBtn" type="button" hidden>Clear saved</button>
-            </div>
-
-            <p class="manual-error" id="zipError" hidden></p>
-          </form>
         </div>
       </section>
 
@@ -116,8 +92,7 @@
 
         <section class="card" id="todayCard" hidden>
           <div class="card-header">
-            <h2>Today</h2>
-            <!-- removed the “Today–Tonight” label/hint here on purpose -->
+            <h2>Outlook</h2>
           </div>
           <div class="today-list" id="todayList"></div>
         </section>
@@ -125,14 +100,15 @@
         <section class="card" id="hourlyCard" hidden>
           <div class="card-header">
             <h2>Hourly</h2>
-            <p class="hint">Next 12 hours</p>
+            <button class="linklike" id="toggleHourlyBtn" type="button">Show all</button>
           </div>
           <div class="row-scroll" id="hourlyRow"></div>
         </section>
 
         <section class="card" id="dailyCard" hidden>
           <div class="card-header">
-            <h2>7-Day</h2>
+            <h2>Forecast</h2>
+            <p class="hint" id="dailyHint">Tap a day for details</p>
           </div>
           <div class="daily-list" id="dailyList"></div>
         </section>
