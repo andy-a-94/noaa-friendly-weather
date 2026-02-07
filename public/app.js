@@ -1,7 +1,7 @@
 const el = (id) => document.getElementById(id);
 
-// Worker URL
-const WORKER_BASE_URL = "";
+// Worker URL (set via <meta name="worker-base-url" content="...">)
+const WORKER_BASE_URL = document.querySelector('meta[name="worker-base-url"]')?.content?.trim() || "";
 
 // localStorage keys
 const SAVED_ZIP_KEY = "savedWeatherZip";
@@ -32,7 +32,7 @@ function formatDayName(iso) {
 }
 
 function resetVisibleSections() {
-  const ids = ["currentCard", "todayCard", "hourlyCard", "dailyCard", "alertsSection", "alertsDetails"];
+  const ids = ["currentCard", "shoeCard", "todayCard", "hourlyCard", "dailyCard", "alertsSection", "alertsDetails"];
   for (const id of ids) {
     const node = el(id);
     if (node) node.hidden = true;
@@ -76,6 +76,9 @@ async function fetchLocationFromZip(zip) {
   const res = await fetch(url);
   const data = await res.json().catch(() => null);
   if (!res.ok) throw new Error(data?.error || "ZIP lookup failed.");
+  if (!data || typeof data.lat !== "number" || typeof data.lon !== "number") {
+    throw new Error("ZIP lookup failed.");
+  }
   return data; // { zip, lat, lon, label, cached }
 }
 
@@ -111,6 +114,49 @@ function renderCurrent(hourlyPeriods) {
   }
 
   el("currentCard").hidden = false;
+}
+
+function getSoilMoisturePercent(data) {
+  const directValue = data?.soilMoisture?.value ?? data?.soil?.moisture?.value ?? data?.soil?.moisture;
+  if (typeof directValue === "number" && Number.isFinite(directValue)) {
+    return Math.max(0, Math.min(100, directValue));
+  }
+  return null;
+}
+
+function renderShoeIndicator(data) {
+  const card = el("shoeCard");
+  if (!card) return;
+
+  const moisture = getSoilMoisturePercent(data);
+  let emoji = "👟";
+  let title = "Soil moisture unavailable";
+  let subtitle = "We’ll suggest the best shoes once moisture data is available.";
+  let meta = "Soil moisture: —";
+
+  if (moisture !== null) {
+    if (moisture < 25) {
+      emoji = "👟";
+      title = "Dry ground";
+      subtitle = "Light sneakers or running shoes should be comfortable.";
+    } else if (moisture < 60) {
+      emoji = "🥾";
+      title = "Damp ground";
+      subtitle = "Water-resistant shoes will keep feet dry.";
+    } else {
+      emoji = "👢";
+      title = "Wet ground";
+      subtitle = "Waterproof boots are your best bet.";
+    }
+    meta = `Soil moisture: ${Math.round(moisture)}%`;
+  }
+
+  el("shoeEmoji").textContent = emoji;
+  el("shoeTitle").textContent = title;
+  el("shoeSubtitle").textContent = subtitle;
+  el("shoeMeta").textContent = meta;
+
+  card.hidden = false;
 }
 
 // Outlook tile: first two daily periods (typically Today + Tonight)
@@ -386,6 +432,7 @@ async function loadAndRender(lat, lon, labelOverride = null) {
 
   renderAlerts(data.alerts || []);
   renderCurrent(data.hourlyPeriods || []);
+  renderShoeIndicator(data);
   renderOutlook(data.dailyPeriods || []);
   renderHourly(data.hourlyPeriods || []);
   renderDailyExpandable(data.dailyPeriods || []);
