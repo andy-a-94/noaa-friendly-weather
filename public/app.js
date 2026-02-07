@@ -1,22 +1,23 @@
 const el = (id) => document.getElementById(id);
 
-// Worker URL (set via <meta name="worker-base-url" content="...">)
-const WORKER_BASE_URL = document.querySelector('meta[name="worker-base-url"]')?.content?.trim() || "";
+// Worker URL
+const WORKER_BASE_URL = "";
 
 // localStorage keys
 const SAVED_ZIP_KEY = "savedWeatherZip";
 
-const state = {
-  lat: null,
-  lon: null,
-  data: null,
-  hourlyShowAll: false,
-};
+const state = { lat: null, lon: null, data: null };
 
-function setStatus(title, subtitle, { loading = false } = {}) {
-  el("statusTitle").textContent = title;
-  el("statusSubtitle").textContent = subtitle;
-  el("spinner").style.display = loading ? "inline-block" : "none";
+function setStatus(title, subtitle, { loading = false, showRetry = false } = {}) {
+  const t = el("statusTitle");
+  const s = el("statusSubtitle");
+  const sp = el("spinner");
+  const r = el("retryBtn");
+
+  if (t) t.textContent = title;
+  if (s) s.textContent = subtitle;
+  if (sp) sp.style.display = loading ? "inline-block" : "none";
+  if (r) r.hidden = !showRetry;
 }
 
 function safeText(x, fallback = "—") {
@@ -31,54 +32,175 @@ function formatDayName(iso) {
   return new Date(iso).toLocaleDateString([], { weekday: "short" });
 }
 
-function resetVisibleSections() {
-  const ids = ["currentCard", "shoeCard", "todayCard", "hourlyCard", "dailyCard", "alertsSection", "alertsDetails"];
-  for (const id of ids) {
-    const node = el(id);
-    if (node) node.hidden = true;
+function chooseDaily7(periods) {
+  const daytime = periods.filter((p) => p.isDaytime === true);
+  const src = daytime.length >= 7 ? daytime : periods;
+  return src.slice(0, 7);
+}
+
+/* ---------------- Outlook (Today / Tonight from NWS dailyPeriods) ---------------- */
+
+function pickTodayTonight(dailyPeriods) {
+  const periods = Array.isArray(dailyPeriods) ? dailyPeriods : [];
+  const firstTwo = periods.slice(0, 2);
+  if (firstTwo.length === 2) return firstTwo;
+
+  const today = periods.find((p) => (p?.name || "").toLowerCase() === "today");
+  const tonight = periods.find((p) => (p?.name || "").toLowerCase() === "tonight");
+  return [today, tonight].filter(Boolean);
+}
+
+function formatWind(dir, speed) {
+  const s = safeText(speed, "").trim();
+  const d = safeText(dir, "").trim();
+  if (!s && !d) return null;
+  if (s && d) return `${d} ${s}`;
+  return s || d;
+}
+
+function renderToday(dailyPeriods) {
+  const card = el("todayCard");
+  if (!card) return;
+
+  let list = el("todayList");
+  if (!list) list = card.querySelector(".today-list");
+  if (!list) {
+    card.hidden = false;
+    return;
   }
+
+  const picks = pickTodayTonight(dailyPeriods);
+
+  list.innerHTML = picks
+    .map((p) => {
+      const name = safeText(p?.name, "—");
+      const desc = safeText(p?.shortForecast, "—");
+      const temp = `${safeText(p?.temperature, "--")}°${safeText(p?.temperatureUnit, "")}`;
+
+      const pop = p?.probabilityOfPrecipitation?.value;
+      const popTxt = typeof pop === "number" ? `${pop}% chance` : null;
+
+      const wind = formatWind(p?.windDirection, p?.windSpeed);
+      const windTxt = wind ? `Wind ${wind}` : null;
+
+      // Put precip over wind (two lines)
+      const metaLines = [popTxt, windTxt].filter(Boolean);
+      const metaHtml = metaLines.length ? metaLines.join("<br/>") : "—";
+
+      const iconUrl = safeText(p?.icon, "");
+
+      return `
+        <div class="segment-row">
+          <div class="segment-name">${name}</div>
+          <img class="segment-icon" alt="" ${iconUrl ? `src="${iconUrl}"` : ""} />
+          <div class="segment-desc">${desc}</div>
+          <div class="segment-right">
+            <div class="segment-temp">${temp}</div>
+            <div class="segment-meta">${metaHtml}</div>
+          </div>
+        </div>
+      `;
+    })
+    .join("");
+
+  card.hidden = false;
+}
+
+/* ---------------- Shoe tile ---------------- */
+
+function renderShoe(soilMoisture) {
+  const card = el("shoeCard");
+  if (!card) return;
+
+  const emoji = el("shoeEmoji");
+  const title = el("shoeTitle");
+  const subtitle = el("shoeSubtitle");
+  const meta = el("shoeMeta");
+
+  // Always show for now
+  card.hidden = false;
+
+  // Coming soon state
+  if (soilMoisture === null || soilMoisture === undefined || !Number.isFinite(Number(soilMoisture))) {
+    if (emoji) emoji.textContent = "👟";
+    if (title) title.textContent = "Coming soon";
+    if (subtitle) subtitle.textContent = "We’ll suggest the best shoes for today.";
+    if (meta) meta.textContent = "Soil moisture: —";
+    return;
+  }
+
+  // If you later wire real values, you can update this logic:
+  const v = Number(soilMoisture);
+  if (emoji) emoji.textContent = v >= 0.6 ? "🥾" : v >= 0.3 ? "👟" : "🩴";
+  if (title) title.textContent = "Shoe Indicator";
+  if (subtitle) subtitle.textContent = "Based on recent ground moisture.";
+  if (meta) meta.textContent = `Soil moisture: ${v}`;
+}
+
+/* ---------------- Visibility / ZIP fallback ---------------- */
+
+function resetVisibleSections() {
+  const setHidden = (id, hidden) => {
+    const node = el(id);
+    if (node) node.hidden = hidden;
+  };
+
+  setHidden("currentCard", true);
+  setHidden("shoeCard", true);
+  setHidden("todayCard", true);
+  setHidden("hourlyCard", true);
+  setHidden("dailyCard", true);
+  setHidden("alertsSection", true);
+  setHidden("alertsDetails", true);
+
   const details = el("alertsDetails");
   if (details) details.innerHTML = "";
 }
 
-/* ---------------- Menu ZIP UI ---------------- */
+function showZipBox(message) {
+  // Hide tiles, show ZIP card
+  resetVisibleSections();
 
-function setMenuOpen(open) {
-  const menu = el("topbarMenu");
-  const btn = el("menuBtn");
-  if (!menu || !btn) return;
+  const help = el("zipHelpText");
+  const zipCard = el("zipCard");
+  if (help) help.textContent = message;
+  if (zipCard) zipCard.hidden = false;
 
-  menu.hidden = !open;
-  btn.setAttribute("aria-expanded", open ? "true" : "false");
+  const savedZip = localStorage.getItem(SAVED_ZIP_KEY);
+  const hasSaved = !!(savedZip && /^\d{5}$/.test(savedZip));
 
-  if (open) {
-    const input = el("menuZipInput");
-    if (input) input.focus();
+  const useBtn = el("useSavedZipBtn");
+  const clearBtn = el("clearSavedZipBtn");
+  if (useBtn) useBtn.hidden = !hasSaved;
+  if (clearBtn) clearBtn.hidden = !hasSaved;
+
+  if (hasSaved && el("zipInput")) el("zipInput").value = savedZip;
+}
+
+function hideZipBox() {
+  const zipCard = el("zipCard");
+  const zipError = el("zipError");
+  if (zipCard) zipCard.hidden = true;
+  if (zipError) {
+    zipError.hidden = true;
+    zipError.textContent = "";
   }
 }
 
-function showMenuZipError(msg) {
-  const p = el("menuZipError");
-  if (!p) return;
-  p.textContent = msg;
-  p.hidden = false;
+function showZipError(msg) {
+  const zipError = el("zipError");
+  if (!zipError) return;
+  zipError.textContent = msg;
+  zipError.hidden = false;
 }
 
-function clearMenuZipError() {
-  const p = el("menuZipError");
-  if (!p) return;
-  p.textContent = "";
-  p.hidden = true;
-}
+/* ---------------- API calls ---------------- */
 
 async function fetchLocationFromZip(zip) {
   const url = `${WORKER_BASE_URL}/api/location?zip=${encodeURIComponent(zip)}`;
   const res = await fetch(url);
   const data = await res.json().catch(() => null);
   if (!res.ok) throw new Error(data?.error || "ZIP lookup failed.");
-  if (!data || typeof data.lat !== "number" || typeof data.lon !== "number") {
-    throw new Error("ZIP lookup failed.");
-  }
   return data; // { zip, lat, lon, label, cached }
 }
 
@@ -116,105 +238,16 @@ function renderCurrent(hourlyPeriods) {
   el("currentCard").hidden = false;
 }
 
-function getSoilMoisturePercent(data) {
-  const directValue = data?.soilMoisture?.value ?? data?.soil?.moisture?.value ?? data?.soil?.moisture;
-  if (typeof directValue === "number" && Number.isFinite(directValue)) {
-    return Math.max(0, Math.min(100, directValue));
-  }
-  return null;
-}
-
-function renderShoeIndicator(data) {
-  const card = el("shoeCard");
-  if (!card) return;
-
-  const moisture = getSoilMoisturePercent(data);
-  let emoji = "👟";
-  let title = "Soil moisture unavailable";
-  let subtitle = "We’ll suggest the best shoes once moisture data is available.";
-  let meta = "Soil moisture: —";
-
-  if (moisture !== null) {
-    if (moisture < 25) {
-      emoji = "👟";
-      title = "Dry ground";
-      subtitle = "Light sneakers or running shoes should be comfortable.";
-    } else if (moisture < 60) {
-      emoji = "🥾";
-      title = "Damp ground";
-      subtitle = "Water-resistant shoes will keep feet dry.";
-    } else {
-      emoji = "👢";
-      title = "Wet ground";
-      subtitle = "Waterproof boots are your best bet.";
-    }
-    meta = `Soil moisture: ${Math.round(moisture)}%`;
-  }
-
-  el("shoeEmoji").textContent = emoji;
-  el("shoeTitle").textContent = title;
-  el("shoeSubtitle").textContent = subtitle;
-  el("shoeMeta").textContent = meta;
-
-  card.hidden = false;
-}
-
-// Outlook tile: first two daily periods (typically Today + Tonight)
-function renderOutlook(dailyPeriods) {
-  const card = el("todayCard");
-  const list = el("todayList");
-  if (!card || !list) return;
-
-  const periods = Array.isArray(dailyPeriods) ? dailyPeriods : [];
-  const picks = periods.slice(0, 2);
-
-  list.innerHTML = picks
-    .map((p) => {
-      const name = safeText(p?.name, "—");
-      const desc = safeText(p?.shortForecast, "—");
-      const temp = `${safeText(p?.temperature, "--")}°${safeText(p?.temperatureUnit, "")}`;
-
-      const pop = p?.probabilityOfPrecipitation?.value;
-      const popTxt = typeof pop === "number" ? `${pop}% chance` : null;
-
-      const windDir = safeText(p?.windDirection, "").trim();
-      const windSpd = safeText(p?.windSpeed, "").trim();
-      const windTxt = windDir || windSpd ? `Wind ${[windDir, windSpd].filter(Boolean).join(" ")}` : null;
-
-      const meta = [popTxt, windTxt].filter(Boolean).join("\n") || "—";
-      const iconUrl = safeText(p?.icon, "");
-
-      return `
-        <div class="segment-row">
-          <img class="segment-icon" alt="" ${iconUrl ? `src="${iconUrl}"` : ""} />
-          <div class="segment-name">${name}</div>
-          <div class="segment-desc">${desc}</div>
-          <div class="segment-right">
-            <div class="segment-temp">${temp}</div>
-            <div class="segment-pop">${meta.replaceAll("\n", "<br/>")}</div>
-          </div>
-        </div>
-      `;
-    })
-    .join("");
-
-  card.hidden = false;
-}
-
 function renderHourly(hourlyPeriods) {
   const row = el("hourlyRow");
-  const card = el("hourlyCard");
-  if (!row || !card) return;
+  if (!row) return;
 
   row.innerHTML = "";
 
-  const periods = Array.isArray(hourlyPeriods) ? hourlyPeriods : [];
-  const visible = state.hourlyShowAll ? periods : periods.slice(0, 24);
-
-  const frag = document.createDocumentFragment();
-  for (const p of visible) {
-    const tile = document.createElement("div");
-    tile.className = "hour-card";
+  const next12 = (hourlyPeriods || []).slice(0, 12);
+  for (const p of next12) {
+    const card = document.createElement("div");
+    card.className = "hour-card";
 
     const t = document.createElement("div");
     t.className = "hour-time";
@@ -233,139 +266,67 @@ function renderHourly(hourlyPeriods) {
     img.alt = "";
     if (p.icon) img.src = p.icon;
 
-    tile.appendChild(t);
-    tile.appendChild(temp);
-    tile.appendChild(desc);
-    tile.appendChild(img);
-
-    frag.appendChild(tile);
-  }
-  row.appendChild(frag);
-
-  // Toggle label
-  const toggle = el("toggleHourlyBtn");
-  if (toggle) {
-    toggle.textContent = state.hourlyShowAll ? "Show less" : "Show all";
-    toggle.hidden = periods.length <= 24;
+    card.appendChild(t);
+    card.appendChild(temp);
+    card.appendChild(desc);
+    card.appendChild(img);
+    row.appendChild(card);
   }
 
-  card.hidden = false;
+  el("hourlyCard").hidden = false;
 }
 
-// Group dailyPeriods into “days” with day+night
-function groupDaily(periods) {
-  const out = [];
-  const list = Array.isArray(periods) ? periods : [];
+function renderDaily(dailyPeriods) {
+  const list = el("dailyList");
+  if (!list) return;
 
-  // NWS commonly alternates: Today, Tonight, Fri, Fri Night, ...
-  for (let i = 0; i < list.length; i++) {
-    const p = list[i];
-    if (!p) continue;
+  list.innerHTML = "";
 
-    if (p.isDaytime === true) {
-      const night = list[i + 1] && list[i + 1].isDaytime === false ? list[i + 1] : null;
-      out.push({ day: p, night });
-    } else if (p.isDaytime === false) {
-      // If data starts on a night period, still include it (rare)
-      out.push({ day: null, night: p });
-    }
-  }
-  return out;
-}
-
-function renderDailyExpandable(dailyPeriods) {
-  const wrap = el("dailyList");
-  const card = el("dailyCard");
-  if (!wrap || !card) return;
-
-  wrap.innerHTML = "";
-
-  const groups = groupDaily(dailyPeriods);
-
-  const frag = document.createDocumentFragment();
-
-  for (const g of groups) {
-    const day = g.day;
-    const night = g.night;
-
-    const title = day?.name || night?.name || formatDayName(day?.startTime || night?.startTime);
-    const short = safeText(day?.shortForecast || night?.shortForecast, "—");
-
-    const hi = day?.temperature != null ? `${day.temperature}°${safeText(day.temperatureUnit, "")}` : null;
-    const lo = night?.temperature != null ? `${night.temperature}°${safeText(night.temperatureUnit, "")}` : null;
-
-    const pop = day?.probabilityOfPrecipitation?.value ?? night?.probabilityOfPrecipitation?.value;
-    const popTxt = typeof pop === "number" ? `${pop}% chance` : null;
-
-    const iconUrl = safeText(day?.icon || night?.icon, "");
-
-    const detailParts = [];
-    if (day?.detailedForecast) detailParts.push(`Day: ${day.detailedForecast}`);
-    if (night?.detailedForecast) detailParts.push(`Night: ${night.detailedForecast}`);
-
-    const details = document.createElement("details");
-    details.className = "day-details";
-
-    const summary = document.createElement("summary");
-    summary.className = "day-summary";
+  const days = chooseDaily7(dailyPeriods || []);
+  for (const p of days) {
+    const row = document.createElement("div");
+    row.className = "day-row";
 
     const left = document.createElement("div");
     left.className = "day-left";
 
-    const nameEl = document.createElement("div");
-    nameEl.className = "day-name";
-    nameEl.textContent = title;
+    const name = document.createElement("div");
+    name.className = "day-name";
+    name.textContent = p.name || formatDayName(p.startTime);
 
-    const forecastEl = document.createElement("div");
-    forecastEl.className = "day-forecast";
-    forecastEl.textContent = short;
+    const forecast = document.createElement("div");
+    forecast.className = "day-forecast";
+    forecast.textContent = safeText(p.shortForecast, "—");
 
-    left.appendChild(nameEl);
-    left.appendChild(forecastEl);
+    left.appendChild(name);
+    left.appendChild(forecast);
 
     const icon = document.createElement("img");
     icon.className = "day-icon";
     icon.alt = "";
-    if (iconUrl) icon.src = iconUrl;
+    if (p.icon) icon.src = p.icon;
 
     const temp = document.createElement("div");
     temp.className = "day-temp";
-    temp.textContent = [hi ? `H ${hi}` : null, lo ? `L ${lo}` : null].filter(Boolean).join(" • ") || "—";
+    temp.textContent = `${safeText(p.temperature, "--")}°${safeText(p.temperatureUnit, "")}`;
 
-    summary.appendChild(left);
-    summary.appendChild(icon);
-    summary.appendChild(temp);
+    row.appendChild(left);
+    row.appendChild(icon);
+    row.appendChild(temp);
 
-    const expanded = document.createElement("div");
-    expanded.className = "day-expanded";
-
-    const meta = document.createElement("div");
-    meta.className = "day-meta";
-    meta.textContent = [popTxt].filter(Boolean).join(" • ");
-
-    const extra = document.createElement("div");
-    extra.className = "day-extra";
-    extra.textContent = detailParts.join("\n\n") || "—";
-
-    if (meta.textContent) expanded.appendChild(meta);
-    expanded.appendChild(extra);
-
-    details.appendChild(summary);
-    details.appendChild(expanded);
-
-    frag.appendChild(details);
+    list.appendChild(row);
   }
 
-  wrap.appendChild(frag);
-  card.hidden = false;
+  el("dailyCard").hidden = false;
 }
 
 function renderAlerts(alerts) {
   const section = el("alertsSection");
   const summary = el("alertSummary");
   const detailsWrap = el("alertsDetails");
+  const toggleBtn = el("toggleAlertsBtn");
 
-  if (!section || !summary || !detailsWrap) return;
+  if (!section || !summary || !detailsWrap || !toggleBtn) return;
 
   if (!alerts || alerts.length === 0) {
     section.hidden = true;
@@ -405,23 +366,24 @@ function renderAlerts(alerts) {
     detailsWrap.appendChild(card);
   }
 
-  el("toggleAlertsBtn").onclick = () => {
+  toggleBtn.onclick = () => {
     const open = !detailsWrap.hidden;
     detailsWrap.hidden = open;
-    el("toggleAlertsBtn").textContent = open ? "Details" : "Hide";
+    toggleBtn.textContent = open ? "Details" : "Hide";
     if (!open) detailsWrap.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
   detailsWrap.hidden = true;
-  el("toggleAlertsBtn").textContent = "Details";
+  toggleBtn.textContent = "Details";
 }
 
 /* ---------------- Main loading ---------------- */
 
 async function loadAndRender(lat, lon, labelOverride = null) {
+  hideZipBox();
   resetVisibleSections();
 
-  setStatus("Loading", "Connecting to National Weather Service…", { loading: true });
+  setStatus("Loading", "Connecting to National Weather Service…", { loading: true, showRetry: false });
 
   const data = await fetchWeather(lat, lon);
   state.data = data;
@@ -430,82 +392,94 @@ async function loadAndRender(lat, lon, labelOverride = null) {
 
   el("locationName").textContent = labelOverride || data?.location?.name || "Your area";
 
+  // Always show shoe tile (coming soon if null)
+  renderShoe(data?.soilMoisture);
+
   renderAlerts(data.alerts || []);
   renderCurrent(data.hourlyPeriods || []);
-  renderShoeIndicator(data);
-  renderOutlook(data.dailyPeriods || []);
+  renderToday(data.dailyPeriods || []);
   renderHourly(data.hourlyPeriods || []);
-  renderDailyExpandable(data.dailyPeriods || []);
+  renderDaily(data.dailyPeriods || []);
 
-  setStatus("Updated", `Last updated: ${new Date(data.fetchedAt).toLocaleTimeString()}`, { loading: false });
+  setStatus("Updated", `Last updated: ${new Date(data.fetchedAt).toLocaleTimeString()}`, {
+    loading: false,
+    showRetry: false,
+  });
 }
 
-function setupMenuZipHandlers() {
-  el("menuBtn").addEventListener("click", () => {
-    const isOpen = el("topbarMenu") && !el("topbarMenu").hidden;
-    setMenuOpen(!isOpen);
-  });
+function setupZipHandlers() {
+  const form = el("zipForm");
+  if (!form) return;
 
-  // Close the menu if you click outside it (best practice)
-  document.addEventListener("click", (e) => {
-    const menu = el("topbarMenu");
-    const btn = el("menuBtn");
-    if (!menu || !btn) return;
-
-    const clickedInside = menu.contains(e.target) || btn.contains(e.target);
-    if (!clickedInside) setMenuOpen(false);
-  });
-
-  // ESC closes menu
-  document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") setMenuOpen(false);
-  });
-
-  el("menuZipForm").addEventListener("submit", async (e) => {
+  form.addEventListener("submit", async (e) => {
     e.preventDefault();
-    clearMenuZipError();
+    const zipError = el("zipError");
+    if (zipError) zipError.hidden = true;
 
-    const zip = (el("menuZipInput").value || "").trim();
+    const zip = (el("zipInput")?.value || "").trim();
     if (!/^\d{5}$/.test(zip)) {
-      showMenuZipError("Please enter a valid 5-digit ZIP code.");
+      showZipError("Please enter a valid 5-digit ZIP code.");
       return;
     }
 
     localStorage.setItem(SAVED_ZIP_KEY, zip);
 
     try {
-      setStatus("Loading", "Looking up ZIP…", { loading: true });
+      setStatus("Loading", "Looking up ZIP…", { loading: true, showRetry: false });
       const loc = await fetchLocationFromZip(zip);
-
-      setMenuOpen(false);
       await loadAndRender(loc.lat, loc.lon, loc.label || `ZIP ${zip}`);
     } catch (err) {
-      setStatus("Location could not be found", "Please search by ZIP code.", { loading: false });
-      showMenuZipError(safeText(err?.message, "ZIP lookup failed."));
-      setMenuOpen(true);
+      setStatus("Could not load weather", safeText(err?.message, "Please try again."), {
+        loading: false,
+        showRetry: true,
+      });
+      showZipBox("ZIP lookup failed. Please try again.");
+      showZipError(safeText(err?.message, "ZIP lookup failed."));
     }
   });
 
-  const toggleHourlyBtn = el("toggleHourlyBtn");
-  if (toggleHourlyBtn) {
-    toggleHourlyBtn.addEventListener("click", () => {
-      state.hourlyShowAll = !state.hourlyShowAll;
-      renderHourly(state.data?.hourlyPeriods || []);
+  const useSaved = el("useSavedZipBtn");
+  if (useSaved) {
+    useSaved.addEventListener("click", async () => {
+      const zip = localStorage.getItem(SAVED_ZIP_KEY);
+      if (!zip) return;
+      if (el("zipInput")) el("zipInput").value = zip;
+      form.requestSubmit();
+    });
+  }
+
+  const clearSaved = el("clearSavedZipBtn");
+  if (clearSaved) {
+    clearSaved.addEventListener("click", () => {
+      localStorage.removeItem(SAVED_ZIP_KEY);
+      if (el("zipInput")) el("zipInput").value = "";
+      if (useSaved) useSaved.hidden = true;
+      if (clearSaved) clearSaved.hidden = true;
+      showZipError("Saved ZIP cleared.");
     });
   }
 }
 
 async function start() {
-  setupMenuZipHandlers();
+  const radarBtn = el("radarBtn");
+  if (radarBtn) radarBtn.onclick = () => window.open("https://radar.weather.gov/", "_blank", "noopener,noreferrer");
 
-  // Hide retry button permanently (per your requirement)
-  if (el("retryBtn")) el("retryBtn").hidden = true;
+  const retryBtn = el("retryBtn");
+  if (retryBtn) {
+    retryBtn.onclick = () => {
+      resetVisibleSections();
+      hideZipBox();
+      start();
+    };
+  }
 
-  setStatus("Location", "Requesting permission…", { loading: true });
+  setupZipHandlers();
+
+  setStatus("Location", "Requesting permission…", { loading: true, showRetry: false });
 
   if (!("geolocation" in navigator)) {
-    setStatus("Location could not be found", "Please search by ZIP code.", { loading: false });
-    setMenuOpen(true);
+    setStatus("Location unavailable", "Enter ZIP code below.", { loading: false, showRetry: false });
+    showZipBox("Geolocation is not available. Enter ZIP code.");
     return;
   }
 
@@ -514,13 +488,22 @@ async function start() {
       try {
         await loadAndRender(pos.coords.latitude, pos.coords.longitude);
       } catch (err) {
-        setStatus("Could not load weather", safeText(err?.message, "Please search by ZIP code."), { loading: false });
-        setMenuOpen(true);
+        setStatus("Could not load weather", safeText(err?.message, "Please try again."), {
+          loading: false,
+          showRetry: true,
+        });
+        showZipBox("Weather failed to load. Enter ZIP code instead.");
       }
     },
     () => {
-      setStatus("Location could not be found", "Please search by ZIP code.", { loading: false });
-      setMenuOpen(true);
+      setStatus("Location blocked", "Enter ZIP code below.", { loading: false, showRetry: true });
+
+      const savedZip = localStorage.getItem(SAVED_ZIP_KEY);
+      if (savedZip && /^\d{5}$/.test(savedZip)) {
+        showZipBox("Location is blocked. You can use your saved ZIP or enter a new one.");
+      } else {
+        showZipBox("Location is blocked on this computer. Enter ZIP code.");
+      }
     },
     { enableHighAccuracy: false, timeout: 12000, maximumAge: 5 * 60 * 1000 }
   );
