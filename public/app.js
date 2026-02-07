@@ -1,7 +1,7 @@
 const el = (id) => document.getElementById(id);
 
-// Worker URL
-const WORKER_BASE_URL = "";
+// Worker URL (set via <meta name="worker-base-url" content="...">)
+const WORKER_BASE_URL = document.querySelector('meta[name="worker-base-url"]')?.content?.trim() || "";
 
 // localStorage keys
 const SAVED_ZIP_KEY = "savedWeatherZip";
