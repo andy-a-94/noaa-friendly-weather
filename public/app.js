@@ -1,7 +1,14 @@
 const el = (id) => document.getElementById(id);
 
-// Worker URL
-const WORKER_BASE_URL = "";
+/* ---------------- Worker URL ----------------
+   Best practice: allow WORKER_BASE_URL to be set via <meta name="worker-base-url" ...>
+   so you don’t have to hardcode it in JS.
+*/
+const WORKER_BASE_URL = (() => {
+  const meta = document.querySelector('meta[name="worker-base-url"]');
+  const v = meta?.getAttribute("content")?.trim();
+  return v ? v.replace(/\/+$/, "") : "";
+})();
 
 // localStorage keys
 const SAVED_ZIP_KEY = "savedWeatherZip";
@@ -83,7 +90,7 @@ function renderToday(dailyPeriods) {
       const wind = formatWind(p?.windDirection, p?.windSpeed);
       const windTxt = wind ? `Wind ${wind}` : null;
 
-      // Put precip over wind (two lines)
+      // Precip over wind (two lines)
       const metaLines = [popTxt, windTxt].filter(Boolean);
       const metaHtml = metaLines.length ? metaLines.join("<br/>") : "—";
 
@@ -106,8 +113,12 @@ function renderToday(dailyPeriods) {
   card.hidden = false;
 }
 
-/* ---------------- Shoe tile ---------------- */
-
+/* ---------------- Shoe tile ----------------
+   Requirement:
+   - Always show the card.
+   - If no value available: show "Coming soon".
+   - If value exists: show it (and a simple shoe suggestion).
+*/
 function renderShoe(soilMoisture) {
   const card = el("shoeCard");
   if (!card) return;
@@ -120,8 +131,10 @@ function renderShoe(soilMoisture) {
   // Always show for now
   card.hidden = false;
 
-  // Coming soon state
-  if (soilMoisture === null || soilMoisture === undefined || !Number.isFinite(Number(soilMoisture))) {
+  const n = typeof soilMoisture === "number" ? soilMoisture : Number(soilMoisture);
+  const hasValue = Number.isFinite(n);
+
+  if (!hasValue) {
     if (emoji) emoji.textContent = "👟";
     if (title) title.textContent = "Coming soon";
     if (subtitle) subtitle.textContent = "We’ll suggest the best shoes for today.";
@@ -129,12 +142,15 @@ function renderShoe(soilMoisture) {
     return;
   }
 
-  // If you later wire real values, you can update this logic:
-  const v = Number(soilMoisture);
-  if (emoji) emoji.textContent = v >= 0.6 ? "🥾" : v >= 0.3 ? "👟" : "🩴";
+  // Optional: interpret n as 0–1 (Open-Meteo often uses volumetric m³/m³ for soil moisture; keep it simple for now)
+  let shoe = "👟";
+  if (n >= 0.35) shoe = "🥾";
+  if (n <= 0.15) shoe = "🩴";
+
+  if (emoji) emoji.textContent = shoe;
   if (title) title.textContent = "Shoe Indicator";
   if (subtitle) subtitle.textContent = "Based on recent ground moisture.";
-  if (meta) meta.textContent = `Soil moisture: ${v}`;
+  if (meta) meta.textContent = `Soil moisture: ${n}`;
 }
 
 /* ---------------- Visibility / ZIP fallback ---------------- */
@@ -174,7 +190,8 @@ function showZipBox(message) {
   if (useBtn) useBtn.hidden = !hasSaved;
   if (clearBtn) clearBtn.hidden = !hasSaved;
 
-  if (hasSaved && el("zipInput")) el("zipInput").value = savedZip;
+  const zipInput = el("zipInput");
+  if (hasSaved && zipInput) zipInput.value = savedZip;
 }
 
 function hideZipBox() {
@@ -218,29 +235,38 @@ function renderCurrent(hourlyPeriods) {
   const cur = hourlyPeriods?.[0];
   if (!cur) return;
 
-  el("currentTemp").textContent = `${safeText(cur.temperature, "--")}°${safeText(cur.temperatureUnit, "")}`;
-  el("currentDesc").textContent = safeText(cur.shortForecast, "--");
+  const tempEl = el("currentTemp");
+  const descEl = el("currentDesc");
+  const metaEl = el("currentMeta");
+  const iconEl = el("currentIcon");
+  const card = el("currentCard");
+
+  if (tempEl) tempEl.textContent = `${safeText(cur.temperature, "--")}°${safeText(cur.temperatureUnit, "")}`;
+  if (descEl) descEl.textContent = safeText(cur.shortForecast, "--");
 
   const wind = cur.windSpeed ? `Wind ${cur.windSpeed} ${safeText(cur.windDirection, "")}` : null;
   const pop = cur.probabilityOfPrecipitation?.value;
   const popTxt = typeof pop === "number" ? `Precip ${pop}%` : null;
 
-  el("currentMeta").textContent = [wind, popTxt].filter(Boolean).join(" • ") || "—";
+  if (metaEl) metaEl.textContent = [wind, popTxt].filter(Boolean).join(" • ") || "—";
 
-  if (cur.icon) {
-    el("currentIcon").src = cur.icon;
-    el("currentIcon").alt = safeText(cur.shortForecast, "Weather icon");
-    el("currentIcon").style.display = "block";
-  } else {
-    el("currentIcon").style.display = "none";
+  if (iconEl) {
+    if (cur.icon) {
+      iconEl.src = cur.icon;
+      iconEl.alt = safeText(cur.shortForecast, "Weather icon");
+      iconEl.style.display = "block";
+    } else {
+      iconEl.style.display = "none";
+    }
   }
 
-  el("currentCard").hidden = false;
+  if (card) card.hidden = false;
 }
 
 function renderHourly(hourlyPeriods) {
   const row = el("hourlyRow");
-  if (!row) return;
+  const cardWrap = el("hourlyCard");
+  if (!row || !cardWrap) return;
 
   row.innerHTML = "";
 
@@ -273,12 +299,13 @@ function renderHourly(hourlyPeriods) {
     row.appendChild(card);
   }
 
-  el("hourlyCard").hidden = false;
+  cardWrap.hidden = false;
 }
 
 function renderDaily(dailyPeriods) {
   const list = el("dailyList");
-  if (!list) return;
+  const cardWrap = el("dailyCard");
+  if (!list || !cardWrap) return;
 
   list.innerHTML = "";
 
@@ -317,7 +344,7 @@ function renderDaily(dailyPeriods) {
     list.appendChild(row);
   }
 
-  el("dailyCard").hidden = false;
+  cardWrap.hidden = false;
 }
 
 function renderAlerts(alerts) {
@@ -390,9 +417,10 @@ async function loadAndRender(lat, lon, labelOverride = null) {
   state.lat = lat;
   state.lon = lon;
 
-  el("locationName").textContent = labelOverride || data?.location?.name || "Your area";
+  const locName = el("locationName");
+  if (locName) locName.textContent = labelOverride || data?.location?.name || "Your area";
 
-  // Always show shoe tile (coming soon if null)
+  // Always show shoe tile (Coming soon if missing)
   renderShoe(data?.soilMoisture);
 
   renderAlerts(data.alerts || []);
@@ -440,10 +468,11 @@ function setupZipHandlers() {
 
   const useSaved = el("useSavedZipBtn");
   if (useSaved) {
-    useSaved.addEventListener("click", async () => {
+    useSaved.addEventListener("click", () => {
       const zip = localStorage.getItem(SAVED_ZIP_KEY);
       if (!zip) return;
-      if (el("zipInput")) el("zipInput").value = zip;
+      const zipInput = el("zipInput");
+      if (zipInput) zipInput.value = zip;
       form.requestSubmit();
     });
   }
@@ -452,9 +481,10 @@ function setupZipHandlers() {
   if (clearSaved) {
     clearSaved.addEventListener("click", () => {
       localStorage.removeItem(SAVED_ZIP_KEY);
-      if (el("zipInput")) el("zipInput").value = "";
+      const zipInput = el("zipInput");
+      if (zipInput) zipInput.value = "";
       if (useSaved) useSaved.hidden = true;
-      if (clearSaved) clearSaved.hidden = true;
+      clearSaved.hidden = true;
       showZipError("Saved ZIP cleared.");
     });
   }
@@ -478,8 +508,8 @@ async function start() {
   setStatus("Location", "Requesting permission…", { loading: true, showRetry: false });
 
   if (!("geolocation" in navigator)) {
-    setStatus("Location unavailable", "Enter ZIP code below.", { loading: false, showRetry: false });
-    showZipBox("Geolocation is not available. Enter ZIP code.");
+    setStatus("Location could not be found", "Please search by ZIP code.", { loading: false, showRetry: false });
+    showZipBox("Location could not be found. Please search by ZIP code.");
     return;
   }
 
@@ -488,22 +518,16 @@ async function start() {
       try {
         await loadAndRender(pos.coords.latitude, pos.coords.longitude);
       } catch (err) {
-        setStatus("Could not load weather", safeText(err?.message, "Please try again."), {
+        setStatus("Could not load weather", safeText(err?.message, "Please search by ZIP code."), {
           loading: false,
           showRetry: true,
         });
-        showZipBox("Weather failed to load. Enter ZIP code instead.");
+        showZipBox("Weather failed to load. Please search by ZIP code.");
       }
     },
     () => {
-      setStatus("Location blocked", "Enter ZIP code below.", { loading: false, showRetry: true });
-
-      const savedZip = localStorage.getItem(SAVED_ZIP_KEY);
-      if (savedZip && /^\d{5}$/.test(savedZip)) {
-        showZipBox("Location is blocked. You can use your saved ZIP or enter a new one.");
-      } else {
-        showZipBox("Location is blocked on this computer. Enter ZIP code.");
-      }
+      setStatus("Location could not be found", "Please search by ZIP code.", { loading: false, showRetry: true });
+      showZipBox("Location could not be found. Please search by ZIP code.");
     },
     { enableHighAccuracy: false, timeout: 12000, maximumAge: 5 * 60 * 1000 }
   );
