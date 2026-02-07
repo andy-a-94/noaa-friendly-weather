@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>NOAA-Friendly Weather</title>
-    <link rel="stylesheet" href="/styles.css" />
+    <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
     <header class="topbar">
@@ -90,6 +90,20 @@
           </div>
         </section>
 
+        <section class="card" id="shoeCard" hidden>
+          <div class="card-header">
+            <h2>Shoe Indicator</h2>
+          </div>
+          <div class="shoe-indicator">
+            <div class="shoe-emoji" id="shoeEmoji" aria-hidden="true">👟</div>
+            <div>
+              <div class="shoe-title" id="shoeTitle">Checking soil moisture…</div>
+              <div class="shoe-subtitle" id="shoeSubtitle">We’ll suggest the best shoes for today.</div>
+            </div>
+          </div>
+          <div class="shoe-meta" id="shoeMeta">Soil moisture: —</div>
+        </section>
+
         <section class="card" id="todayCard" hidden>
           <div class="card-header">
             <h2>Outlook</h2>
@@ -119,6 +133,6 @@
       </footer>
     </main>
 
-    <script src="/app.js"></script>
+    <script src="app.js"></script>
   </body>
 </html>
