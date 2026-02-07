@@ -76,6 +76,9 @@ async function fetchLocationFromZip(zip) {
   const res = await fetch(url);
   const data = await res.json().catch(() => null);
   if (!res.ok) throw new Error(data?.error || "ZIP lookup failed.");
+  if (!data || typeof data.lat !== "number" || typeof data.lon !== "number") {
+    throw new Error("ZIP lookup failed.");
+  }
   return data; // { zip, lat, lon, label, cached }
 }
 
