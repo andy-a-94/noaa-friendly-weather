@@ -2,26 +2,43 @@ const el = (id) => document.getElementById(id);
 
 /* ---------------- Config ---------------- */
 
-// Worker base URL:
-// - Leave blank to use same-origin (if /api/* routes exist on the site domain)
-// - If blank AND you have <meta name="worker-base-url" ...>, we will use that.
+// For production on www.almanacweather.com, use same-origin /api/*
+// For previews (pages.dev) you can optionally use the meta worker-base-url.
 let WORKER_BASE_URL = "";
 
 // localStorage keys
 const SAVED_ZIP_KEY = "savedWeatherZip";
 
-const state = { lat: null, lon: null, data: null };
+const state = {
+  lat: null,
+  lon: null,
+  data: null,
+  showAllHours: false,
+};
 
 /* ---------------- Small utilities ---------------- */
 
+function normalizeBaseUrl(value) {
+  const v = (value || "").trim();
+  return v ? v.replace(/\/+$/, "") : "";
+}
+
 function getWorkerBaseUrl() {
-  if (WORKER_BASE_URL && WORKER_BASE_URL.trim()) return WORKER_BASE_URL.trim();
+  // If explicitly set in code, respect it.
+  const explicit = normalizeBaseUrl(WORKER_BASE_URL);
+  if (explicit) return explicit;
 
+  const host = window.location.hostname.toLowerCase();
+
+  // Production domains: force same-origin (prevents CORS/device issues).
+  if (host === "almanacweather.com" || host === "www.almanacweather.com") {
+    return "";
+  }
+
+  // Local dev / preview: allow meta override.
   const meta = document.querySelector('meta[name="worker-base-url"]');
-  const fromMeta = meta?.getAttribute("content")?.trim();
-  if (fromMeta) return fromMeta.replace(/\/+$/, ""); // remove trailing slash
-
-  return ""; // same-origin fallback
+  const fromMeta = normalizeBaseUrl(meta?.getAttribute("content"));
+  return fromMeta || "";
 }
 
 function safeText(x, fallback = "—") {
@@ -29,14 +46,22 @@ function safeText(x, fallback = "—") {
 }
 
 function formatHour(iso) {
-  return new Date(iso).toLocaleTimeString([], { hour: "numeric" });
+  try {
+    return new Date(iso).toLocaleTimeString([], { hour: "numeric" });
+  } catch {
+    return "—";
+  }
 }
 
 function formatDayName(iso) {
-  return new Date(iso).toLocaleDateString([], { weekday: "short" });
+  try {
+    return new Date(iso).toLocaleDateString([], { weekday: "short" });
+  } catch {
+    return "—";
+  }
 }
 
-function setStatus(title, subtitle, { loading = false, showRetry = false } = {}) {
+function setStatus(title, subtitle, { loading = false } = {}) {
   const t = el("statusTitle");
   const s = el("statusSubtitle");
   const sp = el("spinner");
@@ -46,11 +71,8 @@ function setStatus(title, subtitle, { loading = false, showRetry = false } = {})
   if (s) s.textContent = subtitle;
   if (sp) sp.style.display = loading ? "inline-block" : "none";
 
-  // If you want Retry gone forever, keep it hidden no matter what:
+  // Keep Retry hidden for now.
   if (r) r.hidden = true;
-
-  // If you ever want Retry back later, use this instead:
-  // if (r) r.hidden = !showRetry;
 }
 
 /* ---------------- Menu ZIP UI ---------------- */
@@ -97,6 +119,7 @@ function resetVisibleSections() {
   };
 
   setHidden("currentCard", true);
+  setHidden("shoeCard", true);
   setHidden("todayCard", true);
   setHidden("hourlyCard", true);
   setHidden("dailyCard", true);
@@ -107,73 +130,36 @@ function resetVisibleSections() {
   if (details) details.innerHTML = "";
 }
 
-/* ---------------- ZIP fallback card (if still in HTML) ---------------- */
-
-function showZipBox(message) {
-  // If you still have #zipCard in the HTML, show it.
-  // If you removed it, this just updates status + opens the menu.
-  const zipCard = el("zipCard");
-  const help = el("zipHelpText");
-
-  if (help) help.textContent = message;
-
-  if (zipCard) {
-    zipCard.hidden = false;
-
-    const savedZip = localStorage.getItem(SAVED_ZIP_KEY);
-    const hasSaved = !!(savedZip && /^\d{5}$/.test(savedZip));
-
-    const useBtn = el("useSavedZipBtn");
-    const clearBtn = el("clearSavedZipBtn");
-    if (useBtn) useBtn.hidden = !hasSaved;
-    if (clearBtn) clearBtn.hidden = !hasSaved;
-
-    const input = el("zipInput");
-    if (hasSaved && input) input.value = savedZip;
-  } else {
-    // No zip card exists; rely on hamburger menu.
-    setMenuOpen(true);
-  }
-}
-
-function hideZipBox() {
-  const zipCard = el("zipCard");
-  const zipError = el("zipError");
-  if (zipCard) zipCard.hidden = true;
-  if (zipError) {
-    zipError.hidden = true;
-    zipError.textContent = "";
-  }
-}
-
-function showZipError(msg) {
-  const zipError = el("zipError");
-  if (!zipError) return;
-  zipError.textContent = msg;
-  zipError.hidden = false;
-}
-
 /* ---------------- API calls ---------------- */
+
+async function fetchJsonOrThrow(url, fallbackMessage) {
+  const res = await fetch(url, { method: "GET" });
+  const data = await res.json().catch(() => null);
+  if (!res.ok) throw new Error(data?.error || fallbackMessage);
+  return data;
+}
 
 async function fetchLocationFromZip(zip) {
   const base = getWorkerBaseUrl();
   const url = `${base}/api/location?zip=${encodeURIComponent(zip)}`;
-  const res = await fetch(url);
-  const data = await res.json().catch(() => null);
-  if (!res.ok) throw new Error(data?.error || "ZIP lookup failed.");
-  return data; // { zip, lat, lon, label, cached }
+  return fetchJsonOrThrow(url, "ZIP lookup failed.");
 }
 
 async function fetchWeather(lat, lon) {
   const base = getWorkerBaseUrl();
   const url = `${base}/api/weather?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}`;
-  const res = await fetch(url);
-  const data = await res.json().catch(() => null);
-  if (!res.ok) throw new Error(data?.error || "Weather data is unavailable.");
-  return data;
+  return fetchJsonOrThrow(url, "Weather data is unavailable.");
 }
 
 /* ---------------- Renderers ---------------- */
+
+function formatWind(dir, speed) {
+  const s = safeText(speed, "").trim();
+  const d = safeText(dir, "").trim();
+  if (!s && !d) return null;
+  if (s && d) return `${d} ${s}`;
+  return s || d;
+}
 
 function renderCurrent(hourlyPeriods) {
   const cur = hourlyPeriods?.[0];
@@ -187,7 +173,7 @@ function renderCurrent(hourlyPeriods) {
   if (tempEl) tempEl.textContent = `${safeText(cur.temperature, "--")}°${safeText(cur.temperatureUnit, "")}`;
   if (descEl) descEl.textContent = safeText(cur.shortForecast, "--");
 
-  const wind = cur.windSpeed ? `Wind ${cur.windSpeed} ${safeText(cur.windDirection, "")}` : null;
+  const wind = cur.windSpeed ? `Wind ${safeText(cur.windSpeed)} ${safeText(cur.windDirection, "")}` : null;
   const pop = cur.probabilityOfPrecipitation?.value;
   const popTxt = typeof pop === "number" ? `Precip ${pop}%` : null;
 
@@ -218,26 +204,16 @@ function pickTodayTonight(dailyPeriods) {
   return [today, tonight].filter(Boolean);
 }
 
-function formatWind(dir, speed) {
-  const s = safeText(speed, "").trim();
-  const d = safeText(dir, "").trim();
-  if (!s && !d) return null;
-  if (s && d) return `${d} ${s}`;
-  return s || d;
-}
-
 function renderToday(dailyPeriods) {
   const card = el("todayCard");
-  if (!card) return;
-
-  let list = el("todayList");
-  if (!list) list = card.querySelector(".today-list");
-  if (!list) {
-    card.hidden = false;
-    return;
-  }
+  const list = el("todayList");
+  if (!card || !list) return;
 
   const picks = pickTodayTonight(dailyPeriods);
+  if (!picks.length) {
+    card.hidden = true;
+    return;
+  }
 
   list.innerHTML = picks
     .map((p) => {
@@ -271,15 +247,83 @@ function renderToday(dailyPeriods) {
   card.hidden = false;
 }
 
+function renderShoeIndicator(soilMoisture, hourlyPeriods) {
+  const card = el("shoeCard");
+  if (!card) return;
+
+  // Always show
+  card.hidden = false;
+
+  const emojiEl = el("shoeEmoji");
+  const titleEl = el("shoeTitle");
+  const subEl = el("shoeSubtitle");
+  const metaEl = el("shoeMeta");
+
+  const cur = Array.isArray(hourlyPeriods) ? hourlyPeriods[0] : null;
+
+  const pop = cur?.probabilityOfPrecipitation?.value;
+  const popNum = typeof pop === "number" ? pop : null;
+
+  const short = (cur?.shortForecast || "").toLowerCase();
+  const precipWords = /(rain|shower|thunder|storm|drizzle|sleet|snow|ice)/.test(short);
+  const precipLikely = precipWords || (popNum !== null && popNum >= 50);
+
+  // Soil moisture is currently null from the Worker; keep future-proof logic anyway.
+  const sm = typeof soilMoisture === "number" && Number.isFinite(soilMoisture) ? soilMoisture : null;
+  const smPct = sm !== null ? `${Math.round(sm * 100)}%` : "—";
+
+  let emoji = "👟";
+  let title = "Sneakers look fine";
+  let subtitle = "Based on current conditions.";
+
+  if (sm !== null) {
+    if (sm >= 0.6) {
+      emoji = "👢";
+      title = "Waterproof boots recommended";
+      subtitle = "Ground looks wet.";
+    } else if (sm >= 0.35) {
+      emoji = "🥾";
+      title = "Boots recommended";
+      subtitle = "Ground may be damp.";
+    }
+  } else if (precipLikely) {
+    emoji = "👢";
+    title = "Waterproof boots recommended";
+    subtitle = "Precipitation likely soon.";
+  } else if (popNum !== null && popNum >= 25) {
+    emoji = "🥾";
+    title = "Boots recommended";
+    subtitle = "Some precipitation possible.";
+  }
+
+  if (emojiEl) emojiEl.textContent = emoji;
+  if (titleEl) titleEl.textContent = title;
+  if (subEl) subEl.textContent = subtitle;
+
+  const metaParts = [];
+  metaParts.push(`Soil moisture: ${smPct}`);
+  if (popNum !== null) metaParts.push(`Precip: ${popNum}%`);
+  if (metaEl) metaEl.textContent = metaParts.join(" • ");
+}
+
 function renderHourly(hourlyPeriods) {
   const row = el("hourlyRow");
   const card = el("hourlyCard");
-  if (!row || !card) return;
+  const toggle = el("toggleHourlyBtn");
+  if (!row || !card || !toggle) return;
 
   row.innerHTML = "";
 
-  const next12 = (hourlyPeriods || []).slice(0, 12);
-  for (const p of next12) {
+  const periods = Array.isArray(hourlyPeriods) ? hourlyPeriods : [];
+  if (!periods.length) {
+    card.hidden = true;
+    return;
+  }
+
+  const count = state.showAllHours ? Math.min(periods.length, 48) : Math.min(periods.length, 12);
+  const slice = periods.slice(0, count);
+
+  for (const p of slice) {
     const item = document.createElement("div");
     item.className = "hour-card";
 
@@ -308,12 +352,19 @@ function renderHourly(hourlyPeriods) {
     row.appendChild(item);
   }
 
+  toggle.textContent = state.showAllHours ? "Show less" : "Show all";
+  toggle.onclick = () => {
+    state.showAllHours = !state.showAllHours;
+    renderHourly(state.data?.hourlyPeriods || []);
+  };
+
   card.hidden = false;
 }
 
 function chooseDaily7(periods) {
-  const daytime = periods.filter((p) => p.isDaytime === true);
-  const src = daytime.length >= 7 ? daytime : periods;
+  const list = Array.isArray(periods) ? periods : [];
+  const daytime = list.filter((p) => p?.isDaytime === true);
+  const src = daytime.length >= 7 ? daytime : list;
   return src.slice(0, 7);
 }
 
@@ -324,39 +375,92 @@ function renderDaily(dailyPeriods) {
 
   list.innerHTML = "";
 
-  const days = chooseDaily7(dailyPeriods || []);
+  const days = chooseDaily7(dailyPeriods);
+  if (!days.length) {
+    card.hidden = true;
+    return;
+  }
+
+  const formatWhen = (p) => {
+    if (!p?.startTime || !p?.endTime) return null;
+    try {
+      const start = new Date(p.startTime);
+      const end = new Date(p.endTime);
+      const day = start.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" });
+      const s = start.toLocaleTimeString([], { hour: "numeric" });
+      const e = end.toLocaleTimeString([], { hour: "numeric" });
+      return `${day} • ${s}–${e}`;
+    } catch {
+      return null;
+    }
+  };
+
   for (const p of days) {
-    const row = document.createElement("div");
-    row.className = "day-row";
+    const detailsEl = document.createElement("details");
+    detailsEl.className = "day-details";
 
-    const left = document.createElement("div");
-    left.className = "day-left";
+    const summaryEl = document.createElement("summary");
+    summaryEl.className = "day-summary";
 
-    const name = document.createElement("div");
-    name.className = "day-name";
-    name.textContent = p.name || formatDayName(p.startTime);
+    const leftEl = document.createElement("div");
+    leftEl.className = "day-left";
 
-    const forecast = document.createElement("div");
-    forecast.className = "day-forecast";
-    forecast.textContent = safeText(p.shortForecast, "—");
+    const nameEl = document.createElement("div");
+    nameEl.className = "day-name";
+    nameEl.textContent = safeText(p?.name, formatDayName(p?.startTime));
 
-    left.appendChild(name);
-    left.appendChild(forecast);
+    const forecastEl = document.createElement("div");
+    forecastEl.className = "day-forecast";
+    forecastEl.textContent = safeText(p?.shortForecast, "—");
 
-    const icon = document.createElement("img");
-    icon.className = "day-icon";
-    icon.alt = "";
-    if (p.icon) icon.src = p.icon;
+    leftEl.appendChild(nameEl);
+    leftEl.appendChild(forecastEl);
 
-    const temp = document.createElement("div");
-    temp.className = "day-temp";
-    temp.textContent = `${safeText(p.temperature, "--")}°${safeText(p.temperatureUnit, "")}`;
+    const iconEl = document.createElement("img");
+    iconEl.className = "day-icon";
+    iconEl.alt = "";
+    if (p?.icon) iconEl.src = p.icon;
 
-    row.appendChild(left);
-    row.appendChild(icon);
-    row.appendChild(temp);
+    const tempEl = document.createElement("div");
+    tempEl.className = "day-temp";
+    tempEl.textContent = `${safeText(p?.temperature, "--")}°${safeText(p?.temperatureUnit, "")}`;
 
-    list.appendChild(row);
+    summaryEl.appendChild(leftEl);
+    summaryEl.appendChild(iconEl);
+    summaryEl.appendChild(tempEl);
+
+    const expandedEl = document.createElement("div");
+    expandedEl.className = "day-expanded";
+
+    const extraEl = document.createElement("div");
+    extraEl.className = "day-extra";
+    extraEl.textContent = safeText(p?.detailedForecast, safeText(p?.shortForecast, "—"));
+
+    const whenTxt = formatWhen(p);
+    const pop = p?.probabilityOfPrecipitation?.value;
+    const popTxt = typeof pop === "number" ? `Precip: ${pop}%` : null;
+    const wind = formatWind(p?.windDirection, p?.windSpeed);
+    const windTxt = wind ? `Wind: ${wind}` : null;
+
+    const metaEl = document.createElement("div");
+    metaEl.className = "day-meta";
+    metaEl.textContent = [whenTxt, popTxt, windTxt].filter(Boolean).join(" • ") || "—";
+
+    expandedEl.appendChild(extraEl);
+    expandedEl.appendChild(metaEl);
+
+    detailsEl.appendChild(summaryEl);
+    detailsEl.appendChild(expandedEl);
+
+    // Keep UX tidy: one open at a time.
+    detailsEl.addEventListener("toggle", () => {
+      if (!detailsEl.open) return;
+      list.querySelectorAll("details.day-details").forEach((d) => {
+        if (d !== detailsEl) d.open = false;
+      });
+    });
+
+    list.appendChild(detailsEl);
   }
 
   card.hidden = false;
@@ -370,7 +474,8 @@ function renderAlerts(alerts) {
 
   if (!section || !summary || !detailsWrap || !toggleBtn) return;
 
-  if (!alerts || alerts.length === 0) {
+  const list = Array.isArray(alerts) ? alerts : [];
+  if (!list.length) {
     section.hidden = true;
     detailsWrap.hidden = true;
     detailsWrap.innerHTML = "";
@@ -378,10 +483,10 @@ function renderAlerts(alerts) {
   }
 
   section.hidden = false;
-  summary.textContent = `${alerts.length} active alert${alerts.length === 1 ? "" : "s"} in your area`;
+  summary.textContent = `${list.length} active alert${list.length === 1 ? "" : "s"} in your area`;
 
   detailsWrap.innerHTML = "";
-  for (const a of alerts) {
+  for (const a of list) {
     const card = document.createElement("details");
     card.className = "alert-item";
 
@@ -422,9 +527,7 @@ function renderAlerts(alerts) {
 /* ---------------- Main loading ---------------- */
 
 async function loadAndRender(lat, lon, labelOverride = null) {
-  hideZipBox();
   resetVisibleSections();
-
   setStatus("Loading", "Connecting to National Weather Service…", { loading: true });
 
   const data = await fetchWeather(lat, lon);
@@ -438,6 +541,7 @@ async function loadAndRender(lat, lon, labelOverride = null) {
 
   renderAlerts(data.alerts || []);
   renderCurrent(data.hourlyPeriods || []);
+  renderShoeIndicator(data.soilMoisture, data.hourlyPeriods || []);
   renderToday(data.dailyPeriods || []);
   renderHourly(data.hourlyPeriods || []);
   renderDaily(data.dailyPeriods || []);
@@ -495,64 +599,10 @@ function setupMenuZipHandlers() {
   }
 }
 
-function setupZipCardHandlersIfPresent() {
-  const form = el("zipForm");
-  if (!form) return; // zipCard not present, ignore
-
-  form.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const zipError = el("zipError");
-    if (zipError) zipError.hidden = true;
-
-    const zip = (el("zipInput")?.value || "").trim();
-    if (!/^\d{5}$/.test(zip)) {
-      showZipError("Please enter a valid 5-digit ZIP code.");
-      return;
-    }
-
-    localStorage.setItem(SAVED_ZIP_KEY, zip);
-
-    try {
-      setStatus("Loading", "Looking up ZIP…", { loading: true });
-      const loc = await fetchLocationFromZip(zip);
-      await loadAndRender(loc.lat, loc.lon, loc.label || `ZIP ${zip}`);
-    } catch (err) {
-      setStatus("Location could not be found", "Please search by ZIP code.", { loading: false });
-      showZipError(safeText(err?.message, "ZIP lookup failed."));
-      showZipBox("Location could not be found. Please search by ZIP code.");
-    }
-  });
-
-  const useSaved = el("useSavedZipBtn");
-  if (useSaved) {
-    useSaved.addEventListener("click", () => {
-      const zip = localStorage.getItem(SAVED_ZIP_KEY);
-      if (!zip) return;
-      const input = el("zipInput");
-      if (input) input.value = zip;
-      form.requestSubmit();
-    });
-  }
-
-  const clearSaved = el("clearSavedZipBtn");
-  if (clearSaved) {
-    clearSaved.addEventListener("click", () => {
-      localStorage.removeItem(SAVED_ZIP_KEY);
-      const input = el("zipInput");
-      if (input) input.value = "";
-      if (useSaved) useSaved.hidden = true;
-      clearSaved.hidden = true;
-      showZipError("Saved ZIP cleared.");
-    });
-  }
-}
-
 /* ---------------- Start ---------------- */
 
-async function start() {
-  // Always wire up hamburger first (so user can recover even if location fails)
+function start() {
   setupMenuZipHandlers();
-  setupZipCardHandlersIfPresent();
 
   setStatus("Location", "Requesting permission…", { loading: true });
 
@@ -567,7 +617,6 @@ async function start() {
       try {
         await loadAndRender(pos.coords.latitude, pos.coords.longitude);
       } catch (err) {
-        // “Failed to fetch” commonly means Worker route / CORS / domain mismatch
         setStatus("Could not load weather", safeText(err?.message, "Failed to fetch."), { loading: false });
         setMenuOpen(true);
       }
