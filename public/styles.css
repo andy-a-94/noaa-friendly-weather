@@ -21,7 +21,7 @@ body {
   color: var(--text);
 }
 
-/* Fixed glow background (no “restart” while scrolling) */
+/* Fixed glow background */
 body::before {
   content: "";
   position: fixed;
@@ -80,6 +80,11 @@ body::before {
 }
 .btn:hover { background: rgba(255, 255, 255, 0.10); }
 .btn:active { transform: translateY(1px); }
+.btn:focus-visible {
+  outline: 2px solid rgba(120, 160, 255, 0.6);
+  outline-offset: 2px;
+  border-radius: 12px;
+}
 
 .btn-primary {
   border-color: rgba(120, 160, 255, 0.55);
@@ -92,11 +97,6 @@ body::before {
   text-align: center;
   font-size: 16px;
   line-height: 1;
-}
-#menuBtn:focus-visible {
-  outline: 2px solid rgba(120, 160, 255, 0.6);
-  outline-offset: 2px;
-  border-radius: 12px;
 }
 
 .topbar-menu {
@@ -121,6 +121,28 @@ body::before {
   gap: 10px;
   align-items: flex-end;
 }
+
+.field { display: block; }
+.field-label {
+  display: block;
+  font-size: 11px;
+  color: var(--muted);
+  margin: 0 0 6px;
+}
+.field-input {
+  width: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text);
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-size: 14px;
+}
+.field-input:focus-visible {
+  outline: 2px solid rgba(120, 160, 255, 0.6);
+  outline-offset: 2px;
+}
+
 .menu-field { flex: 1; min-width: 0; }
 .menu-submit { white-space: nowrap; }
 
@@ -300,6 +322,11 @@ body::before {
   cursor: pointer;
 }
 .day-summary::-webkit-details-marker { display: none; }
+.day-summary:focus-visible {
+  outline: 2px solid rgba(120, 160, 255, 0.6);
+  outline-offset: 2px;
+  border-radius: 12px;
+}
 
 .day-left { display: flex; flex-direction: column; }
 .day-name { font-weight: 700; font-size: 13px; }
@@ -381,6 +408,11 @@ body::before {
   text-decoration: underline;
   text-decoration-color: rgba(255, 255, 255, 0.35);
   text-underline-offset: 3px;
+}
+.linklike:focus-visible {
+  outline: 2px solid rgba(120, 160, 255, 0.6);
+  outline-offset: 2px;
+  border-radius: 10px;
 }
 
 .alerts-details {
