@@ -2,11 +2,7 @@ const el = (id) => document.getElementById(id);
 
 /* ---------------- Config ---------------- */
 
-// For production on www.almanacweather.com, use same-origin /api/*
-// For previews (pages.dev) you can optionally use the meta worker-base-url.
 let WORKER_BASE_URL = "";
-
-// localStorage keys
 const SAVED_ZIP_KEY = "savedWeatherZip";
 
 const state = {
@@ -16,7 +12,7 @@ const state = {
   showAllHours: false,
 };
 
-/* ---------------- Small utilities ---------------- */
+/* ---------------- Utilities ---------------- */
 
 function normalizeBaseUrl(value) {
   const v = (value || "").trim();
@@ -24,18 +20,12 @@ function normalizeBaseUrl(value) {
 }
 
 function getWorkerBaseUrl() {
-  // If explicitly set in code, respect it.
   const explicit = normalizeBaseUrl(WORKER_BASE_URL);
   if (explicit) return explicit;
 
   const host = window.location.hostname.toLowerCase();
+  if (host === "almanacweather.com" || host === "www.almanacweather.com") return "";
 
-  // Production domains: force same-origin (prevents CORS/device issues).
-  if (host === "almanacweather.com" || host === "www.almanacweather.com") {
-    return "";
-  }
-
-  // Local dev / preview: allow meta override.
   const meta = document.querySelector('meta[name="worker-base-url"]');
   const fromMeta = normalizeBaseUrl(meta?.getAttribute("content"));
   return fromMeta || "";
@@ -53,14 +43,6 @@ function formatHour(iso) {
   }
 }
 
-function formatDayName(iso) {
-  try {
-    return new Date(iso).toLocaleDateString([], { weekday: "short" });
-  } catch {
-    return "—";
-  }
-}
-
 function setStatus(title, subtitle, { loading = false } = {}) {
   const t = el("statusTitle");
   const s = el("statusSubtitle");
@@ -70,17 +52,11 @@ function setStatus(title, subtitle, { loading = false } = {}) {
   if (t) t.textContent = title;
   if (s) s.textContent = subtitle;
   if (sp) sp.style.display = loading ? "inline-block" : "none";
-
-  // Keep Retry hidden for now.
   if (r) r.hidden = true;
 }
 
-/* ---------------- Icon system (emoji) ---------------- */
+/* ---------------- Icons (emoji) ---------------- */
 
-/**
- * Canonical icon keys → emoji
- * Keep the set small; everything maps into these.
- */
 const ICON_EMOJI = {
   clear_day: "☀️",
   clear_night: "🌙",
@@ -105,7 +81,6 @@ function classifyBaseIconKey(period) {
   const short = (period?.shortForecast || "").toLowerCase();
   const isDay = period?.isDaytime === true;
 
-  // High priority: severe/precip types first
   if (containsAny(short, ["thunder", "t-storm", "storm"])) return "thunder";
   if (containsAny(short, ["snow", "flurr", "blizzard"])) return "snow";
   if (containsAny(short, ["sleet", "freezing", "ice"])) return "sleet";
@@ -113,7 +88,6 @@ function classifyBaseIconKey(period) {
   if (containsAny(short, ["fog", "haze", "smoke", "mist"])) return "fog";
   if (containsAny(short, ["wind"])) return "wind";
 
-  // Clouds / clears
   if (containsAny(short, ["partly", "mostly sunny", "mostly clear", "partly sunny"])) {
     return isDay ? "partly_cloudy_day" : "partly_cloudy_night";
   }
@@ -123,21 +97,13 @@ function classifyBaseIconKey(period) {
   return "unknown";
 }
 
-/**
- * Apply PoP logic for "partly sunny with 40% chance of rain":
- * - If text already indicates precip/thunder/snow/etc., text wins.
- * - Otherwise, if PoP >= 50, prefer rain icon (umbrella day).
- */
 function chooseIconKey(period) {
   const base = classifyBaseIconKey(period);
-
-  // If base is already a precip/severe type, don't override with PoP
   if (["thunder", "snow", "sleet", "rain", "fog", "wind"].includes(base)) return base;
 
   const pop = period?.probabilityOfPrecipitation?.value;
   const popNum = typeof pop === "number" ? pop : null;
-
-  if (popNum !== null && popNum >= 50) return "rain";
+  if (popNum !== null && popNum >= 50) return "rain"; // umbrella day
   return base;
 }
 
@@ -147,18 +113,25 @@ function setIconEmoji(containerEl, iconKey, fallbackKey = "unknown") {
   containerEl.textContent = ICON_EMOJI[key] || ICON_EMOJI.unknown;
 }
 
-/* ---------------- Precip badge ---------------- */
+/* ---------------- Badges (Wind + Precip) ---------------- */
 
-function createPopBadge(popValue) {
-  if (typeof popValue !== "number") return null;
+function createPillBadge({ emoji, text, muted = false }) {
   const badge = document.createElement("span");
-  badge.className = "pop-badge";
-  badge.innerHTML = `<span class="drop">💧</span><span>${popValue}%</span>`;
+  badge.className = `pop-badge${muted ? " muted" : ""}`;
+  badge.innerHTML = `<span class="drop">${emoji}</span><span>${text}</span>`;
   return badge;
 }
 
 function shouldShowPopBadge(popValue) {
-  return typeof popValue === "number" && popValue >= 30 && popValue < 50;
+  return typeof popValue === "number" && popValue >= 10;
+}
+
+function formatWind(speed, dir) {
+  const s = (speed || "").trim();
+  const d = (dir || "").trim();
+  if (!s && !d) return null;
+  if (s && d) return `${s} ${d}`;
+  return s || d;
 }
 
 /* ---------------- Menu ZIP UI ---------------- */
@@ -176,10 +149,7 @@ function setMenuOpen(open) {
   menu.hidden = !open;
   btn.setAttribute("aria-expanded", open ? "true" : "false");
 
-  if (open) {
-    const input = el("menuZipInput");
-    if (input) input.focus();
-  }
+  if (open) el("menuZipInput")?.focus();
 }
 
 function showMenuZipError(msg) {
@@ -205,12 +175,14 @@ function resetVisibleSections() {
   };
 
   setHidden("currentCard", true);
-  setHidden("shoeCard", true);
   setHidden("todayCard", true);
   setHidden("hourlyCard", true);
   setHidden("dailyCard", true);
   setHidden("alertsSection", true);
   setHidden("alertsDetails", true);
+
+  // Shoe indicator hidden
+  setHidden("shoeCard", true);
 
   const details = el("alertsDetails");
   if (details) details.innerHTML = "";
@@ -239,48 +211,45 @@ async function fetchWeather(lat, lon) {
 
 /* ---------------- Renderers ---------------- */
 
-function formatWind(dir, speed) {
-  const s = safeText(speed, "").trim();
-  const d = safeText(dir, "").trim();
-  if (!s && !d) return null;
-  if (s && d) return `${d} ${s}`;
-  return s || d;
-}
-
 function renderCurrent(hourlyPeriods) {
   const cur = hourlyPeriods?.[0];
   if (!cur) return;
 
-  const tempEl = el("currentTemp");
-  const descEl = el("currentDesc");
-  const metaEl = el("currentMeta");
-  const iconEl = el("currentIcon");
+  el("currentTemp").textContent = `${safeText(cur.temperature, "--")}°${safeText(cur.temperatureUnit, "")}`;
+  el("currentDesc").textContent = safeText(cur.shortForecast, "--");
+  setIconEmoji(el("currentIcon"), chooseIconKey(cur));
 
-  if (tempEl) tempEl.textContent = `${safeText(cur.temperature, "--")}°${safeText(cur.temperatureUnit, "")}`;
-  if (descEl) descEl.textContent = safeText(cur.shortForecast, "--");
+  const badgesEl = el("currentBadges");
+  if (badgesEl) {
+    badgesEl.innerHTML = "";
 
-  const wind = cur.windSpeed ? `Wind ${safeText(cur.windSpeed)} ${safeText(cur.windDirection, "")}` : null;
-  const pop = cur.probabilityOfPrecipitation?.value;
-  const popTxt = typeof pop === "number" ? `Precip ${pop}%` : null;
+    const windTxt = formatWind(cur.windSpeed, cur.windDirection);
+    badgesEl.appendChild(
+      createPillBadge({
+        emoji: "💨",
+        text: windTxt ? windTxt : "—",
+        muted: !windTxt,
+      })
+    );
 
-  if (metaEl) metaEl.textContent = [wind, popTxt].filter(Boolean).join(" • ") || "—";
+    const pop = cur.probabilityOfPrecipitation?.value;
+    const popTxt = typeof pop === "number" ? `${pop}%` : "—";
+    badgesEl.appendChild(
+      createPillBadge({
+        emoji: "💧",
+        text: popTxt,
+        muted: typeof pop !== "number",
+      })
+    );
+  }
 
-  // Emoji icon based on classifier + PoP override rules
-  if (iconEl) setIconEmoji(iconEl, chooseIconKey(cur));
-
-  const card = el("currentCard");
-  if (card) card.hidden = false;
+  el("currentMeta").hidden = true;
+  el("currentCard").hidden = false;
 }
 
-// Outlook tile: Today + Tonight from dailyPeriods
 function pickTodayTonight(dailyPeriods) {
   const periods = Array.isArray(dailyPeriods) ? dailyPeriods : [];
-  const firstTwo = periods.slice(0, 2);
-  if (firstTwo.length === 2) return firstTwo;
-
-  const today = periods.find((p) => (p?.name || "").toLowerCase() === "today");
-  const tonight = periods.find((p) => (p?.name || "").toLowerCase() === "tonight");
-  return [today, tonight].filter(Boolean);
+  return periods.slice(0, 2).filter(Boolean);
 }
 
 function renderToday(dailyPeriods) {
@@ -322,13 +291,7 @@ function renderToday(dailyPeriods) {
     metaRow.className = "segment-pop";
 
     const pop = p?.probabilityOfPrecipitation?.value;
-    if (shouldShowPopBadge(pop)) metaRow.appendChild(createPopBadge(pop));
-
-    const wind = formatWind(p?.windDirection, p?.windSpeed);
-    const windTxt = document.createElement("span");
-    windTxt.className = "pop-badge muted";
-    windTxt.textContent = wind ? `Wind ${wind}` : "—";
-    metaRow.appendChild(windTxt);
+    if (shouldShowPopBadge(pop)) metaRow.appendChild(createPillBadge({ emoji: "💧", text: `${pop}%` }));
 
     right.appendChild(temp);
     right.appendChild(metaRow);
@@ -344,65 +307,6 @@ function renderToday(dailyPeriods) {
   card.hidden = false;
 }
 
-function renderShoeIndicator(soilMoisture, hourlyPeriods) {
-  const card = el("shoeCard");
-  if (!card) return;
-
-  // Always show
-  card.hidden = false;
-
-  const emojiEl = el("shoeEmoji");
-  const titleEl = el("shoeTitle");
-  const subEl = el("shoeSubtitle");
-  const metaEl = el("shoeMeta");
-
-  const cur = Array.isArray(hourlyPeriods) ? hourlyPeriods[0] : null;
-
-  const pop = cur?.probabilityOfPrecipitation?.value;
-  const popNum = typeof pop === "number" ? pop : null;
-
-  const short = (cur?.shortForecast || "").toLowerCase();
-  const precipWords = /(rain|shower|thunder|storm|drizzle|sleet|snow|ice)/.test(short);
-  const precipLikely = precipWords || (popNum !== null && popNum >= 50);
-
-  // Soil moisture may be null; keep future-proof logic anyway.
-  const sm = typeof soilMoisture === "number" && Number.isFinite(soilMoisture) ? soilMoisture : null;
-  const smPct = sm !== null ? `${Math.round(sm * 100)}%` : "—";
-
-  let emoji = "👟";
-  let title = "Sneakers look fine";
-  let subtitle = "Based on current conditions.";
-
-  if (sm !== null) {
-    if (sm >= 0.6) {
-      emoji = "👢";
-      title = "Waterproof boots recommended";
-      subtitle = "Ground looks wet.";
-    } else if (sm >= 0.35) {
-      emoji = "🥾";
-      title = "Boots recommended";
-      subtitle = "Ground may be damp.";
-    }
-  } else if (precipLikely) {
-    emoji = "👢";
-    title = "Waterproof boots recommended";
-    subtitle = "Precipitation likely soon.";
-  } else if (popNum !== null && popNum >= 25) {
-    emoji = "🥾";
-    title = "Boots recommended";
-    subtitle = "Some precipitation possible.";
-  }
-
-  if (emojiEl) emojiEl.textContent = emoji;
-  if (titleEl) titleEl.textContent = title;
-  if (subEl) subEl.textContent = subtitle;
-
-  const metaParts = [];
-  metaParts.push(`Soil moisture: ${smPct}`);
-  if (popNum !== null) metaParts.push(`Precip: ${popNum}%`);
-  if (metaEl) metaEl.textContent = metaParts.join(" • ");
-}
-
 function renderHourly(hourlyPeriods) {
   const row = el("hourlyRow");
   const card = el("hourlyCard");
@@ -410,7 +314,6 @@ function renderHourly(hourlyPeriods) {
   if (!row || !card || !toggle) return;
 
   row.innerHTML = "";
-
   const periods = Array.isArray(hourlyPeriods) ? hourlyPeriods : [];
   if (!periods.length) {
     card.hidden = true;
@@ -445,7 +348,7 @@ function renderHourly(hourlyPeriods) {
     meta.appendChild(icon);
 
     const pop = p?.probabilityOfPrecipitation?.value;
-    if (shouldShowPopBadge(pop)) meta.appendChild(createPopBadge(pop));
+    if (shouldShowPopBadge(pop)) meta.appendChild(createPillBadge({ emoji: "💧", text: `${pop}%` }));
 
     item.appendChild(t);
     item.appendChild(temp);
@@ -477,7 +380,6 @@ function renderDaily(dailyPeriods) {
   if (!list || !card) return;
 
   list.innerHTML = "";
-
   const days = chooseDaily7(dailyPeriods);
   if (!days.length) {
     card.hidden = true;
@@ -508,24 +410,27 @@ function renderDaily(dailyPeriods) {
     const leftEl = document.createElement("div");
     leftEl.className = "day-left";
 
-    const topLine = document.createElement("div");
-    topLine.className = "day-topline";
-
     const nameEl = document.createElement("div");
     nameEl.className = "day-name";
-    nameEl.textContent = safeText(p?.name, formatDayName(p?.startTime));
-
-    const pop = p?.probabilityOfPrecipitation?.value;
-    if (shouldShowPopBadge(pop)) topLine.appendChild(createPopBadge(pop));
-
-    topLine.appendChild(nameEl);
+    nameEl.textContent = safeText(p?.name, "—");
 
     const forecastEl = document.createElement("div");
     forecastEl.className = "day-forecast";
     forecastEl.textContent = safeText(p?.shortForecast, "—");
 
-    leftEl.appendChild(topLine);
+    leftEl.appendChild(nameEl);
     leftEl.appendChild(forecastEl);
+
+    // PoP badge column (left of emoji)
+    const pop = p?.probabilityOfPrecipitation?.value;
+    let badgeEl;
+    if (shouldShowPopBadge(pop)) {
+      badgeEl = createPillBadge({ emoji: "💧", text: `${pop}%` });
+      badgeEl.classList.add("day-badge");
+    } else {
+      badgeEl = document.createElement("span");
+      badgeEl.className = "day-badge";
+    }
 
     const iconEl = document.createElement("div");
     iconEl.className = "wx-icon wx-icon-sm";
@@ -536,6 +441,7 @@ function renderDaily(dailyPeriods) {
     tempEl.textContent = `${safeText(p?.temperature, "--")}°${safeText(p?.temperatureUnit, "")}`;
 
     summaryEl.appendChild(leftEl);
+    summaryEl.appendChild(badgeEl);
     summaryEl.appendChild(iconEl);
     summaryEl.appendChild(tempEl);
 
@@ -548,12 +454,12 @@ function renderDaily(dailyPeriods) {
 
     const whenTxt = formatWhen(p);
     const popTxt = typeof pop === "number" ? `Precip: ${pop}%` : null;
-    const wind = formatWind(p?.windDirection, p?.windSpeed);
-    const windTxt = wind ? `Wind: ${wind}` : null;
+    const windTxt = formatWind(p?.windSpeed, p?.windDirection);
+    const windMeta = windTxt ? `Wind: ${windTxt}` : null;
 
     const metaEl = document.createElement("div");
     metaEl.className = "day-meta";
-    metaEl.textContent = [whenTxt, popTxt, windTxt].filter(Boolean).join(" • ") || "—";
+    metaEl.textContent = [whenTxt, popTxt, windMeta].filter(Boolean).join(" • ") || "—";
 
     expandedEl.appendChild(extraEl);
     expandedEl.appendChild(metaEl);
@@ -561,7 +467,6 @@ function renderDaily(dailyPeriods) {
     detailsEl.appendChild(summaryEl);
     detailsEl.appendChild(expandedEl);
 
-    // Keep UX tidy: one open at a time.
     detailsEl.addEventListener("toggle", () => {
       if (!detailsEl.open) return;
       list.querySelectorAll("details.day-details").forEach((d) => {
@@ -650,7 +555,6 @@ async function loadAndRender(lat, lon, labelOverride = null) {
 
   renderAlerts(data.alerts || []);
   renderCurrent(data.hourlyPeriods || []);
-  renderShoeIndicator(data.soilMoisture, data.hourlyPeriods || []);
   renderToday(data.dailyPeriods || []);
   renderHourly(data.hourlyPeriods || []);
   renderDaily(data.dailyPeriods || []);
@@ -668,12 +572,10 @@ function setupMenuZipHandlers() {
   if (btn && menu) {
     btn.addEventListener("click", () => setMenuOpen(!isMenuOpen()));
 
-    // Close when clicking outside
     document.addEventListener("click", (e) => {
       if (!menu.contains(e.target) && !btn.contains(e.target)) setMenuOpen(false);
     });
 
-    // ESC closes
     document.addEventListener("keydown", (e) => {
       if (e.key === "Escape") setMenuOpen(false);
     });
@@ -694,7 +596,6 @@ function setupMenuZipHandlers() {
 
       try {
         setStatus("Loading", "Looking up ZIP…", { loading: true });
-
         const loc = await fetchLocationFromZip(zip);
 
         setMenuOpen(false);
