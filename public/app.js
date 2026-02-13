@@ -75,6 +75,92 @@ function setStatus(title, subtitle, { loading = false } = {}) {
   if (r) r.hidden = true;
 }
 
+/* ---------------- Icon system (emoji) ---------------- */
+
+/**
+ * Canonical icon keys → emoji
+ * Keep the set small; everything maps into these.
+ */
+const ICON_EMOJI = {
+  clear_day: "☀️",
+  clear_night: "🌙",
+  partly_cloudy_day: "⛅",
+  partly_cloudy_night: "🌙",
+  cloudy: "☁️",
+  rain: "🌧️",
+  thunder: "⛈️",
+  snow: "❄️",
+  sleet: "🌨️",
+  fog: "🌫️",
+  wind: "💨",
+  unknown: "•",
+};
+
+function containsAny(haystack, words) {
+  const s = (haystack || "").toLowerCase();
+  return words.some((w) => s.includes(w));
+}
+
+function classifyBaseIconKey(period) {
+  const short = (period?.shortForecast || "").toLowerCase();
+  const isDay = period?.isDaytime === true;
+
+  // High priority: severe/precip types first
+  if (containsAny(short, ["thunder", "t-storm", "storm"])) return "thunder";
+  if (containsAny(short, ["snow", "flurr", "blizzard"])) return "snow";
+  if (containsAny(short, ["sleet", "freezing", "ice"])) return "sleet";
+  if (containsAny(short, ["rain", "shower", "drizzle"])) return "rain";
+  if (containsAny(short, ["fog", "haze", "smoke", "mist"])) return "fog";
+  if (containsAny(short, ["wind"])) return "wind";
+
+  // Clouds / clears
+  if (containsAny(short, ["partly", "mostly sunny", "mostly clear", "partly sunny"])) {
+    return isDay ? "partly_cloudy_day" : "partly_cloudy_night";
+  }
+  if (containsAny(short, ["cloudy", "overcast"])) return "cloudy";
+  if (containsAny(short, ["clear", "sunny"])) return isDay ? "clear_day" : "clear_night";
+
+  return "unknown";
+}
+
+/**
+ * Apply PoP logic for "partly sunny with 40% chance of rain":
+ * - If text already indicates precip/thunder/snow/etc., text wins.
+ * - Otherwise, if PoP >= 50, prefer rain icon (umbrella day).
+ */
+function chooseIconKey(period) {
+  const base = classifyBaseIconKey(period);
+
+  // If base is already a precip/severe type, don't override with PoP
+  if (["thunder", "snow", "sleet", "rain", "fog", "wind"].includes(base)) return base;
+
+  const pop = period?.probabilityOfPrecipitation?.value;
+  const popNum = typeof pop === "number" ? pop : null;
+
+  if (popNum !== null && popNum >= 50) return "rain";
+  return base;
+}
+
+function setIconEmoji(containerEl, iconKey, fallbackKey = "unknown") {
+  if (!containerEl) return;
+  const key = iconKey in ICON_EMOJI ? iconKey : fallbackKey;
+  containerEl.textContent = ICON_EMOJI[key] || ICON_EMOJI.unknown;
+}
+
+/* ---------------- Precip badge ---------------- */
+
+function createPopBadge(popValue) {
+  if (typeof popValue !== "number") return null;
+  const badge = document.createElement("span");
+  badge.className = "pop-badge";
+  badge.innerHTML = `<span class="drop">💧</span><span>${popValue}%</span>`;
+  return badge;
+}
+
+function shouldShowPopBadge(popValue) {
+  return typeof popValue === "number" && popValue >= 30 && popValue < 50;
+}
+
 /* ---------------- Menu ZIP UI ---------------- */
 
 function isMenuOpen() {
@@ -179,15 +265,8 @@ function renderCurrent(hourlyPeriods) {
 
   if (metaEl) metaEl.textContent = [wind, popTxt].filter(Boolean).join(" • ") || "—";
 
-  if (iconEl) {
-    if (cur.icon) {
-      iconEl.src = cur.icon;
-      iconEl.alt = safeText(cur.shortForecast, "Weather icon");
-      iconEl.style.display = "block";
-    } else {
-      iconEl.style.display = "none";
-    }
-  }
+  // Emoji icon based on classifier + PoP override rules
+  if (iconEl) setIconEmoji(iconEl, chooseIconKey(cur));
 
   const card = el("currentCard");
   if (card) card.hidden = false;
@@ -215,34 +294,52 @@ function renderToday(dailyPeriods) {
     return;
   }
 
-  list.innerHTML = picks
-    .map((p) => {
-      const name = safeText(p?.name, "—");
-      const desc = safeText(p?.shortForecast, "—");
-      const temp = `${safeText(p?.temperature, "--")}°${safeText(p?.temperatureUnit, "")}`;
+  list.innerHTML = "";
+  for (const p of picks) {
+    const row = document.createElement("div");
+    row.className = "segment-row";
 
-      const pop = p?.probabilityOfPrecipitation?.value;
-      const popTxt = typeof pop === "number" ? `${pop}% precip` : null;
+    const icon = document.createElement("div");
+    icon.className = "segment-icon";
+    setIconEmoji(icon, chooseIconKey(p));
 
-      const wind = formatWind(p?.windDirection, p?.windSpeed);
-      const windTxt = wind ? `Wind ${wind}` : null;
+    const name = document.createElement("div");
+    name.className = "segment-name";
+    name.textContent = safeText(p?.name, "—");
 
-      const meta = [popTxt, windTxt].filter(Boolean).join(" • ") || "—";
-      const iconUrl = safeText(p?.icon, "");
+    const desc = document.createElement("div");
+    desc.className = "segment-desc";
+    desc.textContent = safeText(p?.shortForecast, "—");
 
-      return `
-        <div class="segment-row">
-          <img class="segment-icon" alt="" ${iconUrl ? `src="${iconUrl}"` : ""} />
-          <div class="segment-name">${name}</div>
-          <div class="segment-desc">${desc}</div>
-          <div class="segment-right">
-            <div class="segment-temp">${temp}</div>
-            <div class="segment-pop">${meta}</div>
-          </div>
-        </div>
-      `;
-    })
-    .join("");
+    const right = document.createElement("div");
+    right.className = "segment-right";
+
+    const temp = document.createElement("div");
+    temp.className = "segment-temp";
+    temp.textContent = `${safeText(p?.temperature, "--")}°${safeText(p?.temperatureUnit, "")}`;
+
+    const metaRow = document.createElement("div");
+    metaRow.className = "segment-pop";
+
+    const pop = p?.probabilityOfPrecipitation?.value;
+    if (shouldShowPopBadge(pop)) metaRow.appendChild(createPopBadge(pop));
+
+    const wind = formatWind(p?.windDirection, p?.windSpeed);
+    const windTxt = document.createElement("span");
+    windTxt.className = "pop-badge muted";
+    windTxt.textContent = wind ? `Wind ${wind}` : "—";
+    metaRow.appendChild(windTxt);
+
+    right.appendChild(temp);
+    right.appendChild(metaRow);
+
+    row.appendChild(icon);
+    row.appendChild(name);
+    row.appendChild(desc);
+    row.appendChild(right);
+
+    list.appendChild(row);
+  }
 
   card.hidden = false;
 }
@@ -268,7 +365,7 @@ function renderShoeIndicator(soilMoisture, hourlyPeriods) {
   const precipWords = /(rain|shower|thunder|storm|drizzle|sleet|snow|ice)/.test(short);
   const precipLikely = precipWords || (popNum !== null && popNum >= 50);
 
-  // Soil moisture is currently null from the Worker; keep future-proof logic anyway.
+  // Soil moisture may be null; keep future-proof logic anyway.
   const sm = typeof soilMoisture === "number" && Number.isFinite(soilMoisture) ? soilMoisture : null;
   const smPct = sm !== null ? `${Math.round(sm * 100)}%` : "—";
 
@@ -339,15 +436,21 @@ function renderHourly(hourlyPeriods) {
     desc.className = "hour-desc";
     desc.textContent = safeText(p.shortForecast, "—");
 
-    const img = document.createElement("img");
-    img.className = "icon-sm";
-    img.alt = "";
-    if (p.icon) img.src = p.icon;
+    const meta = document.createElement("div");
+    meta.className = "hour-meta";
+
+    const icon = document.createElement("div");
+    icon.className = "wx-icon wx-icon-sm";
+    setIconEmoji(icon, chooseIconKey(p));
+    meta.appendChild(icon);
+
+    const pop = p?.probabilityOfPrecipitation?.value;
+    if (shouldShowPopBadge(pop)) meta.appendChild(createPopBadge(pop));
 
     item.appendChild(t);
     item.appendChild(temp);
     item.appendChild(desc);
-    item.appendChild(img);
+    item.appendChild(meta);
 
     row.appendChild(item);
   }
@@ -405,21 +508,28 @@ function renderDaily(dailyPeriods) {
     const leftEl = document.createElement("div");
     leftEl.className = "day-left";
 
+    const topLine = document.createElement("div");
+    topLine.className = "day-topline";
+
     const nameEl = document.createElement("div");
     nameEl.className = "day-name";
     nameEl.textContent = safeText(p?.name, formatDayName(p?.startTime));
+
+    const pop = p?.probabilityOfPrecipitation?.value;
+    if (shouldShowPopBadge(pop)) topLine.appendChild(createPopBadge(pop));
+
+    topLine.appendChild(nameEl);
 
     const forecastEl = document.createElement("div");
     forecastEl.className = "day-forecast";
     forecastEl.textContent = safeText(p?.shortForecast, "—");
 
-    leftEl.appendChild(nameEl);
+    leftEl.appendChild(topLine);
     leftEl.appendChild(forecastEl);
 
-    const iconEl = document.createElement("img");
-    iconEl.className = "day-icon";
-    iconEl.alt = "";
-    if (p?.icon) iconEl.src = p.icon;
+    const iconEl = document.createElement("div");
+    iconEl.className = "wx-icon wx-icon-sm";
+    setIconEmoji(iconEl, chooseIconKey(p));
 
     const tempEl = document.createElement("div");
     tempEl.className = "day-temp";
@@ -437,7 +547,6 @@ function renderDaily(dailyPeriods) {
     extraEl.textContent = safeText(p?.detailedForecast, safeText(p?.shortForecast, "—"));
 
     const whenTxt = formatWhen(p);
-    const pop = p?.probabilityOfPrecipitation?.value;
     const popTxt = typeof pop === "number" ? `Precip: ${pop}%` : null;
     const wind = formatWind(p?.windDirection, p?.windSpeed);
     const windTxt = wind ? `Wind: ${wind}` : null;
