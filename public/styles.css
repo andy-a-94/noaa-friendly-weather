@@ -21,7 +21,6 @@ body {
   color: var(--text);
 }
 
-/* Fixed glow background */
 body::before {
   content: "";
   position: fixed;
@@ -115,7 +114,6 @@ body::before {
   font-size: 12px;
 }
 
-/* Inline row: input + button */
 .menu-row {
   display: flex;
   gap: 10px;
@@ -248,7 +246,13 @@ body::before {
   font-size: 12px;
 }
 
-/* Emoji icon containers (replaces NWS icon images) */
+.meta-badges {
+  margin-top: 10px;
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
 .wx-icon {
   display: grid;
   place-items: center;
@@ -269,56 +273,23 @@ body::before {
   font-size: 26px;
 }
 
-/* Precip badge */
+/* Reusable pill badge */
 .pop-badge {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 4px 8px;
+  padding: 4px 10px;
   border-radius: 999px;
   border: 1px solid rgba(255, 255, 255, 0.14);
   background: rgba(255, 255, 255, 0.08);
   color: var(--text);
   font-weight: 800;
-  font-size: 11px;
+  font-size: 12px;
   letter-spacing: 0.2px;
   white-space: nowrap;
 }
 .pop-badge .drop { opacity: 0.95; }
-.pop-badge.muted {
-  color: var(--muted);
-  font-weight: 700;
-}
-
-.shoe-indicator {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 14px;
-}
-.shoe-emoji {
-  font-size: 34px;
-  width: 48px;
-  height: 48px;
-  display: grid;
-  place-items: center;
-  background: rgba(255, 255, 255, 0.08);
-  border-radius: 14px;
-}
-.shoe-title {
-  font-weight: 700;
-  font-size: 14px;
-}
-.shoe-subtitle {
-  margin-top: 4px;
-  color: var(--muted);
-  font-size: 12px;
-}
-.shoe-meta {
-  padding: 0 14px 14px;
-  color: var(--muted);
-  font-size: 12px;
-}
+.pop-badge.muted { color: var(--muted); font-weight: 700; }
 
 .row-scroll {
   display: flex;
@@ -340,19 +311,16 @@ body::before {
 .hour-desc { font-size: 12px; color: var(--muted); margin-top: 6px; }
 .hour-meta { margin-top: 8px; display: flex; gap: 8px; align-items: center; }
 
-/* Daily list */
 .daily-list { padding: 6px; }
 
-/* Expandable daily rows */
-.day-details {
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-}
+.day-details { border-bottom: 1px solid rgba(255, 255, 255, 0.08); }
 .day-details:last-child { border-bottom: none; }
 
+/* Now includes a dedicated PoP column BEFORE the icon */
 .day-summary {
   list-style: none;
   display: grid;
-  grid-template-columns: 1fr auto auto;
+  grid-template-columns: 1fr auto auto auto;
   gap: 10px;
   align-items: center;
   padding: 12px 10px;
@@ -366,15 +334,13 @@ body::before {
 }
 
 .day-left { display: flex; flex-direction: column; gap: 4px; }
-.day-topline { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .day-name { font-weight: 700; font-size: 13px; }
 .day-forecast { color: var(--muted); font-size: 12px; }
 .day-temp { font-weight: 800; font-size: 13px; color: var(--text); }
 
-.day-expanded {
-  padding: 0 10px 12px;
-  color: var(--text);
-}
+.day-badge { justify-self: end; }
+
+.day-expanded { padding: 0 10px 12px; color: var(--text); }
 .day-expanded .day-extra {
   margin-top: 8px;
   color: var(--muted);
@@ -388,7 +354,6 @@ body::before {
   color: var(--muted);
 }
 
-/* Outlook tile */
 .today-list { padding: 10px 12px 12px; }
 .segment-row {
   display: grid;
@@ -455,10 +420,7 @@ body::before {
   border-radius: 10px;
 }
 
-.alerts-details {
-  margin: -4px 0 14px;
-  padding: 10px 0 0;
-}
+.alerts-details { margin: -4px 0 14px; padding: 10px 0 0; }
 
 .alert-item {
   background: var(--card);
@@ -467,11 +429,7 @@ body::before {
   padding: 12px 14px;
   margin-bottom: 10px;
 }
-.alert-item summary {
-  cursor: pointer;
-  font-weight: 800;
-  margin-bottom: 6px;
-}
+.alert-item summary { cursor: pointer; font-weight: 800; margin-bottom: 6px; }
 .alert-meta { color: var(--muted); font-size: 12px; margin-top: 6px; }
 .alert-text { color: var(--text); font-size: 13px; line-height: 1.4; white-space: pre-wrap; }
 
