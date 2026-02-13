@@ -1,642 +1,512 @@
-const el = (id) => document.getElementById(id);
+/* Almanac Weather - Frontend (Pages)
+   - Calls same-origin Worker routes (/api/*) by default
+   - Renders: Current, Outlook, Sun & Moon (+UV), Hourly, Daily
+*/
 
-/* ---------------- Config ---------------- */
+const els = {
+  statusBar: document.getElementById("statusBar"),
 
-let WORKER_BASE_URL = "";
-const SAVED_ZIP_KEY = "savedWeatherZip";
+  zipForm: document.getElementById("zipForm"),
+  zipInput: document.getElementById("zipInput"),
+  zipBtn: document.getElementById("zipBtn"),
 
-const state = {
-  lat: null,
-  lon: null,
-  data: null,
-  showAllHours: false,
+  currentCard: document.getElementById("currentCard"),
+  currentContent: document.getElementById("currentContent"),
+
+  todayCard: document.getElementById("todayCard"),
+  todayContent: document.getElementById("todayContent"),
+
+  astroUvCard: document.getElementById("astroUvCard"),
+  astroUvContent: document.getElementById("astroUvContent"),
+
+  hourlyCard: document.getElementById("hourlyCard"),
+  hourlyContent: document.getElementById("hourlyContent"),
+
+  dailyCard: document.getElementById("dailyCard"),
+  dailyContent: document.getElementById("dailyContent"),
 };
 
-/* ---------------- Utilities ---------------- */
-
-function normalizeBaseUrl(value) {
-  const v = (value || "").trim();
-  return v ? v.replace(/\/+$/, "") : "";
-}
+const STORAGE_KEYS = {
+  zip: "aw_zip",
+  lastLat: "aw_lat",
+  lastLon: "aw_lon",
+  label: "aw_label",
+};
 
 function getWorkerBaseUrl() {
-  const explicit = normalizeBaseUrl(WORKER_BASE_URL);
-  if (explicit) return explicit;
-
-  const host = window.location.hostname.toLowerCase();
-  if (host === "almanacweather.com" || host === "www.almanacweather.com") return "";
-
   const meta = document.querySelector('meta[name="worker-base-url"]');
-  const fromMeta = normalizeBaseUrl(meta?.getAttribute("content"));
-  return fromMeta || "";
+  const v = meta?.getAttribute("content")?.trim();
+  return v ? v.replace(/\/+$/, "") : "";
+}
+const WORKER_BASE = getWorkerBaseUrl();
+
+function apiUrl(path, params = {}) {
+  const u = new URL(`${WORKER_BASE}${path}`, window.location.origin);
+  for (const [k, v] of Object.entries(params)) {
+    if (v !== undefined && v !== null && String(v).length) u.searchParams.set(k, v);
+  }
+  return u.toString();
 }
 
-function safeText(x, fallback = "—") {
-  return x === null || x === undefined || x === "" ? fallback : String(x);
+function setStatus(msg) {
+  els.statusBar.textContent = msg || "";
 }
 
-function formatHour(iso) {
+function clamp(n, min, max) {
+  return Math.max(min, Math.min(max, n));
+}
+
+function safeText(s) {
+  return (s ?? "").toString().trim();
+}
+
+function toInt(v) {
+  const n = Number(v);
+  return Number.isFinite(n) ? Math.round(n) : null;
+}
+
+function formatTempF(n) {
+  const t = toInt(n);
+  return t === null ? "—" : `${t}°F`;
+}
+
+function parseWind(dir, speedStr) {
+  const d = safeText(dir);
+  const s = safeText(speedStr);
+  if (!d && !s) return "";
+  // Keep NWS windSpeed string as-is (e.g., "2 to 7 mph"), just append direction.
+  return `${s}${d ? ` ${d}` : ""}`.trim();
+}
+
+function stripChanceOfPrecipSentence(text) {
+  // Remove the specific “Chance of precipitation is XX%.” sentence so we don't show duplicate %s.
+  let t = safeText(text);
+  t = t.replace(/\s*Chance of precipitation is\s*\d+%\.?\s*/gi, " ");
+  t = t.replace(/\s{2,}/g, " ").trim();
+  return t;
+}
+
+function extractPopPercent(period) {
+  const v = period?.probabilityOfPrecipitation?.value;
+  if (typeof v === "number") return clamp(Math.round(v), 0, 100);
+
+  const combined = `${safeText(period?.detailedForecast)} ${safeText(period?.shortForecast)}`;
+  const m = combined.match(/Chance of precipitation is\s*(\d+)%/i);
+  if (m) return clamp(Number(m[1]), 0, 100);
+
+  return null;
+}
+
+function formatDateShort(iso, timeZone) {
   try {
-    return new Date(iso).toLocaleTimeString([], { hour: "numeric" });
+    const d = new Date(iso);
+    return new Intl.DateTimeFormat("en-US", {
+      timeZone: timeZone || undefined,
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+    }).format(d);
   } catch {
-    return "—";
+    return "";
   }
 }
 
-function setStatus(title, subtitle, { loading = false } = {}) {
-  const t = el("statusTitle");
-  const s = el("statusSubtitle");
-  const sp = el("spinner");
-  const r = el("retryBtn");
-
-  if (t) t.textContent = title;
-  if (s) s.textContent = subtitle;
-  if (sp) sp.style.display = loading ? "inline-block" : "none";
-  if (r) r.hidden = true;
+async function fetchLocationByZip(zip) {
+  const res = await fetch(apiUrl("/api/location", { zip }), { cache: "no-store" });
+  if (!res.ok) throw new Error(`Location lookup failed (${res.status})`);
+  return await res.json();
 }
 
-/* ---------------- Icons (emoji) ---------------- */
-
-const ICON_EMOJI = {
-  clear_day: "☀️",
-  clear_night: "🌙",
-  partly_cloudy_day: "⛅",
-  partly_cloudy_night: "🌙",
-  cloudy: "☁️",
-  rain: "🌧️",
-  thunder: "⛈️",
-  snow: "❄️",
-  sleet: "🌨️",
-  fog: "🌫️",
-  wind: "💨",
-  unknown: "•",
-};
-
-function containsAny(haystack, words) {
-  const s = (haystack || "").toLowerCase();
-  return words.some((w) => s.includes(w));
-}
-
-function classifyBaseIconKey(period) {
-  const short = (period?.shortForecast || "").toLowerCase();
-  const isDay = period?.isDaytime === true;
-
-  if (containsAny(short, ["thunder", "t-storm", "storm"])) return "thunder";
-  if (containsAny(short, ["snow", "flurr", "blizzard"])) return "snow";
-  if (containsAny(short, ["sleet", "freezing", "ice"])) return "sleet";
-  if (containsAny(short, ["rain", "shower", "drizzle"])) return "rain";
-  if (containsAny(short, ["fog", "haze", "smoke", "mist"])) return "fog";
-  if (containsAny(short, ["wind"])) return "wind";
-
-  if (containsAny(short, ["partly", "mostly sunny", "mostly clear", "partly sunny"])) {
-    return isDay ? "partly_cloudy_day" : "partly_cloudy_night";
+async function fetchWeather(lat, lon, zip) {
+  const res = await fetch(apiUrl("/api/weather", { lat, lon, zip }), { cache: "no-store" });
+  if (!res.ok) {
+    const t = await res.text().catch(() => "");
+    throw new Error(`Weather fetch failed (${res.status}) ${t}`);
   }
-  if (containsAny(short, ["cloudy", "overcast"])) return "cloudy";
-  if (containsAny(short, ["clear", "sunny"])) return isDay ? "clear_day" : "clear_night";
-
-  return "unknown";
+  return await res.json();
 }
-
-function chooseIconKey(period) {
-  const base = classifyBaseIconKey(period);
-  if (["thunder", "snow", "sleet", "rain", "fog", "wind"].includes(base)) return base;
-
-  const pop = period?.probabilityOfPrecipitation?.value;
-  const popNum = typeof pop === "number" ? pop : null;
-  if (popNum !== null && popNum >= 50) return "rain"; // umbrella day
-  return base;
-}
-
-function setIconEmoji(containerEl, iconKey, fallbackKey = "unknown") {
-  if (!containerEl) return;
-  const key = iconKey in ICON_EMOJI ? iconKey : fallbackKey;
-  containerEl.textContent = ICON_EMOJI[key] || ICON_EMOJI.unknown;
-}
-
-/* ---------------- Badges (Wind + Precip) ---------------- */
-
-function createPillBadge({ emoji, text, muted = false }) {
-  const badge = document.createElement("span");
-  badge.className = `pop-badge${muted ? " muted" : ""}`;
-  badge.innerHTML = `<span class="drop">${emoji}</span><span>${text}</span>`;
-  return badge;
-}
-
-function shouldShowPopBadge(popValue) {
-  return typeof popValue === "number" && popValue >= 10;
-}
-
-function formatWind(speed, dir) {
-  const s = (speed || "").trim();
-  const d = (dir || "").trim();
-  if (!s && !d) return null;
-  if (s && d) return `${s} ${d}`;
-  return s || d;
-}
-
-/* ---------------- Menu ZIP UI ---------------- */
-
-function isMenuOpen() {
-  const menu = el("topbarMenu");
-  return menu ? !menu.hidden : false;
-}
-
-function setMenuOpen(open) {
-  const menu = el("topbarMenu");
-  const btn = el("menuBtn");
-  if (!menu || !btn) return;
-
-  menu.hidden = !open;
-  btn.setAttribute("aria-expanded", open ? "true" : "false");
-
-  if (open) el("menuZipInput")?.focus();
-}
-
-function showMenuZipError(msg) {
-  const p = el("menuZipError");
-  if (!p) return;
-  p.textContent = msg;
-  p.hidden = false;
-}
-
-function clearMenuZipError() {
-  const p = el("menuZipError");
-  if (!p) return;
-  p.textContent = "";
-  p.hidden = true;
-}
-
-/* ---------------- Visibility ---------------- */
 
 function resetVisibleSections() {
-  const setHidden = (id, hidden) => {
-    const node = el(id);
-    if (node) node.hidden = hidden;
-  };
+  els.currentCard.hidden = true;
+  els.todayCard.hidden = true;
+  els.astroUvCard.hidden = true;
+  els.hourlyCard.hidden = true;
+  els.dailyCard.hidden = true;
 
-  setHidden("currentCard", true);
-  setHidden("todayCard", true);
-  setHidden("hourlyCard", true);
-  setHidden("dailyCard", true);
-  setHidden("alertsSection", true);
-  setHidden("alertsDetails", true);
-
-  // Shoe indicator hidden
-  setHidden("shoeCard", true);
-
-  const details = el("alertsDetails");
-  if (details) details.innerHTML = "";
+  els.currentContent.innerHTML = "";
+  els.todayContent.innerHTML = "";
+  els.astroUvContent.innerHTML = "";
+  els.hourlyContent.innerHTML = "";
+  els.dailyContent.innerHTML = "";
 }
 
-/* ---------------- API calls ---------------- */
-
-async function fetchJsonOrThrow(url, fallbackMessage) {
-  const res = await fetch(url, { method: "GET" });
-  const data = await res.json().catch(() => null);
-  if (!res.ok) throw new Error(data?.error || fallbackMessage);
-  return data;
+function iconFromForecastIconUrl(url, shortForecast) {
+  // Basic mapping to keep the aesthetic consistent without depending on NWS image assets.
+  // (You can refine/replace later with your own SVG set.)
+  const s = safeText(shortForecast).toLowerCase();
+  if (s.includes("thunder")) return "⛈️";
+  if (s.includes("snow")) return "🌨️";
+  if (s.includes("sleet") || s.includes("ice")) return "🌧️";
+  if (s.includes("rain") || s.includes("showers") || s.includes("drizzle")) return "🌧️";
+  if (s.includes("fog")) return "🌫️";
+  if (s.includes("cloudy")) return s.includes("partly") ? "⛅" : "☁️";
+  if (s.includes("clear")) return "🌙";
+  if (s.includes("sunny")) return "☀️";
+  return "🌤️";
 }
 
-async function fetchLocationFromZip(zip) {
-  const base = getWorkerBaseUrl();
-  const url = `${base}/api/location?zip=${encodeURIComponent(zip)}`;
-  return fetchJsonOrThrow(url, "ZIP lookup failed.");
-}
+function renderCurrent(data) {
+  const current = data?.current;
+  if (!current) return;
 
-async function fetchWeather(lat, lon) {
-  const base = getWorkerBaseUrl();
-  const url = `${base}/api/weather?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}`;
-  return fetchJsonOrThrow(url, "Weather data is unavailable.");
-}
+  const temp = formatTempF(current.temperatureF ?? current.temperature);
+  const desc = safeText(current.shortForecast || current.textDescription || "—");
+  const icon = iconFromForecastIconUrl(current.icon, desc);
 
-/* ---------------- Renderers ---------------- */
+  const windStr = parseWind(current.windDirection, current.windSpeed);
+  const pop = extractPopPercent(current);
 
-function renderCurrent(hourlyPeriods) {
-  const cur = hourlyPeriods?.[0];
-  if (!cur) return;
+  const metaParts = [];
+  if (windStr) metaParts.push(`💨 ${windStr}`);
+  if (typeof pop === "number" && pop >= 10) metaParts.push(`💧 ${pop}%`);
 
-  el("currentTemp").textContent = `${safeText(cur.temperature, "--")}°${safeText(cur.temperatureUnit, "")}`;
-  el("currentDesc").textContent = safeText(cur.shortForecast, "--");
-  setIconEmoji(el("currentIcon"), chooseIconKey(cur));
+  const meta = metaParts.join(" • ");
 
-  const badgesEl = el("currentBadges");
-  if (badgesEl) {
-    badgesEl.innerHTML = "";
+  els.currentContent.innerHTML = `
+    <div class="current-row">
+      <div>
+        <div class="current-temp">${temp}</div>
+        <div class="current-desc">${desc}</div>
+        ${meta ? `<div class="current-meta">${meta}</div>` : ""}
+      </div>
+      <div class="wx-icon" aria-hidden="true">${icon}</div>
+    </div>
+  `;
 
-    const windTxt = formatWind(cur.windSpeed, cur.windDirection);
-    badgesEl.appendChild(
-      createPillBadge({
-        emoji: "💨",
-        text: windTxt ? windTxt : "—",
-        muted: !windTxt,
-      })
-    );
-
-    const pop = cur.probabilityOfPrecipitation?.value;
-    const popTxt = typeof pop === "number" ? `${pop}%` : "—";
-    badgesEl.appendChild(
-      createPillBadge({
-        emoji: "💧",
-        text: popTxt,
-        muted: typeof pop !== "number",
-      })
-    );
+  // Alerts (optional)
+  if (Array.isArray(data.alerts) && data.alerts.length) {
+    const pills = data.alerts
+      .slice(0, 6)
+      .map(a => `<span class="alert-pill">⚠️ ${safeText(a.event || "Alert")}</span>`)
+      .join("");
+    els.currentContent.insertAdjacentHTML("beforeend", `<div class="alerts">${pills}</div>`);
   }
 
-  el("currentMeta").hidden = true;
-  el("currentCard").hidden = false;
+  els.currentCard.hidden = false;
 }
 
-function pickTodayTonight(dailyPeriods) {
-  const periods = Array.isArray(dailyPeriods) ? dailyPeriods : [];
-  return periods.slice(0, 2).filter(Boolean);
-}
+function renderToday(data) {
+  const outlook = data?.outlook;
+  if (!outlook || !Array.isArray(outlook.periods) || outlook.periods.length === 0) return;
 
-function renderToday(dailyPeriods) {
-  const card = el("todayCard");
-  const list = el("todayList");
-  if (!card || !list) return;
+  const rows = outlook.periods.slice(0, 2).map(p => {
+    const name = safeText(p.name || "");
+    const short = safeText(p.shortForecast || "");
+    const icon = iconFromForecastIconUrl(p.icon, short);
+    const temp = formatTempF(p.temperature);
 
-  const picks = pickTodayTonight(dailyPeriods);
-  if (!picks.length) {
-    card.hidden = true;
-    return;
-  }
+    const windStr = parseWind(p.windDirection, p.windSpeed);
+    const pop = extractPopPercent(p);
 
-  list.innerHTML = "";
-  for (const p of picks) {
-    const row = document.createElement("div");
-    row.className = "segment-row";
-
-    const icon = document.createElement("div");
-    icon.className = "segment-icon";
-    setIconEmoji(icon, chooseIconKey(p));
-
-    const name = document.createElement("div");
-    name.className = "segment-name";
-    name.textContent = safeText(p?.name, "—");
-
-    const desc = document.createElement("div");
-    desc.className = "segment-desc";
-    desc.textContent = safeText(p?.shortForecast, "—");
-
-    const right = document.createElement("div");
-    right.className = "segment-right";
-
-    const temp = document.createElement("div");
-    temp.className = "segment-temp";
-    temp.textContent = `${safeText(p?.temperature, "--")}°${safeText(p?.temperatureUnit, "")}`;
-
-    const metaRow = document.createElement("div");
-    metaRow.className = "segment-pop";
-
-    const pop = p?.probabilityOfPrecipitation?.value;
-    if (shouldShowPopBadge(pop)) metaRow.appendChild(createPillBadge({ emoji: "💧", text: `${pop}%` }));
-
-    right.appendChild(temp);
-    right.appendChild(metaRow);
-
-    row.appendChild(icon);
-    row.appendChild(name);
-    row.appendChild(desc);
-    row.appendChild(right);
-
-    list.appendChild(row);
-  }
-
-  card.hidden = false;
-}
-
-function renderHourly(hourlyPeriods) {
-  const row = el("hourlyRow");
-  const card = el("hourlyCard");
-  const toggle = el("toggleHourlyBtn");
-  if (!row || !card || !toggle) return;
-
-  row.innerHTML = "";
-  const periods = Array.isArray(hourlyPeriods) ? hourlyPeriods : [];
-  if (!periods.length) {
-    card.hidden = true;
-    return;
-  }
-
-  const count = state.showAllHours ? Math.min(periods.length, 48) : Math.min(periods.length, 12);
-  const slice = periods.slice(0, count);
-
-  for (const p of slice) {
-    const item = document.createElement("div");
-    item.className = "hour-card";
-
-    const t = document.createElement("div");
-    t.className = "hour-time";
-    t.textContent = formatHour(p.startTime);
-
-    const temp = document.createElement("div");
-    temp.className = "hour-temp";
-    temp.textContent = `${safeText(p.temperature, "--")}°`;
-
-    const desc = document.createElement("div");
-    desc.className = "hour-desc";
-    desc.textContent = safeText(p.shortForecast, "—");
-
-    const meta = document.createElement("div");
-    meta.className = "hour-meta";
-
-    const icon = document.createElement("div");
-    icon.className = "wx-icon wx-icon-sm";
-    setIconEmoji(icon, chooseIconKey(p));
-    meta.appendChild(icon);
-
-    const pop = p?.probabilityOfPrecipitation?.value;
-    if (shouldShowPopBadge(pop)) meta.appendChild(createPillBadge({ emoji: "💧", text: `${pop}%` }));
-
-    item.appendChild(t);
-    item.appendChild(temp);
-    item.appendChild(desc);
-    item.appendChild(meta);
-
-    row.appendChild(item);
-  }
-
-  toggle.textContent = state.showAllHours ? "Show less" : "Show all";
-  toggle.onclick = () => {
-    state.showAllHours = !state.showAllHours;
-    renderHourly(state.data?.hourlyPeriods || []);
-  };
-
-  card.hidden = false;
-}
-
-function chooseDaily7(periods) {
-  const list = Array.isArray(periods) ? periods : [];
-  const daytime = list.filter((p) => p?.isDaytime === true);
-  const src = daytime.length >= 7 ? daytime : list;
-  return src.slice(0, 7);
-}
-
-function renderDaily(dailyPeriods) {
-  const list = el("dailyList");
-  const card = el("dailyCard");
-  if (!list || !card) return;
-
-  list.innerHTML = "";
-  const days = chooseDaily7(dailyPeriods);
-  if (!days.length) {
-    card.hidden = true;
-    return;
-  }
-
-  const formatWhen = (p) => {
-    if (!p?.startTime || !p?.endTime) return null;
-    try {
-      const start = new Date(p.startTime);
-      const end = new Date(p.endTime);
-      const day = start.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" });
-      const s = start.toLocaleTimeString([], { hour: "numeric" });
-      const e = end.toLocaleTimeString([], { hour: "numeric" });
-      return `${day} • ${s}–${e}`;
-    } catch {
-      return null;
+    const badges = [];
+    if (typeof pop === "number" && pop >= 10) {
+      badges.push(`<span class="pop-badge"><span class="drop">💧</span>${pop}%</span>`);
     }
-  };
+    if (windStr) {
+      badges.push(`<span class="pop-badge"><span class="drop">💨</span>${windStr}</span>`);
+    }
 
-  for (const p of days) {
-    const detailsEl = document.createElement("details");
-    detailsEl.className = "day-details";
+    return `
+      <div class="today-row">
+        <div class="wx-icon-sm" aria-hidden="true">${icon}</div>
+        <div class="today-mid">
+          <div class="today-name">${name}</div>
+          <div class="today-short">${short || "—"}</div>
+        </div>
+        <div class="today-right">
+          <div class="today-temp">${temp}</div>
+          <div class="today-badges">${badges.join("")}</div>
+        </div>
+      </div>
+    `;
+  }).join("");
 
-    const summaryEl = document.createElement("summary");
-    summaryEl.className = "day-summary";
+  els.todayContent.innerHTML = `<div class="today-rows">${rows}</div>`;
+  els.todayCard.hidden = false;
+}
 
-    const leftEl = document.createElement("div");
-    leftEl.className = "day-left";
+function renderAstroUv(data) {
+  const astro = data?.astro;
+  if (!astro) return;
 
-    const nameEl = document.createElement("div");
-    nameEl.className = "day-name";
-    nameEl.textContent = safeText(p?.name, "—");
+  const sunrise = safeText(astro.sunrise);
+  const sunset = safeText(astro.sunset);
+  const moonrise = safeText(astro.moonrise);
+  const moonset = safeText(astro.moonset);
+  const phase = safeText(astro.moonPhase);
+  const illum = (typeof astro.moonIlluminationPct === "number")
+    ? `${Math.round(astro.moonIlluminationPct)}%`
+    : "";
 
-    const forecastEl = document.createElement("div");
-    forecastEl.className = "day-forecast";
-    forecastEl.textContent = safeText(p?.shortForecast, "—");
+  const uv = data?.uv;
+  const showUv = !!astro.isDaytimeNow;
 
-    leftEl.appendChild(nameEl);
-    leftEl.appendChild(forecastEl);
-
-    // PoP badge column (left of emoji)
-    const pop = p?.probabilityOfPrecipitation?.value;
-    let badgeEl;
-    if (shouldShowPopBadge(pop)) {
-      badgeEl = createPillBadge({ emoji: "💧", text: `${pop}%` });
-      badgeEl.classList.add("day-badge");
+  const uvPills = [];
+  if (showUv) {
+    if (uv?.ok && typeof uv.current === "number") {
+      uvPills.push(`<span class="pop-badge"><span class="drop">🔆</span>UV ${Math.round(uv.current)}</span>`);
+      if (typeof uv.max === "number") {
+        uvPills.push(`<span class="pop-badge muted">Max ${Math.round(uv.max)}</span>`);
+      }
     } else {
-      badgeEl = document.createElement("span");
-      badgeEl.className = "day-badge";
+      uvPills.push(`<span class="pop-badge muted">🔆 UV —</span>`);
+    }
+  }
+
+  els.astroUvContent.innerHTML = `
+    <div class="astro-stack">
+      <div class="astro-line">
+        <div>
+          <div class="astro-title">Sun</div>
+          <div class="astro-sub">🌅 ${sunrise || "—"} • 🌇 ${sunset || "—"}</div>
+        </div>
+        <div class="astro-right">
+          ${uvPills.join("")}
+        </div>
+      </div>
+
+      <div class="astro-line">
+        <div>
+          <div class="astro-title">Moon</div>
+          <div class="astro-sub">🌙 ${phase || "—"}${illum ? ` • ${illum}` : ""}<br/>⬆️ ${moonrise || "—"} • ⬇️ ${moonset || "—"}</div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  els.astroUvCard.hidden = false;
+}
+
+function renderHourly(data) {
+  const hourly = data?.hourly;
+  if (!hourly || !Array.isArray(hourly.periods) || hourly.periods.length === 0) return;
+
+  const timeZone = data?.timeZone || null;
+
+  const cards = hourly.periods.slice(0, 18).map(p => {
+    const d = new Date(p.startTime);
+    const time = (() => {
+      try {
+        return new Intl.DateTimeFormat("en-US", {
+          timeZone: timeZone || undefined,
+          hour: "numeric",
+        }).format(d);
+      } catch {
+        return safeText(p.name || "");
+      }
+    })();
+
+    const temp = formatTempF(p.temperature);
+    const desc = safeText(p.shortForecast || "");
+    const icon = iconFromForecastIconUrl(p.icon, desc);
+    const pop = extractPopPercent(p);
+
+    return `
+      <div class="hour-card">
+        <div class="hour-time">${time}</div>
+        <div class="hour-temp">${temp}</div>
+        <div class="hour-desc">${desc || "—"}</div>
+        <div class="hour-meta">
+          <div class="wx-icon-sm" aria-hidden="true">${icon}</div>
+          ${
+            (typeof pop === "number" && pop >= 10)
+              ? `<span class="pop-badge"><span class="drop">💧</span>${pop}%</span>`
+              : ``
+          }
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  els.hourlyContent.innerHTML = `<div class="row-scroll">${cards}</div>`;
+  els.hourlyCard.hidden = false;
+}
+
+function renderDaily(data) {
+  const daily = data?.daily;
+  if (!daily || !Array.isArray(daily.periods) || daily.periods.length === 0) return;
+
+  const timeZone = data?.timeZone || null;
+  const metrics = data?.periodMetrics || {};
+
+  const list = daily.periods.slice(0, 8).map(p => {
+    const name = safeText(p.name || "");
+    const short = safeText(p.shortForecast || "");
+    const icon = iconFromForecastIconUrl(p.icon, short);
+    const temp = formatTempF(p.temperature);
+
+    const pop = extractPopPercent(p);
+
+    // For expanded details
+    const when = formatDateShort(p.startTime, timeZone);
+    const windStr = parseWind(p.windDirection, p.windSpeed);
+
+    const m = metrics?.[String(p.number)] || metrics?.[p.number];
+    const dewF = (m && typeof m.dewpointF === "number") ? Math.round(m.dewpointF) : null;
+    const rh = (m && typeof m.relativeHumidityPct === "number") ? Math.round(m.relativeHumidityPct) : null;
+
+    const metaParts = [];
+    if (when) metaParts.push(when);
+    if (typeof pop === "number") metaParts.push(`💧 ${pop}%`);
+    if (windStr) metaParts.push(`💨 ${windStr}`);
+    if (dewF !== null) metaParts.push(`🌱 ${dewF}°F`);
+    if (rh !== null) metaParts.push(`Relative Humidity ${rh}%`);
+
+    const detailText = stripChanceOfPrecipSentence(p.detailedForecast || short);
+
+    return `
+      <details class="day-details">
+        <summary class="day-summary">
+          <div class="day-left">
+            <div class="day-name">${name}</div>
+            <div class="day-short">${short || "—"}</div>
+          </div>
+          <div class="day-right">
+            ${
+              (typeof pop === "number" && pop >= 10)
+                ? `<span class="pop-badge"><span class="drop">💧</span>${pop}%</span>`
+                : ``
+            }
+            <div class="wx-icon-sm" aria-hidden="true">${icon}</div>
+            <div class="day-temp">${temp}</div>
+          </div>
+        </summary>
+        <div class="day-detail">
+          ${detailText || "—"}
+          ${metaParts.length ? `<div class="detail-meta">${metaParts.join(" • ")}</div>` : ""}
+        </div>
+      </details>
+    `;
+  }).join("");
+
+  els.dailyContent.innerHTML = `<div class="daily-list">${list}</div>`;
+  els.dailyCard.hidden = false;
+}
+
+async function loadAndRender({ lat, lon, labelOverride = null, zipForUv = null }) {
+  resetVisibleSections();
+  setStatus("Loading forecast…");
+
+  const data = await fetchWeather(lat, lon, zipForUv);
+
+  // Persist last-known location
+  localStorage.setItem(STORAGE_KEYS.lastLat, String(lat));
+  localStorage.setItem(STORAGE_KEYS.lastLon, String(lon));
+  if (labelOverride) localStorage.setItem(STORAGE_KEYS.label, labelOverride);
+
+  // Optional: update status with label
+  const label = labelOverride || data?.location?.label || localStorage.getItem(STORAGE_KEYS.label) || "";
+  setStatus(label ? `Showing weather for ${label}` : "");
+
+  renderCurrent(data);
+  renderToday(data);
+  renderAstroUv(data);
+  renderHourly(data);
+  renderDaily(data);
+}
+
+function getStoredZip() {
+  const z = safeText(localStorage.getItem(STORAGE_KEYS.zip));
+  return /^\d{5}$/.test(z) ? z : "";
+}
+
+async function init() {
+  // ZIP form
+  els.zipForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const zip = safeText(els.zipInput.value);
+    if (!/^\d{5}$/.test(zip)) {
+      setStatus("Please enter a valid 5-digit ZIP code.");
+      return;
     }
 
-    const iconEl = document.createElement("div");
-    iconEl.className = "wx-icon wx-icon-sm";
-    setIconEmoji(iconEl, chooseIconKey(p));
+    els.zipBtn.disabled = true;
+    setStatus("Finding ZIP location…");
+    try {
+      const loc = await fetchLocationByZip(zip);
+      localStorage.setItem(STORAGE_KEYS.zip, zip);
+      els.zipInput.value = zip;
 
-    const tempEl = document.createElement("div");
-    tempEl.className = "day-temp";
-    tempEl.textContent = `${safeText(p?.temperature, "--")}°${safeText(p?.temperatureUnit, "")}`;
-
-    summaryEl.appendChild(leftEl);
-    summaryEl.appendChild(badgeEl);
-    summaryEl.appendChild(iconEl);
-    summaryEl.appendChild(tempEl);
-
-    const expandedEl = document.createElement("div");
-    expandedEl.className = "day-expanded";
-
-    const extraEl = document.createElement("div");
-    extraEl.className = "day-extra";
-    extraEl.textContent = safeText(p?.detailedForecast, safeText(p?.shortForecast, "—"));
-
-    const whenTxt = formatWhen(p);
-    const popTxt = typeof pop === "number" ? `Precip: ${pop}%` : null;
-    const windTxt = formatWind(p?.windSpeed, p?.windDirection);
-    const windMeta = windTxt ? `Wind: ${windTxt}` : null;
-
-    const metaEl = document.createElement("div");
-    metaEl.className = "day-meta";
-    metaEl.textContent = [whenTxt, popTxt, windMeta].filter(Boolean).join(" • ") || "—";
-
-    expandedEl.appendChild(extraEl);
-    expandedEl.appendChild(metaEl);
-
-    detailsEl.appendChild(summaryEl);
-    detailsEl.appendChild(expandedEl);
-
-    detailsEl.addEventListener("toggle", () => {
-      if (!detailsEl.open) return;
-      list.querySelectorAll("details.day-details").forEach((d) => {
-        if (d !== detailsEl) d.open = false;
+      await loadAndRender({
+        lat: loc.lat,
+        lon: loc.lon,
+        labelOverride: loc.label,
+        zipForUv: zip, // helps UV resolve even if city/state differs slightly
       });
-    });
+    } catch (err) {
+      console.error(err);
+      setStatus("Could not find that ZIP. Try another.");
+    } finally {
+      els.zipBtn.disabled = false;
+    }
+  });
 
-    list.appendChild(detailsEl);
+  // Auto-load: prefer stored ZIP, else geolocation, else last lat/lon
+  const storedZip = getStoredZip();
+  if (storedZip) {
+    els.zipInput.value = storedZip;
+    try {
+      setStatus("Loading saved ZIP…");
+      const loc = await fetchLocationByZip(storedZip);
+      await loadAndRender({
+        lat: loc.lat,
+        lon: loc.lon,
+        labelOverride: loc.label,
+        zipForUv: storedZip,
+      });
+      return;
+    } catch (e) {
+      console.warn("Stored ZIP failed, falling back.", e);
+    }
   }
 
-  card.hidden = false;
-}
-
-function renderAlerts(alerts) {
-  const section = el("alertsSection");
-  const summary = el("alertSummary");
-  const detailsWrap = el("alertsDetails");
-  const toggleBtn = el("toggleAlertsBtn");
-
-  if (!section || !summary || !detailsWrap || !toggleBtn) return;
-
-  const list = Array.isArray(alerts) ? alerts : [];
-  if (!list.length) {
-    section.hidden = true;
-    detailsWrap.hidden = true;
-    detailsWrap.innerHTML = "";
-    return;
-  }
-
-  section.hidden = false;
-  summary.textContent = `${list.length} active alert${list.length === 1 ? "" : "s"} in your area`;
-
-  detailsWrap.innerHTML = "";
-  for (const a of list) {
-    const card = document.createElement("details");
-    card.className = "alert-item";
-
-    const s = document.createElement("summary");
-    s.textContent = a.headline || a.event || "Weather Alert";
-
-    const meta = document.createElement("div");
-    meta.className = "alert-meta";
-    const parts = [
-      a.severity ? `Severity: ${a.severity}` : null,
-      a.urgency ? `Urgency: ${a.urgency}` : null,
-      a.expires ? `Expires: ${new Date(a.expires).toLocaleString()}` : null,
-    ].filter(Boolean);
-    meta.textContent = parts.join(" • ") || "—";
-
-    const body = document.createElement("div");
-    body.className = "alert-text";
-    body.textContent = [a.description, a.instruction].filter(Boolean).join("\n\n") || "—";
-
-    card.appendChild(s);
-    card.appendChild(meta);
-    card.appendChild(body);
-
-    detailsWrap.appendChild(card);
-  }
-
-  toggleBtn.onclick = () => {
-    const open = !detailsWrap.hidden;
-    detailsWrap.hidden = open;
-    toggleBtn.textContent = open ? "Details" : "Hide";
-    if (!open) detailsWrap.scrollIntoView({ behavior: "smooth", block: "start" });
-  };
-
-  detailsWrap.hidden = true;
-  toggleBtn.textContent = "Details";
-}
-
-/* ---------------- Main loading ---------------- */
-
-async function loadAndRender(lat, lon, labelOverride = null) {
-  resetVisibleSections();
-  setStatus("Loading", "Connecting to National Weather Service…", { loading: true });
-
-  const data = await fetchWeather(lat, lon);
-
-  state.data = data;
-  state.lat = lat;
-  state.lon = lon;
-
-  const loc = el("locationName");
-  if (loc) loc.textContent = labelOverride || data?.location?.name || "Your area";
-
-  renderAlerts(data.alerts || []);
-  renderCurrent(data.hourlyPeriods || []);
-  renderToday(data.dailyPeriods || []);
-  renderHourly(data.hourlyPeriods || []);
-  renderDaily(data.dailyPeriods || []);
-
-  setStatus("Updated", `Last updated: ${new Date(data.fetchedAt).toLocaleTimeString()}`, { loading: false });
-}
-
-/* ---------------- Handlers ---------------- */
-
-function setupMenuZipHandlers() {
-  const btn = el("menuBtn");
-  const menu = el("topbarMenu");
-  const form = el("menuZipForm");
-
-  if (btn && menu) {
-    btn.addEventListener("click", () => setMenuOpen(!isMenuOpen()));
-
-    document.addEventListener("click", (e) => {
-      if (!menu.contains(e.target) && !btn.contains(e.target)) setMenuOpen(false);
-    });
-
-    document.addEventListener("keydown", (e) => {
-      if (e.key === "Escape") setMenuOpen(false);
-    });
-  }
-
-  if (form) {
-    form.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      clearMenuZipError();
-
-      const zip = (el("menuZipInput")?.value || "").trim();
-      if (!/^\d{5}$/.test(zip)) {
-        showMenuZipError("Please enter a valid 5-digit ZIP code.");
-        return;
-      }
-
-      localStorage.setItem(SAVED_ZIP_KEY, zip);
-
-      try {
-        setStatus("Loading", "Looking up ZIP…", { loading: true });
-        const loc = await fetchLocationFromZip(zip);
-
-        setMenuOpen(false);
-        await loadAndRender(loc.lat, loc.lon, loc.label || `ZIP ${zip}`);
-      } catch (err) {
-        setStatus("Location could not be found", "Please search by ZIP code.", { loading: false });
-        showMenuZipError(safeText(err?.message, "ZIP lookup failed."));
-        setMenuOpen(true);
-      }
-    });
+  // Geolocation
+  if ("geolocation" in navigator) {
+    setStatus("Finding your location…");
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const lat = pos.coords.latitude;
+        const lon = pos.coords.longitude;
+        try {
+          await loadAndRender({ lat, lon, labelOverride: null, zipForUv: null });
+        } catch (err) {
+          console.error(err);
+          setStatus("Unable to load weather for your location.");
+        }
+      },
+      async (err) => {
+        console.warn(err);
+        // Fallback to last known
+        const lastLat = Number(localStorage.getItem(STORAGE_KEYS.lastLat));
+        const lastLon = Number(localStorage.getItem(STORAGE_KEYS.lastLon));
+        if (Number.isFinite(lastLat) && Number.isFinite(lastLon)) {
+          try {
+            await loadAndRender({ lat: lastLat, lon: lastLon, labelOverride: null, zipForUv: null });
+            return;
+          } catch (e2) {
+            console.error(e2);
+          }
+        }
+        setStatus("Location permission denied. Enter a ZIP to continue.");
+      },
+      { enableHighAccuracy: false, timeout: 7000, maximumAge: 300000 }
+    );
+  } else {
+    setStatus("Geolocation not supported. Enter a ZIP to continue.");
   }
 }
 
-/* ---------------- Start ---------------- */
-
-function start() {
-  setupMenuZipHandlers();
-
-  setStatus("Location", "Requesting permission…", { loading: true });
-
-  if (!("geolocation" in navigator)) {
-    setStatus("Location could not be found", "Please search by ZIP code.", { loading: false });
-    setMenuOpen(true);
-    return;
-  }
-
-  navigator.geolocation.getCurrentPosition(
-    async (pos) => {
-      try {
-        await loadAndRender(pos.coords.latitude, pos.coords.longitude);
-      } catch (err) {
-        setStatus("Could not load weather", safeText(err?.message, "Failed to fetch."), { loading: false });
-        setMenuOpen(true);
-      }
-    },
-    () => {
-      setStatus("Location could not be found", "Please search by ZIP code.", { loading: false });
-      setMenuOpen(true);
-    },
-    { enableHighAccuracy: false, timeout: 12000, maximumAge: 5 * 60 * 1000 }
-  );
-}
-
-start();
+init().catch((e) => {
+  console.error(e);
+  setStatus("Something went wrong loading the app.");
+});
