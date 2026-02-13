@@ -7,10 +7,7 @@
     <title>Almanac Weather</title>
     <meta name="description" content="Fast, clean NOAA/NWS weather with hourly and daily details." />
 
-    <!--
-      Only used for preview/dev hosts (e.g., *.pages.dev). Production uses same-origin /api/*
-      If you don't need preview calls to workers.dev, you can remove this meta entirely.
-    -->
+    <!-- Preview/dev only (e.g., *.pages.dev). Production uses same-origin /api/* -->
     <meta name="worker-base-url" content="https://noaa-friendly-weather.andy-antle.workers.dev" />
 
     <link rel="stylesheet" href="styles.css" />
@@ -37,12 +34,10 @@
             ☰
           </button>
 
-          <!-- Keep in DOM (JS references it). Always hidden. -->
           <button class="btn btn-primary" id="retryBtn" type="button" hidden>Retry</button>
         </div>
       </div>
 
-      <!-- Dropdown ZIP menu -->
       <div id="topbarMenu" class="topbar-menu" hidden>
         <div class="menu-inner">
           <p class="menu-hint">Search by ZIP code</p>
@@ -99,30 +94,25 @@
           <div class="card-header">
             <h2>Current</h2>
           </div>
+
           <div class="current">
             <div class="current-left">
               <div class="temp" id="currentTemp">--</div>
               <div class="current-desc" id="currentDesc">--</div>
-              <div class="meta" id="currentMeta">--</div>
+
+              <!-- Wind + Precip pill badges -->
+              <div class="meta-badges" id="currentBadges"></div>
+
+              <!-- Fallback text (kept for resilience) -->
+              <div class="meta" id="currentMeta" hidden>--</div>
             </div>
-            <!-- Replaces NWS image icon -->
+
             <div id="currentIcon" class="wx-icon wx-icon-lg" aria-hidden="true"></div>
           </div>
         </section>
 
-        <section class="card" id="shoeCard" hidden>
-          <div class="card-header">
-            <h2>Shoe Indicator</h2>
-          </div>
-          <div class="shoe-indicator">
-            <div class="shoe-emoji" id="shoeEmoji" aria-hidden="true">👟</div>
-            <div>
-              <div class="shoe-title" id="shoeTitle">Shoe indicator</div>
-              <div class="shoe-subtitle" id="shoeSubtitle">Always shown; uses available data.</div>
-            </div>
-          </div>
-          <div class="shoe-meta" id="shoeMeta">Soil moisture: —</div>
-        </section>
+        <!-- Shoe indicator hidden for now -->
+        <section class="card" id="shoeCard" hidden></section>
 
         <section class="card" id="todayCard" hidden>
           <div class="card-header">
