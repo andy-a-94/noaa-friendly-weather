@@ -1,145 +1,86 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Almanac Weather</title>
+  <meta name="theme-color" content="#0b1230" />
 
-    <title>Almanac Weather</title>
-    <meta name="description" content="Fast, clean NOAA/NWS weather with hourly and daily details." />
+  <!-- For Cloudflare Pages preview builds you can set a worker base URL here.
+       For production (www.almanacweather.com) leave blank and it will use same-origin /api. -->
+  <meta name="worker-base-url" content="" />
 
-    <!-- Preview/dev only (e.g., *.pages.dev). Production uses same-origin /api/* -->
-    <meta name="worker-base-url" content="https://noaa-friendly-weather.andy-antle.workers.dev" />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
 
-    <link rel="stylesheet" href="styles.css" />
-  </head>
-
-  <body>
-    <header class="topbar">
-      <div class="topbar-inner">
-        <div>
-          <h1 class="app-title">Weather</h1>
-          <p class="subtitle" id="locationName">Using your location…</p>
-        </div>
-
-        <div class="topbar-actions">
-          <button
-            class="btn"
-            id="menuBtn"
-            type="button"
-            aria-expanded="false"
-            aria-controls="topbarMenu"
-            aria-label="Search by ZIP"
-            title="Search by ZIP"
-          >
-            ☰
-          </button>
-
-          <button class="btn btn-primary" id="retryBtn" type="button" hidden>Retry</button>
-        </div>
+<body>
+  <main class="wrap">
+    <header class="top">
+      <div class="brand">
+        <div class="brand-title">Almanac Weather</div>
+        <div class="brand-sub">NOAA / NWS-based forecast</div>
       </div>
 
-      <div id="topbarMenu" class="topbar-menu" hidden>
-        <div class="menu-inner">
-          <p class="menu-hint">Search by ZIP code</p>
-
-          <form id="menuZipForm" class="menu-form" autocomplete="on">
-            <div class="menu-row">
-              <label class="field menu-field">
-                <span class="field-label">ZIP code</span>
-                <input
-                  id="menuZipInput"
-                  class="field-input"
-                  inputmode="numeric"
-                  autocomplete="postal-code"
-                  placeholder="e.g., 27601"
-                  minlength="5"
-                  maxlength="5"
-                  pattern="^\d{5}$"
-                  required
-                />
-              </label>
-
-              <button class="btn btn-primary menu-submit" type="submit">Search</button>
-            </div>
-
-            <p class="manual-error" id="menuZipError" hidden></p>
-          </form>
-        </div>
-      </div>
+      <form id="zipForm" class="zip" autocomplete="off">
+        <input
+          id="zipInput"
+          class="zip-input"
+          inputmode="numeric"
+          pattern="[0-9]*"
+          maxlength="5"
+          placeholder="Enter ZIP"
+          aria-label="Enter ZIP code"
+        />
+        <button id="zipBtn" class="zip-btn" type="submit">Go</button>
+      </form>
     </header>
 
-    <main class="container">
-      <section id="statusCard" class="card status" aria-live="polite">
-        <div class="spinner" id="spinner" aria-hidden="true"></div>
-        <div>
-          <p class="status-title" id="statusTitle">Loading</p>
-          <p class="status-subtitle" id="statusSubtitle">Requesting location permission…</p>
+    <div id="statusBar" class="status" aria-live="polite"></div>
+
+    <section class="grid">
+      <section id="currentCard" class="card" hidden>
+        <div class="card-head">
+          <h2 class="card-title">Current</h2>
         </div>
+        <div id="currentContent" class="card-body"></div>
       </section>
 
-      <section id="alertsSection" hidden>
-        <div class="alert-banner" id="alertBanner">
-          <div class="alert-left">
-            <span class="alert-pill">ALERT</span>
-            <span id="alertSummary">Active alerts in your area</span>
-          </div>
-          <button class="linklike" id="toggleAlertsBtn" type="button">Details</button>
+      <section id="todayCard" class="card" hidden>
+        <div class="card-head">
+          <h2 class="card-title">Outlook</h2>
         </div>
-
-        <div id="alertsDetails" class="alerts-details" hidden></div>
+        <div id="todayContent" class="card-body"></div>
       </section>
 
-      <section class="grid">
-        <section class="card" id="currentCard" hidden>
-          <div class="card-header">
-            <h2>Current</h2>
-          </div>
-
-          <div class="current">
-            <div class="current-left">
-              <div class="temp" id="currentTemp">--</div>
-              <div class="current-desc" id="currentDesc">--</div>
-
-              <!-- Wind + Precip pill badges -->
-              <div class="meta-badges" id="currentBadges"></div>
-
-              <!-- Fallback text (kept for resilience) -->
-              <div class="meta" id="currentMeta" hidden>--</div>
-            </div>
-
-            <div id="currentIcon" class="wx-icon wx-icon-lg" aria-hidden="true"></div>
-          </div>
-        </section>
-
-        <section class="card" id="todayCard" hidden>
-          <div class="card-header">
-            <h2>Outlook</h2>
-          </div>
-          <div class="today-list" id="todayList"></div>
-        </section>
-
-        <section class="card" id="hourlyCard" hidden>
-          <div class="card-header">
-            <h2>Hourly</h2>
-            <button class="linklike" id="toggleHourlyBtn" type="button">Show all</button>
-          </div>
-          <div class="row-scroll" id="hourlyRow"></div>
-        </section>
-
-        <section class="card" id="dailyCard" hidden>
-          <div class="card-header">
-            <h2>Forecast</h2>
-            <p class="hint" id="dailyHint">Tap a day for details</p>
-          </div>
-          <div class="daily-list" id="dailyList"></div>
-        </section>
+      <!-- New: Sun & Moon + UV tile -->
+      <section id="astroUvCard" class="card" hidden>
+        <div class="card-head">
+          <h2 class="card-title">Sun & Moon</h2>
+        </div>
+        <div id="astroUvContent" class="card-body"></div>
       </section>
 
-      <footer class="footer">
-        <p class="fineprint">Data: National Weather Service (api.weather.gov).</p>
-      </footer>
-    </main>
+      <section id="hourlyCard" class="card" hidden>
+        <div class="card-head">
+          <h2 class="card-title">Hourly</h2>
+        </div>
+        <div id="hourlyContent" class="card-body"></div>
+      </section>
 
-    <script src="app.js"></script>
-  </body>
+      <section id="dailyCard" class="card" hidden>
+        <div class="card-head card-head-split">
+          <h2 class="card-title">Forecast</h2>
+          <div class="hint">Tap a day for details</div>
+        </div>
+        <div id="dailyContent" class="card-body"></div>
+      </section>
+    </section>
+
+    <footer class="foot">
+      Data: National Weather Service (api.weather.gov).
+    </footer>
+  </main>
+
+  <script src="./app.js" defer></script>
+</body>
 </html>
