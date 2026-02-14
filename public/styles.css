@@ -279,10 +279,11 @@ body::before{
   line-height:1.15;
 }
 
+/* ✅ Change request: outlook description not bold */
 .today-short{
   margin-top: 2px;
   color: var(--text);
-  font-weight: 800;
+  font-weight: 600;
   line-height: 1.25;
   overflow-wrap:anywhere;
 }
@@ -344,6 +345,80 @@ body::before{
   font-weight:850;
   font-size:14px;
 }
+
+/* ✅ Shoe info icon + popover */
+.shoe-wrap{
+  position:relative;
+}
+
+.shoe-info-btn{
+  position:absolute;
+  right:10px;
+  bottom:10px;
+  width:26px;
+  height:26px;
+  border-radius:999px;
+  border:1px solid rgba(255,255,255,0.16);
+  background:rgba(255,255,255,0.08);
+  color:rgba(255,255,255,0.9);
+  font-weight:900;
+  font-size:14px;
+  line-height:1;
+  display:grid;
+  place-items:center;
+  cursor:pointer;
+}
+
+.shoe-info-btn:active{
+  transform:translateY(1px);
+}
+
+.shoe-popover{
+  position:absolute;
+  right:10px;
+  bottom:44px;
+  width:min(320px, calc(100% - 20px));
+  border-radius:16px;
+  border:1px solid rgba(255,255,255,0.14);
+  background: rgba(6,10,30,0.92);
+  box-shadow: 0 18px 55px rgba(0,0,0,0.55);
+  padding:12px 12px 10px;
+  z-index:5;
+  backdrop-filter: blur(10px);
+}
+
+.shoe-popover-title{
+  font-weight:950;
+  font-size:13px;
+  margin-bottom:6px;
+}
+
+.shoe-popover-text{
+  color: var(--muted);
+  font-weight:650;
+  font-size:12px;
+  line-height:1.35;
+}
+
+.shoe-scale{
+  margin-top:10px;
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+}
+
+.shoe-scale-row{
+  display:grid;
+  grid-template-columns: 24px 1fr auto;
+  gap:10px;
+  align-items:center;
+  font-size:12px;
+  color: rgba(255,255,255,0.9);
+}
+
+.shoe-scale-emoji{ font-size:16px; }
+.shoe-scale-label{ font-weight:850; }
+.shoe-scale-range{ color: var(--muted); font-weight:750; }
 
 /* SUN & MOON TILES */
 .astro-tiles{
