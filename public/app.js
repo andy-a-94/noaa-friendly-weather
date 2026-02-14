@@ -491,34 +491,49 @@ function renderDaily(data) {
     const popDay = extractPopPercent(day);
     const popNight = night ? extractPopPercent(night) : null;
 
-    // Details meta (day)
     const when = day?.startTime ? formatDateShort(day.startTime, timeZone) : "";
-    const windStr = parseWind(day?.windDirection, day?.windSpeed);
 
+    // Day tags
+    const windDay = parseWind(day?.windDirection, day?.windSpeed);
     const mDay = metrics?.[String(day?.number)] || metrics?.[day?.number];
-    const dewF = (mDay && typeof mDay.dewpointF === "number") ? Math.round(mDay.dewpointF) : null;
-    const rh = (mDay && typeof mDay.relativeHumidityPct === "number") ? Math.round(mDay.relativeHumidityPct) : null;
+    const dewDayF = (mDay && typeof mDay.dewpointF === "number") ? Math.round(mDay.dewpointF) : null;
+    const rhDay = (mDay && typeof mDay.relativeHumidityPct === "number") ? Math.round(mDay.relativeHumidityPct) : null;
 
-    const metaParts = [];
-    if (when) metaParts.push(when);
-    if (typeof popDay === "number") metaParts.push(`Day 💧 ${popDay}%`);
-    if (typeof popNight === "number") metaParts.push(`Night 💧 ${popNight}%`);
-    if (windStr) metaParts.push(`💨 ${windStr}`);
-    if (dewF !== null) metaParts.push(`Dew Point ${dewF}°F`); // ✅ remove emoji
-    if (rh !== null) metaParts.push(`Relative Humidity ${rh}%`);
+    // Night tags (if present)
+    const windNight = night ? parseWind(night?.windDirection, night?.windSpeed) : "";
+    const mNight = night ? (metrics?.[String(night?.number)] || metrics?.[night?.number]) : null;
+    const dewNightF = (mNight && typeof mNight.dewpointF === "number") ? Math.round(mNight.dewpointF) : null;
+    const rhNight = (mNight && typeof mNight.relativeHumidityPct === "number") ? Math.round(mNight.relativeHumidityPct) : null;
+
+    const buildTagsLine = ({ pop, windStr, dewF, rh }) => {
+      const parts = [];
+      if (typeof pop === "number") parts.push(`💧 ${pop}%`);
+      if (windStr) parts.push(`💨 ${windStr}`);
+      if (dewF !== null) parts.push(`Dew Point ${dewF}°F`); // no emoji
+      if (rh !== null) parts.push(`Relative Humidity ${rh}%`);
+      return parts.length ? parts.join(" • ") : "";
+    };
+
+    const dayTags = buildTagsLine({ pop: popDay, windStr: windDay, dewF: dewDayF, rh: rhDay });
+    const nightTags = night ? buildTagsLine({ pop: popNight, windStr: windNight, dewF: dewNightF, rh: rhNight }) : "";
 
     const dayDetail = stripChanceOfPrecipSentence(day?.detailedForecast || short);
     const nightDetail = night ? stripChanceOfPrecipSentence(night?.detailedForecast || night?.shortForecast) : "";
 
+    // ✅ Re-ordered per your request:
+    // Day -> tags -> description
+    // Night -> tags -> description
     const detailHtml = `
       <div class="day-detail-block">
         <div class="dn-title">Day</div>
+        ${dayTags ? `<div class="detail-meta">${(when ? `${when} • ` : "") + dayTags}</div>` : (when ? `<div class="detail-meta">${when}</div>` : "")}
         <div class="dn-text">${dayDetail || "—"}</div>
       </div>
       ${
         night
           ? `<div class="day-detail-block">
                <div class="dn-title">Night</div>
+               ${nightTags ? `<div class="detail-meta">${nightTags}</div>` : ``}
                <div class="dn-text">${nightDetail || "—"}</div>
              </div>`
           : ``
@@ -544,7 +559,6 @@ function renderDaily(data) {
         </summary>
         <div class="day-detail">
           ${detailHtml}
-          ${metaParts.length ? `<div class="detail-meta">${metaParts.join(" • ")}</div>` : ""}
         </div>
       </details>
     `;
