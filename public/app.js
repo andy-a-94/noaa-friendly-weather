@@ -16,7 +16,7 @@ const els = {
   todayCard: document.getElementById("todayCard"),
   todayContent: document.getElementById("todayContent"),
 
-  // ✅ NEW
+  // ✅ Shoe
   shoeCard: document.getElementById("shoeCard"),
   shoeContent: document.getElementById("shoeContent"),
 
@@ -179,14 +179,14 @@ async function fetchWeather(lat, lon, zip) {
 function resetVisibleSections() {
   els.currentCard.hidden = true;
   els.todayCard.hidden = true;
-  els.shoeCard.hidden = true; // ✅ NEW
+  els.shoeCard.hidden = true;
   els.astroUvCard.hidden = true;
   els.hourlyCard.hidden = true;
   els.dailyCard.hidden = true;
 
   els.currentContent.innerHTML = "";
   els.todayContent.innerHTML = "";
-  els.shoeContent.innerHTML = ""; // ✅ NEW
+  els.shoeContent.innerHTML = "";
   els.astroUvContent.innerHTML = "";
   els.hourlyContent.innerHTML = "";
   els.dailyContent.innerHTML = "";
@@ -284,18 +284,17 @@ function renderToday(data) {
   els.todayCard.hidden = false;
 }
 
-/* ✅ NEW: Shoe tile (Sandal / Sneaker / Hiking Boot / Boot) */
+/* ✅ Shoe tile (styled like the attached) */
 
 function shoeLabelFromSoilMoisture(sm) {
   const v = Number(sm);
-  if (!Number.isFinite(v)) return { label: "—", emoji: "👟", note: "Soil moisture unavailable." };
+  if (!Number.isFinite(v)) return { label: "—", emoji: "👟", sub: "—" };
 
-  // These match the Worker logic you just added (tweak later if desired):
-  // <0.12 dry, 0.12–0.22 damp, 0.22–0.32 wet, >0.32 muddy
-  if (v < 0.12) return { label: "Sandal", emoji: "🩴", note: "Dry ground." };
-  if (v < 0.22) return { label: "Sneaker", emoji: "👟", note: "Slightly damp." };
-  if (v < 0.32) return { label: "Hiking Boot", emoji: "🥾", note: "Wet ground." };
-  return { label: "Boot", emoji: "👢", note: "Muddy/soggy." };
+  // Thresholds (match Worker): <0.12 dry, 0.12–0.22 damp, 0.22–0.32 wet, >0.32 muddy
+  if (v < 0.12) return { label: "Sandal", emoji: "🩴", sub: `${Math.round(v * 100)}% Soil Moisture` };
+  if (v < 0.22) return { label: "Sneaker", emoji: "👟", sub: `${Math.round(v * 100)}% Soil Moisture` };
+  if (v < 0.32) return { label: "Hiking Boot", emoji: "🥾", sub: `${Math.round(v * 100)}% Soil Moisture` };
+  return { label: "Boot", emoji: "👢", sub: `${Math.round(v * 100)}% Soil Moisture` };
 }
 
 function renderShoe(data) {
@@ -304,26 +303,15 @@ function renderShoe(data) {
 
   const sm = soil?.soilMoisture0To7cm;
   const ok = !!soil?.ok && typeof sm === "number";
-  const { label, emoji, note } = shoeLabelFromSoilMoisture(sm);
 
-  // Show a tiny “why” line; keep it simple and explainable.
-  const explain = safeText(soil?.shoe?.explain) || "Based on modeled soil moisture (0–7 cm).";
-  const moistureText = ok ? `${Math.round(sm * 100)}% moisture` : "—";
+  const { label, emoji, sub } = shoeLabelFromSoilMoisture(ok ? sm : null);
 
   els.shoeContent.innerHTML = `
-    <div class="today-rows">
-      <div class="today-row">
-        <div class="wx-icon-sm" aria-hidden="true">${emoji}</div>
-        <div class="today-mid">
-          <div class="today-name">${label}</div>
-          <div class="today-short">${note}</div>
-        </div>
-        <div class="today-right">
-          <div class="today-temp">${moistureText}</div>
-          <div class="today-badges">
-            <span class="pop-badge">${explain}</span>
-          </div>
-        </div>
+    <div class="shoe-row">
+      <div class="shoe-icon" aria-hidden="true">${emoji}</div>
+      <div class="shoe-text">
+        <div class="shoe-title">${label}</div>
+        <div class="shoe-sub">${sub}</div>
       </div>
     </div>
   `;
@@ -457,7 +445,7 @@ function renderHourly(data) {
   els.hourlyCard.hidden = false;
 }
 
-/* ---------- Daily (unchanged here) ---------- */
+/* ---------- Daily ---------- */
 
 function dayKeyFromIso(iso, timeZone) {
   try {
@@ -616,7 +604,7 @@ async function loadAndRender({ lat, lon, labelOverride = null, zipForUv = null }
 
   renderCurrent(data);
   renderToday(data);
-  renderShoe(data);      // ✅ NEW: between Outlook and Sun/Moon
+  renderShoe(data);      // between Outlook and Sun/Moon
   renderAstroUv(data);
   renderHourly(data);
   renderDaily(data);
