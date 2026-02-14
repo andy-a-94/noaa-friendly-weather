@@ -284,7 +284,7 @@ function renderToday(data) {
   els.todayCard.hidden = false;
 }
 
-/* ✅ Shoe tile (styled like the attached) */
+/* ✅ Shoe tile (add info popover + scale) */
 
 function shoeLabelFromSoilMoisture(sm) {
   const v = Number(sm);
@@ -303,18 +303,70 @@ function renderShoe(data) {
 
   const sm = soil?.soilMoisture0To7cm;
   const ok = !!soil?.ok && typeof sm === "number";
-
   const { label, emoji, sub } = shoeLabelFromSoilMoisture(ok ? sm : null);
 
   els.shoeContent.innerHTML = `
-    <div class="shoe-row">
-      <div class="shoe-icon" aria-hidden="true">${emoji}</div>
-      <div class="shoe-text">
-        <div class="shoe-title">${label}</div>
-        <div class="shoe-sub">${sub}</div>
+    <div class="shoe-wrap">
+      <div class="shoe-row">
+        <div class="shoe-icon" aria-hidden="true">${emoji}</div>
+        <div class="shoe-text">
+          <div class="shoe-title">${label}</div>
+          <div class="shoe-sub">${sub}</div>
+        </div>
+      </div>
+
+      <button class="shoe-info-btn" type="button" aria-label="About Shoe Index">i</button>
+
+      <div class="shoe-popover" hidden>
+        <div class="shoe-popover-title">About Shoe Index</div>
+        <div class="shoe-popover-text">
+          Shoe Index is a super scientific representation of moisture in the soil so you know what shoes to wear today.
+        </div>
+
+        <div class="shoe-scale">
+          <div class="shoe-scale-row">
+            <span class="shoe-scale-emoji">🩴</span>
+            <span class="shoe-scale-label">Sandal</span>
+            <span class="shoe-scale-range">0–11%</span>
+          </div>
+          <div class="shoe-scale-row">
+            <span class="shoe-scale-emoji">👟</span>
+            <span class="shoe-scale-label">Sneaker</span>
+            <span class="shoe-scale-range">12–21%</span>
+          </div>
+          <div class="shoe-scale-row">
+            <span class="shoe-scale-emoji">🥾</span>
+            <span class="shoe-scale-label">Hiking Boot</span>
+            <span class="shoe-scale-range">22–31%</span>
+          </div>
+          <div class="shoe-scale-row">
+            <span class="shoe-scale-emoji">👢</span>
+            <span class="shoe-scale-label">Boot</span>
+            <span class="shoe-scale-range">32%+</span>
+          </div>
+        </div>
       </div>
     </div>
   `;
+
+  // Toggle popover
+  const wrap = els.shoeContent.querySelector(".shoe-wrap");
+  const btn = els.shoeContent.querySelector(".shoe-info-btn");
+  const pop = els.shoeContent.querySelector(".shoe-popover");
+
+  const close = () => { if (pop) pop.hidden = true; };
+
+  btn?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    if (!pop) return;
+    pop.hidden = !pop.hidden;
+  });
+
+  // Close when tapping elsewhere inside the tile
+  wrap?.addEventListener("click", (e) => {
+    if (e.target.closest(".shoe-popover") || e.target.closest(".shoe-info-btn")) return;
+    close();
+  });
 
   els.shoeCard.hidden = false;
 }
