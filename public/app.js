@@ -1,6 +1,6 @@
 /* Almanac Weather - Frontend (Pages)
    - Calls same-origin Worker routes (/api/*) by default
-   - Renders: Current, Outlook, Sun & Moon (+UV), Hourly, Daily
+   - Renders: Current, Outlook, Shoe, Sun & Moon (+UV), Hourly, Daily
 */
 
 const els = {
@@ -15,6 +15,10 @@ const els = {
 
   todayCard: document.getElementById("todayCard"),
   todayContent: document.getElementById("todayContent"),
+
+  // ✅ NEW
+  shoeCard: document.getElementById("shoeCard"),
+  shoeContent: document.getElementById("shoeContent"),
 
   astroUvCard: document.getElementById("astroUvCard"),
   astroUvContent: document.getElementById("astroUvContent"),
@@ -74,12 +78,10 @@ function parseWind(dir, speedStr) {
   const d = safeText(dir);
   const s = safeText(speedStr);
   if (!d && !s) return "";
-  // Keep NWS windSpeed string as-is (e.g., "2 to 7 mph"), just append direction.
   return `${s}${d ? ` ${d}` : ""}`.trim();
 }
 
 function stripChanceOfPrecipSentence(text) {
-  // Remove the specific “Chance of precipitation is XX%.” sentence so we don't show duplicate %s.
   let t = safeText(text);
   t = t.replace(/\s*Chance of precipitation is\s*\d+%\.?\s*/gi, " ");
   t = t.replace(/\s{2,}/g, " ").trim();
@@ -141,7 +143,7 @@ function getNowMinutesInTimeZone(timeZone) {
   }
 }
 
-/* ---------- Moon display helpers (simple but clear + correct side) ---------- */
+/* ---------- Moon display helpers ---------- */
 
 function moonIllumFromPhaseLabel(phaseLabel) {
   const p = safeText(phaseLabel).toLowerCase();
@@ -155,8 +157,6 @@ function moonIllumFromPhaseLabel(phaseLabel) {
   else if (p.includes("crescent")) illum = 0.25;
 
   const waxing = p.includes("waxing") ? true : (p.includes("waning") ? false : null);
-
-  // Title-case label (keep your incoming string if it already looks good)
   const label = safeText(phaseLabel) || "—";
   return { illum, waxing, label };
 }
@@ -179,20 +179,20 @@ async function fetchWeather(lat, lon, zip) {
 function resetVisibleSections() {
   els.currentCard.hidden = true;
   els.todayCard.hidden = true;
+  els.shoeCard.hidden = true; // ✅ NEW
   els.astroUvCard.hidden = true;
   els.hourlyCard.hidden = true;
   els.dailyCard.hidden = true;
 
   els.currentContent.innerHTML = "";
   els.todayContent.innerHTML = "";
+  els.shoeContent.innerHTML = ""; // ✅ NEW
   els.astroUvContent.innerHTML = "";
   els.hourlyContent.innerHTML = "";
   els.dailyContent.innerHTML = "";
 }
 
 function iconFromForecastIconUrl(url, shortForecast) {
-  // Basic mapping to keep the aesthetic consistent without depending on NWS image assets.
-  // (You can refine/replace later with your own SVG set.)
   const s = safeText(shortForecast).toLowerCase();
   if (s.includes("thunder")) return "⛈️";
   if (s.includes("snow")) return "🌨️";
@@ -233,7 +233,6 @@ function renderCurrent(data) {
     </div>
   `;
 
-  // Alerts (optional)
   if (Array.isArray(data.alerts) && data.alerts.length) {
     const pills = data.alerts
       .slice(0, 6)
@@ -285,6 +284,53 @@ function renderToday(data) {
   els.todayCard.hidden = false;
 }
 
+/* ✅ NEW: Shoe tile (Sandal / Sneaker / Hiking Boot / Boot) */
+
+function shoeLabelFromSoilMoisture(sm) {
+  const v = Number(sm);
+  if (!Number.isFinite(v)) return { label: "—", emoji: "👟", note: "Soil moisture unavailable." };
+
+  // These match the Worker logic you just added (tweak later if desired):
+  // <0.12 dry, 0.12–0.22 damp, 0.22–0.32 wet, >0.32 muddy
+  if (v < 0.12) return { label: "Sandal", emoji: "🩴", note: "Dry ground." };
+  if (v < 0.22) return { label: "Sneaker", emoji: "👟", note: "Slightly damp." };
+  if (v < 0.32) return { label: "Hiking Boot", emoji: "🥾", note: "Wet ground." };
+  return { label: "Boot", emoji: "👢", note: "Muddy/soggy." };
+}
+
+function renderShoe(data) {
+  const soil = data?.soil;
+  if (!soil) return;
+
+  const sm = soil?.soilMoisture0To7cm;
+  const ok = !!soil?.ok && typeof sm === "number";
+  const { label, emoji, note } = shoeLabelFromSoilMoisture(sm);
+
+  // Show a tiny “why” line; keep it simple and explainable.
+  const explain = safeText(soil?.shoe?.explain) || "Based on modeled soil moisture (0–7 cm).";
+  const moistureText = ok ? `${Math.round(sm * 100)}% moisture` : "—";
+
+  els.shoeContent.innerHTML = `
+    <div class="today-rows">
+      <div class="today-row">
+        <div class="wx-icon-sm" aria-hidden="true">${emoji}</div>
+        <div class="today-mid">
+          <div class="today-name">${label}</div>
+          <div class="today-short">${note}</div>
+        </div>
+        <div class="today-right">
+          <div class="today-temp">${moistureText}</div>
+          <div class="today-badges">
+            <span class="pop-badge">${explain}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  els.shoeCard.hidden = false;
+}
+
 function renderAstroUv(data) {
   const astro = data?.astro;
   if (!astro) return;
@@ -307,7 +353,6 @@ function renderAstroUv(data) {
     return "UV —";
   })();
 
-  // Sun position along arc: based on NOW within the location time zone, between sunrise/sunset (HH:MM)
   const srMin = parseHHMMToMinutes(sunrise);
   const ssMin = parseHHMMToMinutes(sunset);
   const nowMin = getNowMinutesInTimeZone(timeZone);
@@ -317,12 +362,10 @@ function renderAstroUv(data) {
     sunT = clamp((nowMin - srMin) / (ssMin - srMin), 0, 1);
   }
 
-  // Provide CSS vars for moon shading:
   const moonIllumPct = (typeof illum === "number") ? Math.round(illum * 100) : null;
   const moonShadePct = (typeof illum === "number") ? Math.round((1 - illum) * 100) : 50;
-  const moonDir = waxing === null ? "wax" : (waxing ? "wax" : "wane"); // default to wax if unknown
+  const moonDir = waxing === null ? "wax" : (waxing ? "wax" : "wane");
 
-  // Sun marker coordinates (percent). Arc is visually a half-sine curve.
   const sunX = (typeof sunT === "number") ? (sunT * 100) : 50;
   const sunY = (typeof sunT === "number")
     ? ((1 - Math.sin(Math.PI * sunT)) * 100)
@@ -337,6 +380,7 @@ function renderAstroUv(data) {
         </div>
 
         <div class="sun-arc" style="--sun-x:${sunX}%; --sun-y:${sunY}%;">
+
           <svg class="sun-arc-svg" viewBox="0 0 100 55" preserveAspectRatio="none" aria-hidden="true">
             <path d="M 0 55 Q 50 0 100 55" fill="none" />
           </svg>
@@ -413,7 +457,7 @@ function renderHourly(data) {
   els.hourlyCard.hidden = false;
 }
 
-/* ---------- Daily (7 rows, one per day; night details inside) ---------- */
+/* ---------- Daily (unchanged here) ---------- */
 
 function dayKeyFromIso(iso, timeZone) {
   try {
@@ -435,19 +479,14 @@ function dayKeyFromIso(iso, timeZone) {
 }
 
 function groupDailyIntoDays(periods, timeZone) {
-  // Expect NWS-like sequence: Day, Night, Day, Night...
-  // Build 1 row per calendar day using the daytime period + the matching nighttime period.
   const out = [];
   for (let i = 0; i < periods.length; i++) {
     const p = periods[i];
     if (!p) continue;
-
-    // Take only daytime as the "row anchor"
     if (!p.isDaytime) continue;
 
     const k = dayKeyFromIso(p.startTime, timeZone);
 
-    // Find the closest following nighttime period that starts on the same calendar day
     let night = null;
     for (let j = i + 1; j < Math.min(i + 3, periods.length); j++) {
       const q = periods[j];
@@ -464,7 +503,6 @@ function groupDailyIntoDays(periods, timeZone) {
     if (out.length >= 7) break;
   }
 
-  // Fallback: if the feed is weird and we got 0 days, just show first 7 periods as-is
   if (out.length === 0) {
     return periods.slice(0, 7).map(p => ({ day: p, night: null }));
   }
@@ -493,13 +531,11 @@ function renderDaily(data) {
 
     const when = day?.startTime ? formatDateShort(day.startTime, timeZone) : "";
 
-    // Day tags
     const windDay = parseWind(day?.windDirection, day?.windSpeed);
     const mDay = metrics?.[String(day?.number)] || metrics?.[day?.number];
     const dewDayF = (mDay && typeof mDay.dewpointF === "number") ? Math.round(mDay.dewpointF) : null;
     const rhDay = (mDay && typeof mDay.relativeHumidityPct === "number") ? Math.round(mDay.relativeHumidityPct) : null;
 
-    // Night tags (if present)
     const windNight = night ? parseWind(night?.windDirection, night?.windSpeed) : "";
     const mNight = night ? (metrics?.[String(night?.number)] || metrics?.[night?.number]) : null;
     const dewNightF = (mNight && typeof mNight.dewpointF === "number") ? Math.round(mNight.dewpointF) : null;
@@ -509,7 +545,7 @@ function renderDaily(data) {
       const parts = [];
       if (typeof pop === "number") parts.push(`💧 ${pop}%`);
       if (windStr) parts.push(`💨 ${windStr}`);
-      if (dewF !== null) parts.push(`Dew Point ${dewF}°F`); // no emoji
+      if (dewF !== null) parts.push(`Dew Point ${dewF}°F`);
       if (rh !== null) parts.push(`Relative Humidity ${rh}%`);
       return parts.length ? parts.join(" • ") : "";
     };
@@ -520,9 +556,6 @@ function renderDaily(data) {
     const dayDetail = stripChanceOfPrecipSentence(day?.detailedForecast || short);
     const nightDetail = night ? stripChanceOfPrecipSentence(night?.detailedForecast || night?.shortForecast) : "";
 
-    // ✅ Re-ordered per your request:
-    // Day -> tags -> description
-    // Night -> tags -> description
     const detailHtml = `
       <div class="day-detail-block">
         <div class="dn-title">Day</div>
@@ -574,17 +607,16 @@ async function loadAndRender({ lat, lon, labelOverride = null, zipForUv = null }
 
   const data = await fetchWeather(lat, lon, zipForUv);
 
-  // Persist last-known location
   localStorage.setItem(STORAGE_KEYS.lastLat, String(lat));
   localStorage.setItem(STORAGE_KEYS.lastLon, String(lon));
   if (labelOverride) localStorage.setItem(STORAGE_KEYS.label, labelOverride);
 
-  // Optional: update status with label
   const label = labelOverride || data?.location?.label || localStorage.getItem(STORAGE_KEYS.label) || "";
   setStatus(label ? `Showing weather for ${label}` : "");
 
   renderCurrent(data);
   renderToday(data);
+  renderShoe(data);      // ✅ NEW: between Outlook and Sun/Moon
   renderAstroUv(data);
   renderHourly(data);
   renderDaily(data);
@@ -596,7 +628,6 @@ function getStoredZip() {
 }
 
 async function init() {
-  // ZIP form
   els.zipForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     const zip = safeText(els.zipInput.value);
@@ -616,7 +647,7 @@ async function init() {
         lat: loc.lat,
         lon: loc.lon,
         labelOverride: loc.label,
-        zipForUv: zip, // helps UV resolve even if city/state differs slightly
+        zipForUv: zip,
       });
     } catch (err) {
       console.error(err);
@@ -626,7 +657,6 @@ async function init() {
     }
   });
 
-  // Auto-load: prefer stored ZIP, else geolocation, else last lat/lon
   const storedZip = getStoredZip();
   if (storedZip) {
     els.zipInput.value = storedZip;
@@ -645,7 +675,6 @@ async function init() {
     }
   }
 
-  // Geolocation
   if ("geolocation" in navigator) {
     setStatus("Finding your location…");
     navigator.geolocation.getCurrentPosition(
@@ -661,7 +690,6 @@ async function init() {
       },
       async (err) => {
         console.warn(err);
-        // Fallback to last known
         const lastLat = Number(localStorage.getItem(STORAGE_KEYS.lastLat));
         const lastLon = Number(localStorage.getItem(STORAGE_KEYS.lastLon));
         if (Number.isFinite(lastLat) && Number.isFinite(lastLon)) {
