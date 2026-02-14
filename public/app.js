@@ -111,6 +111,56 @@ function formatDateShort(iso, timeZone) {
   }
 }
 
+/* ---------- Time helpers for Sun position ---------- */
+
+function parseHHMMToMinutes(hhmm) {
+  const t = safeText(hhmm);
+  const m = t.match(/^(\d{1,2}):(\d{2})$/);
+  if (!m) return null;
+  const hh = Number(m[1]);
+  const mm = Number(m[2]);
+  if (!Number.isFinite(hh) || !Number.isFinite(mm)) return null;
+  return clamp(hh, 0, 23) * 60 + clamp(mm, 0, 59);
+}
+
+function getNowMinutesInTimeZone(timeZone) {
+  try {
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone: timeZone || undefined,
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).formatToParts(new Date());
+
+    const hh = Number(parts.find(p => p.type === "hour")?.value);
+    const mm = Number(parts.find(p => p.type === "minute")?.value);
+    if (!Number.isFinite(hh) || !Number.isFinite(mm)) return null;
+    return hh * 60 + mm;
+  } catch {
+    return null;
+  }
+}
+
+/* ---------- Moon display helpers (simple but clear + correct side) ---------- */
+
+function moonIllumFromPhaseLabel(phaseLabel) {
+  const p = safeText(phaseLabel).toLowerCase();
+  if (!p) return { illum: null, waxing: null, label: "" };
+
+  let illum = null;
+  if (p.includes("new")) illum = 0;
+  else if (p.includes("full")) illum = 1;
+  else if (p.includes("gibbous")) illum = 0.75;
+  else if (p.includes("quarter")) illum = 0.5;
+  else if (p.includes("crescent")) illum = 0.25;
+
+  const waxing = p.includes("waxing") ? true : (p.includes("waning") ? false : null);
+
+  // Title-case label (keep your incoming string if it already looks good)
+  const label = safeText(phaseLabel) || "—";
+  return { illum, waxing, label };
+}
+
 async function fetchLocationByZip(zip) {
   const res = await fetch(apiUrl("/api/location", { zip }), { cache: "no-store" });
   if (!res.ok) throw new Error(`Location lookup failed (${res.status})`);
@@ -239,46 +289,77 @@ function renderAstroUv(data) {
   const astro = data?.astro;
   if (!astro) return;
 
+  const timeZone = data?.timeZone || null;
+
   const sunrise = safeText(astro.sunrise);
   const sunset = safeText(astro.sunset);
   const moonrise = safeText(astro.moonrise);
   const moonset = safeText(astro.moonset);
-  const phase = safeText(astro.moonPhase);
-  const illum = (typeof astro.moonIlluminationPct === "number")
-    ? `${Math.round(astro.moonIlluminationPct)}%`
-    : "";
+
+  const { illum, waxing, label: phaseLabel } = moonIllumFromPhaseLabel(astro.moonPhase);
 
   const uv = data?.uv;
   const showUv = !!astro.isDaytimeNow;
 
-  const uvPills = [];
-  if (showUv) {
-    if (uv?.ok && typeof uv.current === "number") {
-      uvPills.push(`<span class="pop-badge"><span class="drop">🔆</span>UV ${Math.round(uv.current)}</span>`);
-      if (typeof uv.max === "number") {
-        uvPills.push(`<span class="pop-badge muted">Max ${Math.round(uv.max)}</span>`);
-      }
-    } else {
-      uvPills.push(`<span class="pop-badge muted">🔆 UV —</span>`);
-    }
+  const uvLabel = (() => {
+    if (!showUv) return "";
+    if (uv?.ok && typeof uv.current === "number") return `UV ${Math.round(uv.current)}`;
+    return "UV —";
+  })();
+
+  // Sun position along arc: based on NOW within the location time zone, between sunrise/sunset (HH:MM)
+  const srMin = parseHHMMToMinutes(sunrise);
+  const ssMin = parseHHMMToMinutes(sunset);
+  const nowMin = getNowMinutesInTimeZone(timeZone);
+
+  let sunT = null;
+  if (srMin !== null && ssMin !== null && nowMin !== null && ssMin > srMin) {
+    sunT = clamp((nowMin - srMin) / (ssMin - srMin), 0, 1);
   }
 
+  // Provide CSS vars for moon shading:
+  const moonIllumPct = (typeof illum === "number") ? Math.round(illum * 100) : null;
+  const moonShadePct = (typeof illum === "number") ? Math.round((1 - illum) * 100) : 50;
+  const moonDir = waxing === null ? "wax" : (waxing ? "wax" : "wane"); // default to wax if unknown
+
+  // Sun marker coordinates (percent). Arc is visually a half-sine curve.
+  const sunX = (typeof sunT === "number") ? (sunT * 100) : 50;
+  const sunY = (typeof sunT === "number")
+    ? ((1 - Math.sin(Math.PI * sunT)) * 100)
+    : 100;
+
   els.astroUvContent.innerHTML = `
-    <div class="astro-stack">
-      <div class="astro-line">
-        <div>
-          <div class="astro-title">Sun</div>
-          <div class="astro-sub">🌅 ${sunrise || "—"} • 🌇 ${sunset || "—"}</div>
+    <div class="astro-tiles">
+      <div class="astro-tile sun-tile">
+        <div class="astro-tile-head">
+          <div class="astro-tile-title">Sun</div>
+          ${showUv ? `<div class="astro-tile-pill">${uvLabel}</div>` : ``}
         </div>
-        <div class="astro-right">
-          ${uvPills.join("")}
+
+        <div class="sun-arc" style="--sun-x:${sunX}%; --sun-y:${sunY}%;">
+          <svg class="sun-arc-svg" viewBox="0 0 100 55" preserveAspectRatio="none" aria-hidden="true">
+            <path d="M 0 55 Q 50 0 100 55" fill="none" />
+          </svg>
+          <div class="sun-dot" aria-hidden="true">☀️</div>
+
+          <div class="sun-times">
+            <div class="sun-time-left">${sunrise || "—"}</div>
+            <div class="sun-time-right">${sunset || "—"}</div>
+          </div>
         </div>
       </div>
 
-      <div class="astro-line">
-        <div>
-          <div class="astro-title">Moon</div>
-          <div class="astro-sub">🌙 ${phase || "—"}${illum ? ` • ${illum}` : ""}<br/>⬆️ ${moonrise || "—"} • ⬇️ ${moonset || "—"}</div>
+      <div class="astro-tile moon-tile" style="--moon-shadow:${moonShadePct}%; --moon-dir:${moonDir};">
+        <div class="astro-tile-head">
+          <div class="astro-tile-title">Moon</div>
+        </div>
+
+        <div class="moon-wrap">
+          <div class="moon-disc" aria-hidden="true"></div>
+          <div class="moon-label">
+            <div class="moon-phase">${phaseLabel || "—"}</div>
+            <div class="moon-sub">⬆️ ${moonrise || "—"} • ⬇️ ${moonset || "—"}${moonIllumPct !== null ? ` • ${moonIllumPct}%` : ""}</div>
+          </div>
         </div>
       </div>
     </div>
@@ -332,6 +413,65 @@ function renderHourly(data) {
   els.hourlyCard.hidden = false;
 }
 
+/* ---------- Daily (7 rows, one per day; night details inside) ---------- */
+
+function dayKeyFromIso(iso, timeZone) {
+  try {
+    const d = new Date(iso);
+    const parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone: timeZone || undefined,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).formatToParts(d);
+
+    const y = parts.find(p => p.type === "year")?.value;
+    const m = parts.find(p => p.type === "month")?.value;
+    const da = parts.find(p => p.type === "day")?.value;
+    return y && m && da ? `${y}-${m}-${da}` : safeText(iso).slice(0, 10);
+  } catch {
+    return safeText(iso).slice(0, 10);
+  }
+}
+
+function groupDailyIntoDays(periods, timeZone) {
+  // Expect NWS-like sequence: Day, Night, Day, Night...
+  // Build 1 row per calendar day using the daytime period + the matching nighttime period.
+  const out = [];
+  for (let i = 0; i < periods.length; i++) {
+    const p = periods[i];
+    if (!p) continue;
+
+    // Take only daytime as the "row anchor"
+    if (!p.isDaytime) continue;
+
+    const k = dayKeyFromIso(p.startTime, timeZone);
+
+    // Find the closest following nighttime period that starts on the same calendar day
+    let night = null;
+    for (let j = i + 1; j < Math.min(i + 3, periods.length); j++) {
+      const q = periods[j];
+      if (q && q.isDaytime === false) {
+        const k2 = dayKeyFromIso(q.startTime, timeZone);
+        if (k2 === k) {
+          night = q;
+          break;
+        }
+      }
+    }
+
+    out.push({ day: p, night });
+    if (out.length >= 7) break;
+  }
+
+  // Fallback: if the feed is weird and we got 0 days, just show first 7 periods as-is
+  if (out.length === 0) {
+    return periods.slice(0, 7).map(p => ({ day: p, night: null }));
+  }
+
+  return out;
+}
+
 function renderDaily(data) {
   const daily = data?.daily;
   if (!daily || !Array.isArray(daily.periods) || daily.periods.length === 0) return;
@@ -339,30 +479,51 @@ function renderDaily(data) {
   const timeZone = data?.timeZone || null;
   const metrics = data?.periodMetrics || {};
 
-  const list = daily.periods.slice(0, 8).map(p => {
-    const name = safeText(p.name || "");
-    const short = safeText(p.shortForecast || "");
-    const icon = iconFromForecastIconUrl(p.icon, short);
-    const temp = formatTempF(p.temperature);
+  const grouped = groupDailyIntoDays(daily.periods, timeZone);
 
-    const pop = extractPopPercent(p);
+  const list = grouped.map(({ day, night }) => {
+    const name = safeText(day?.name || "");
+    const short = safeText(day?.shortForecast || "");
+    const icon = iconFromForecastIconUrl(day?.icon, short);
 
-    // For expanded details
-    const when = formatDateShort(p.startTime, timeZone);
-    const windStr = parseWind(p.windDirection, p.windSpeed);
+    const hi = formatTempF(day?.temperature);
+    const lo = night ? formatTempF(night?.temperature) : "—";
+    const popDay = extractPopPercent(day);
+    const popNight = night ? extractPopPercent(night) : null;
 
-    const m = metrics?.[String(p.number)] || metrics?.[p.number];
-    const dewF = (m && typeof m.dewpointF === "number") ? Math.round(m.dewpointF) : null;
-    const rh = (m && typeof m.relativeHumidityPct === "number") ? Math.round(m.relativeHumidityPct) : null;
+    // Details meta (day)
+    const when = day?.startTime ? formatDateShort(day.startTime, timeZone) : "";
+    const windStr = parseWind(day?.windDirection, day?.windSpeed);
+
+    const mDay = metrics?.[String(day?.number)] || metrics?.[day?.number];
+    const dewF = (mDay && typeof mDay.dewpointF === "number") ? Math.round(mDay.dewpointF) : null;
+    const rh = (mDay && typeof mDay.relativeHumidityPct === "number") ? Math.round(mDay.relativeHumidityPct) : null;
 
     const metaParts = [];
     if (when) metaParts.push(when);
-    if (typeof pop === "number") metaParts.push(`💧 ${pop}%`);
+    if (typeof popDay === "number") metaParts.push(`Day 💧 ${popDay}%`);
+    if (typeof popNight === "number") metaParts.push(`Night 💧 ${popNight}%`);
     if (windStr) metaParts.push(`💨 ${windStr}`);
-    if (dewF !== null) metaParts.push(`🌱 ${dewF}°F`);
+    if (dewF !== null) metaParts.push(`Dew Point ${dewF}°F`); // ✅ remove emoji
     if (rh !== null) metaParts.push(`Relative Humidity ${rh}%`);
 
-    const detailText = stripChanceOfPrecipSentence(p.detailedForecast || short);
+    const dayDetail = stripChanceOfPrecipSentence(day?.detailedForecast || short);
+    const nightDetail = night ? stripChanceOfPrecipSentence(night?.detailedForecast || night?.shortForecast) : "";
+
+    const detailHtml = `
+      <div class="day-detail-block">
+        <div class="dn-title">Day</div>
+        <div class="dn-text">${dayDetail || "—"}</div>
+      </div>
+      ${
+        night
+          ? `<div class="day-detail-block">
+               <div class="dn-title">Night</div>
+               <div class="dn-text">${nightDetail || "—"}</div>
+             </div>`
+          : ``
+      }
+    `;
 
     return `
       <details class="day-details">
@@ -373,16 +534,16 @@ function renderDaily(data) {
           </div>
           <div class="day-right">
             ${
-              (typeof pop === "number" && pop >= 10)
-                ? `<span class="pop-badge"><span class="drop">💧</span>${pop}%</span>`
+              (typeof popDay === "number" && popDay >= 10)
+                ? `<span class="pop-badge"><span class="drop">💧</span>${popDay}%</span>`
                 : ``
             }
             <div class="wx-icon-sm" aria-hidden="true">${icon}</div>
-            <div class="day-temp">${temp}</div>
+            <div class="day-temp">${hi}<span class="day-low">/${lo}</span></div>
           </div>
         </summary>
         <div class="day-detail">
-          ${detailText || "—"}
+          ${detailHtml}
           ${metaParts.length ? `<div class="detail-meta">${metaParts.join(" • ")}</div>` : ""}
         </div>
       </details>
