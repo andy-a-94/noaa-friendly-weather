@@ -287,10 +287,10 @@ function renderToday(data) {
 /* ✅ Shoe tile (swap emojis -> images) */
 
 const SHOE_ICONS = {
-  Sandal: "assets/Sandal.png",
-  Sneaker: "assets/gray shoe.png",
-  "Hiking Boot": "assets/Cropped Muddy Boot.png",
-  Boot: "assets/Cropped Rain orange boot.png",
+  Sandal: "/assets/shoes/sandal.png",
+  Sneaker: "/assets/shoes/sneaker.png",
+  "Hiking Boot": "/assets/shoes/hiking-boot.png",
+  Boot: "/assets/shoes/boot.png",
 };
 
 // If your filenames/paths differ, only update these strings.
