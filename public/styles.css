@@ -327,7 +327,8 @@ body::before{
   overflow:hidden; /* ensures the image respects the rounded corners */
 }
 
-.shoe-img{
+/* ✅ FIX: match your JS class "shoe-icon-img" */
+.shoe-icon-img{
   width:78px;
   height:78px;
   object-fit:contain;
@@ -337,6 +338,12 @@ body::before{
   image-rendering:auto;
 }
 
+/* ✅ FIX: match your JS class "shoe-scale-img" */
+.shoe-scale-img{
+  width:18px;
+  height:18px;
+  object-fit:contain;
+  display:block;
 }
 
 .shoe-text{
@@ -566,6 +573,7 @@ body::before{
   #hourlyCard{ grid-column:1 / -1; }
   #dailyCard{ grid-column:1 / -1; }
 }
+
 /* ✅ FIX: Shoe Index “i” popover getting clipped (card has overflow:hidden) */
 #shoeCard{
   overflow: visible;           /* allow popover to extend without being cut off */
