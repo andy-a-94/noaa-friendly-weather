@@ -321,10 +321,22 @@ body::before{
   display:flex;
   align-items:center;
   justify-content:center;
-  font-size:54px;
   background: rgba(59,130,246,0.26);
   border: 1px solid rgba(255,255,255,0.10);
   box-shadow: 0 10px 26px rgba(0,0,0,0.25);
+  overflow:hidden; /* ensures the image respects the rounded corners */
+}
+
+.shoe-img{
+  width:78px;
+  height:78px;
+  object-fit:contain;
+  display:block;
+  user-select:none;
+  -webkit-user-drag:none;
+  image-rendering:auto;
+}
+
 }
 
 .shoe-text{
