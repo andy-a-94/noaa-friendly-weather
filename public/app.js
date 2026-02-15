@@ -284,46 +284,62 @@ function renderToday(data) {
   els.todayCard.hidden = false;
 }
 
-/* ✅ Shoe tile (add info popover + scale) */
+/* ✅ Shoe tile (swap emojis -> images) */
+
+const SHOE_ICONS = {
+  Sandal: "assets/Sandal.png",
+  Sneaker: "assets/gray shoe.png",
+  "Hiking Boot": "assets/Cropped Muddy Boot.png",
+  Boot: "assets/Cropped Rain orange boot.png",
+};
+
+// If your filenames/paths differ, only update these strings.
+function shoeIconSrcForLabel(label) {
+  const key = safeText(label);
+  return SHOE_ICONS[key] || SHOE_ICONS.Sneaker;
+}
 
 function shoeLabelFromSoilMoisture(sm) {
   const v = Number(sm);
-  if (!Number.isFinite(v)) return { label: "—", emoji: "👟", sub: "—" };
+  if (!Number.isFinite(v)) return { label: "—", sub: "—" };
 
   // Thresholds (match Worker): <0.12 dry, 0.12–0.22 damp, 0.22–0.32 wet, >0.32 muddy
-  if (v < 0.12) return { label: "Sandal", emoji: "🩴", sub: `${Math.round(v * 100)}% Soil Moisture` };
-  if (v < 0.22) return { label: "Sneaker", emoji: "👟", sub: `${Math.round(v * 100)}% Soil Moisture` };
-  if (v < 0.32) return { label: "Hiking Boot", emoji: "🥾", sub: `${Math.round(v * 100)}% Soil Moisture` };
-  return { label: "Boot", emoji: "👢", sub: `${Math.round(v * 100)}% Soil Moisture` };
+  if (v < 0.12) return { label: "Sandal", sub: `${Math.round(v * 100)}% Soil Moisture` };
+  if (v < 0.22) return { label: "Sneaker", sub: `${Math.round(v * 100)}% Soil Moisture` };
+  if (v < 0.32) return { label: "Hiking Boot", sub: `${Math.round(v * 100)}% Soil Moisture` };
+  return { label: "Boot", sub: `${Math.round(v * 100)}% Soil Moisture` };
 }
 
 function renderShoe(data) {
   const soil = data?.soil;
   if (!soil) return;
 
-   const sm = soil?.soilMoisture0To7cm;
+  const sm = soil?.soilMoisture0To7cm;
   const smOk = !!soil?.ok && typeof sm === "number";
 
   // ✅ Prefer Worker-computed (and rain-boosted) shoe result if available
   const shoe = soil?.shoe;
   const useBoosted = !!shoe?.ok && (shoe.boostedLabel || shoe.boostedEmoji);
 
-  const label = useBoosted ? (shoe.boostedLabel || "—") : (smOk ? shoeLabelFromSoilMoisture(sm).label : "—");
-  const emoji = useBoosted ? (shoe.boostedEmoji || "👟") : (smOk ? shoeLabelFromSoilMoisture(sm).emoji : "👟");
+  const baseComputed = smOk ? shoeLabelFromSoilMoisture(sm) : { label: "—", sub: "—" };
+
+  const label = useBoosted ? (shoe.boostedLabel || "—") : (baseComputed.label || "—");
 
   // Keep your existing sub line (soil moisture %), optionally add boost note
   const subBase = smOk ? `${Math.round(sm * 100)}% Soil Moisture` : "—";
   const subBoost = (useBoosted && typeof shoe.boost === "number" && shoe.boost > 0)
     ? ` • +${shoe.boost} for rain`
     : "";
-
   const sub = `${subBase}${subBoost}`;
 
+  const iconSrc = shoeIconSrcForLabel(label);
 
   els.shoeContent.innerHTML = `
     <div class="shoe-wrap">
       <div class="shoe-row">
-        <div class="shoe-icon" aria-hidden="true">${emoji}</div>
+        <div class="shoe-icon" aria-hidden="true">
+          <img class="shoe-icon-img" src="${iconSrc}" alt="" />
+        </div>
         <div class="shoe-text">
           <div class="shoe-title">${label}</div>
           <div class="shoe-sub">${sub}</div>
@@ -340,22 +356,30 @@ function renderShoe(data) {
 
         <div class="shoe-scale">
           <div class="shoe-scale-row">
-            <span class="shoe-scale-emoji">🩴</span>
+            <span class="shoe-scale-emoji">
+              <img class="shoe-scale-img" src="${SHOE_ICONS.Sandal}" alt="" />
+            </span>
             <span class="shoe-scale-label">Sandal</span>
             <span class="shoe-scale-range">0–11%</span>
           </div>
           <div class="shoe-scale-row">
-            <span class="shoe-scale-emoji">👟</span>
+            <span class="shoe-scale-emoji">
+              <img class="shoe-scale-img" src="${SHOE_ICONS.Sneaker}" alt="" />
+            </span>
             <span class="shoe-scale-label">Sneaker</span>
             <span class="shoe-scale-range">12–21%</span>
           </div>
           <div class="shoe-scale-row">
-            <span class="shoe-scale-emoji">🥾</span>
+            <span class="shoe-scale-emoji">
+              <img class="shoe-scale-img" src="${SHOE_ICONS["Hiking Boot"]}" alt="" />
+            </span>
             <span class="shoe-scale-label">Hiking Boot</span>
             <span class="shoe-scale-range">22–31%</span>
           </div>
           <div class="shoe-scale-row">
-            <span class="shoe-scale-emoji">👢</span>
+            <span class="shoe-scale-emoji">
+              <img class="shoe-scale-img" src="${SHOE_ICONS.Boot}" alt="" />
+            </span>
             <span class="shoe-scale-label">Boot</span>
             <span class="shoe-scale-range">32%+</span>
           </div>
@@ -435,7 +459,6 @@ function renderAstroUv(data) {
         </div>
 
         <div class="sun-arc" style="--sun-x:${sunX}%; --sun-y:${sunY}%;">
-
           <svg class="sun-arc-svg" viewBox="0 0 100 55" preserveAspectRatio="none" aria-hidden="true">
             <path d="M 0 55 Q 50 0 100 55" fill="none" />
           </svg>
