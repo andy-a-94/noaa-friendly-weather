@@ -301,9 +301,24 @@ function renderShoe(data) {
   const soil = data?.soil;
   if (!soil) return;
 
-  const sm = soil?.soilMoisture0To7cm;
-  const ok = !!soil?.ok && typeof sm === "number";
-  const { label, emoji, sub } = shoeLabelFromSoilMoisture(ok ? sm : null);
+   const sm = soil?.soilMoisture0To7cm;
+  const smOk = !!soil?.ok && typeof sm === "number";
+
+  // ✅ Prefer Worker-computed (and rain-boosted) shoe result if available
+  const shoe = soil?.shoe;
+  const useBoosted = !!shoe?.ok && (shoe.boostedLabel || shoe.boostedEmoji);
+
+  const label = useBoosted ? (shoe.boostedLabel || "—") : (smOk ? shoeLabelFromSoilMoisture(sm).label : "—");
+  const emoji = useBoosted ? (shoe.boostedEmoji || "👟") : (smOk ? shoeLabelFromSoilMoisture(sm).emoji : "👟");
+
+  // Keep your existing sub line (soil moisture %), optionally add boost note
+  const subBase = smOk ? `${Math.round(sm * 100)}% Soil Moisture` : "—";
+  const subBoost = (useBoosted && typeof shoe.boost === "number" && shoe.boost > 0)
+    ? ` • +${shoe.boost} for rain`
+    : "";
+
+  const sub = `${subBase}${subBoost}`;
+
 
   els.shoeContent.innerHTML = `
     <div class="shoe-wrap">
