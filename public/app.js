@@ -71,7 +71,7 @@ function toInt(v) {
 
 function formatTempF(n) {
   const t = toInt(n);
-  return t === null ? "—" : `${t}°F`;
+  return t === null ? "—" : `${t}°`; // ✅ no "F"
 }
 
 function parseWind(dir, speedStr) {
