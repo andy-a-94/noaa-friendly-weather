@@ -1,7 +1,7 @@
 /* Almanac Weather - Frontend (Pages)
    - Calls same-origin Worker routes (/api/*) by default
    - Renders: Current, Outlook, Shoe, Sun & Moon (+UV), Hourly, Daily
-*/
+ */
 
 const els = {
   statusBar: document.getElementById("statusBar"),
@@ -248,34 +248,31 @@ function renderToday(data) {
   const outlook = data?.outlook;
   if (!outlook || !Array.isArray(outlook.periods) || outlook.periods.length === 0) return;
 
+  const cleanName = (s) => safeText(s).replace(/^This\s+/i, "");
+
   const rows = outlook.periods.slice(0, 2).map(p => {
-    const name = safeText(p.name || "");
+    const name = cleanName(p.name || "");
     const short = safeText(p.shortForecast || "");
     const icon = iconFromForecastIconUrl(p.icon, short);
     const temp = formatTempF(p.temperature);
 
-    const windStr = parseWind(p.windDirection, p.windSpeed);
     const pop = extractPopPercent(p);
-
-    const badges = [];
-    if (typeof pop === "number" && pop >= 10) {
-      badges.push(`<span class="pop-badge"><span class="drop">💧</span>${pop}%</span>`);
-    }
-    if (windStr) {
-      badges.push(`<span class="pop-badge"><span class="drop">💨</span>${windStr}</span>`);
-    }
+    const showPop = (typeof pop === "number" && pop >= 10);
 
     return `
       <div class="today-row">
-        <div class="wx-icon-sm" aria-hidden="true">${icon}</div>
-        <div class="today-mid">
+        <div class="today-left">
           <div class="today-name">${name}</div>
           <div class="today-short">${short || "—"}</div>
         </div>
-        <div class="today-right">
-          <div class="today-temp">${temp}</div>
-          <div class="today-badges">${badges.join("")}</div>
+
+        <div class="today-precip ${showPop ? "" : "is-hidden"}">
+          <span class="drop">💧</span>
+          <span class="pct">${showPop ? `${pop}%` : ""}</span>
         </div>
+
+        <div class="today-icon" aria-hidden="true">${icon}</div>
+        <div class="today-temp">${temp}</div>
       </div>
     `;
   }).join("");
@@ -659,12 +656,11 @@ function renderDaily(data) {
             <div class="day-short">${short || "—"}</div>
           </div>
           <div class="day-right">
-            ${
-              (typeof popDay === "number" && popDay >= 10)
-                ? `<span class="pop-badge"><span class="drop">💧</span>${popDay}%</span>`
-                : ``
-            }
-            <div class="wx-icon-sm" aria-hidden="true">${icon}</div>
+            <div class="precip ${(typeof popDay === "number" && popDay >= 10) ? "" : "is-hidden"}">
+              <span class="drop">💧</span>
+              <span class="pct">${(typeof popDay === "number" && popDay >= 10) ? (popDay + "%") : ""}</span>
+            </div>
+            <div class="wx-icon" aria-hidden="true">${icon}</div>
             <div class="day-temp">${hi}<span class="day-low">/${lo}</span></div>
           </div>
         </summary>
