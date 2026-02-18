@@ -1,4 +1,4 @@
-:root{
+:root{ 
   --bg0:#060a1e;
   --bg1:#0b1230;
   --card:#101a3b;
@@ -154,8 +154,9 @@ body::before{
   font-weight:750;
 }
 
+/* ✅ Enlarge main weather emoji ~20% */
 .wx-icon{
-  font-size:62px;
+  font-size:74px; /* was 62px */
 }
 
 /* HOURLY */
@@ -183,30 +184,44 @@ body::before{
   border-bottom:1px solid rgba(255,255,255,0.08);
 }
 
-/* ✅ UPDATED: stable columns + smoother typical wrapping */
+/* ✅ DAILY: lock columns with named areas so missing precip can't shift the icon */
 .day-summary{
   list-style:none;
   cursor:pointer;
   padding:14px 12px;
 
-  /* lock the row into columns so everything aligns on mobile */
   display:grid;
-  grid-template-columns: 1fr 56px 34px 92px; /* left text | precip | icon | temps */
-  align-items:center;
-  gap:10px;
 
-  /* smoother height: consistent tap target; still allows edge cases to grow */
-  min-height:72px;
+  /* columns stay the same */
+  grid-template-columns: 1fr 56px 34px 92px; /* left | precip | icon | temps */
+
+  /* ✅ named grid areas prevent "sliding" when .precip is missing */
+  grid-template-areas:
+    "left precip icon temps"
+    "left precip icon temps";
+
+  /* left gets 2 lines */
+  grid-template-rows:auto auto;
+
+  column-gap:10px;
+  row-gap:4px;
+
+  /* ✅ consistent height for every day row */
+  height:76px;
+
+  /* center the two-row layout within the fixed height */
+  align-content:center;
 }
 
-/* Make the existing right wrapper feed its children into the grid columns */
+/* Let existing wrapper feed children into the grid */
 .day-summary .day-right{
   display: contents;
 }
 
-/* Left text stays in column 1 and can wrap without pushing other columns */
+/* Left text */
 .day-name{
-  grid-column:1;
+  grid-area:left;
+  grid-row:1;
   font-weight:900;
   font-size:18px;
   line-height:1.15;
@@ -214,11 +229,11 @@ body::before{
 }
 
 .day-short{
-  grid-column:1;
+  grid-area:left;
+  grid-row:2;
   color:var(--muted);
   min-width:0;
 
-  /* allow up to 2 lines for typical phrases like "Chance Light Rain" */
   line-height:1.2;
   display:-webkit-box;
   -webkit-line-clamp:2;
@@ -226,14 +241,14 @@ body::before{
   overflow:hidden;
 }
 
-/* Precip badge column (reserved space). If your precip element uses .precip, this keeps alignment stable. */
+/* Precip column (stack 💧 over %) */
 .day-summary .precip{
-  grid-column:2;
+  grid-area:precip;
+  grid-row:1 / span 2;
   justify-self:center;
   width:56px;
   text-align:center;
 
-  /* ✅ Stack droplet over percent */
   display:flex;
   flex-direction:column;
   align-items:center;
@@ -242,40 +257,35 @@ body::before{
   line-height:1.05;
 }
 
-/* ✅ Change request: always show precip (don't hide), while keeping the column reserved */
+/* Always show precip (even if JS adds is-hidden) */
 .day-summary .precip.is-hidden{
   visibility:visible;
 }
 
-/* ✅ Make the droplet emoji ~20% smaller (targets common markup patterns) */
-.day-summary .precip > :first-child{
-  font-size:0.8em; /* ~20% smaller */
-  line-height:1;
-}
-
-/* If the droplet is wrapped with a common class, cover that too */
+/* 💧 ~20% smaller (covers common markup patterns) */
+.day-summary .precip > :first-child,
 .day-summary .precip .drop,
 .day-summary .precip .precip-emoji,
 .day-summary .precip .emoji{
-  font-size:0.8em; /* ~20% smaller */
+  font-size:0.8em;
   line-height:1;
 }
 
-/* Forecast icon column (avoid affecting the big current icon) */
+/* ✅ Weather icon column: always stays in icon area + ~20% bigger */
 .day-summary .wx-icon{
-  grid-column:3;
+  grid-area:icon;
+  grid-row:1 / span 2;
   justify-self:center;
   width:28px;
   text-align:center;
-
-  /* ✅ Enlarge daily weather emoji by ~20% */
   font-size:29px; /* was 24px */
   line-height:1;
 }
 
 /* Temps column */
 .day-temp{
-  grid-column:4;
+  grid-area:temps;
+  grid-row:1 / span 2;
   justify-self:end;
   font-weight:950;
   font-size:18px;
