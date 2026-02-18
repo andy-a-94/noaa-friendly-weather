@@ -232,11 +232,33 @@ body::before{
   justify-self:center;
   width:56px;
   text-align:center;
+
+  /* ✅ Stack droplet over percent */
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:2px;
+  line-height:1.05;
 }
 
-/* Keep space even when hidden (preferred vs display:none for alignment) */
+/* ✅ Change request: always show precip (don't hide), while keeping the column reserved */
 .day-summary .precip.is-hidden{
-  visibility:hidden;
+  visibility:visible;
+}
+
+/* ✅ Make the droplet emoji ~20% smaller (targets common markup patterns) */
+.day-summary .precip > :first-child{
+  font-size:0.8em; /* ~20% smaller */
+  line-height:1;
+}
+
+/* If the droplet is wrapped with a common class, cover that too */
+.day-summary .precip .drop,
+.day-summary .precip .precip-emoji,
+.day-summary .precip .emoji{
+  font-size:0.8em; /* ~20% smaller */
+  line-height:1;
 }
 
 /* Forecast icon column (avoid affecting the big current icon) */
@@ -245,7 +267,9 @@ body::before{
   justify-self:center;
   width:28px;
   text-align:center;
-  font-size:24px;
+
+  /* ✅ Enlarge daily weather emoji by ~20% */
+  font-size:29px; /* was 24px */
   line-height:1;
 }
 
@@ -385,261 +409,4 @@ body::before{
   image-rendering:auto;
 }
 
-/* ✅ FIX: match your JS class "shoe-scale-img" */
-.shoe-scale-img{
-  width:18px;
-  height:18px;
-  object-fit:contain;
-  display:block;
-}
-
-.shoe-text{
-  display:flex;
-  flex-direction:column;
-  gap:6px;
-  min-width:0;
-}
-
-.shoe-title{
-  font-weight:950;
-  font-size:22px;
-  line-height:1.1;
-}
-
-.shoe-sub{
-  color: var(--muted);
-  font-weight:850;
-  font-size:14px;
-}
-
-/* ✅ Shoe info icon + popover */
-.shoe-wrap{
-  position:relative;
-}
-
-.shoe-info-btn{
-  position:absolute;
-  right:10px;
-  bottom:10px;
-  width:26px;
-  height:26px;
-  border-radius:999px;
-  border:1px solid rgba(255,255,255,0.16);
-  background:rgba(255,255,255,0.08);
-  color:rgba(255,255,255,0.9);
-  font-weight:900;
-  font-size:14px;
-  line-height:1;
-  display:grid;
-  place-items:center;
-  cursor:pointer;
-}
-
-.shoe-info-btn:active{
-  transform:translateY(1px);
-}
-
-.shoe-popover{
-  position:absolute;
-  right:10px;
-  bottom:44px;
-  width:min(320px, calc(100% - 20px));
-  border-radius:16px;
-  border:1px solid rgba(255,255,255,0.14);
-  background: rgba(6,10,30,0.92);
-  box-shadow: 0 18px 55px rgba(0,0,0,0.55);
-  padding:12px 12px 10px;
-  z-index:5;
-  backdrop-filter: blur(10px);
-}
-
-.shoe-popover-title{
-  font-weight:950;
-  font-size:13px;
-  margin-bottom:6px;
-}
-
-.shoe-popover-text{
-  color: var(--muted);
-  font-weight:650;
-  font-size:12px;
-  line-height:1.35;
-}
-
-.shoe-scale{
-  margin-top:10px;
-  display:flex;
-  flex-direction:column;
-  gap:8px;
-}
-
-.shoe-scale-row{
-  display:grid;
-  grid-template-columns: 24px 1fr auto;
-  gap:10px;
-  align-items:center;
-  font-size:12px;
-  color: rgba(255,255,255,0.9);
-}
-
-.shoe-scale-emoji{ font-size:16px; }
-.shoe-scale-label{ font-weight:850; }
-.shoe-scale-range{ color: var(--muted); font-weight:750; }
-
-/* SUN & MOON TILES */
-.astro-tiles{
-  display:grid;
-  gap:12px;
-}
-
-@media(min-width:650px){
-  .astro-tiles{
-    grid-template-columns:1fr 1fr;
-  }
-}
-
-.astro-tile{
-  border-radius:var(--radius-sm);
-  background:rgba(0,0,0,0.12);
-  border:1px solid rgba(255,255,255,0.08);
-  padding:12px;
-  min-height:140px;
-}
-
-.astro-tile-head{
-  display:flex;
-  justify-content:space-between;
-  margin-bottom:10px;
-}
-
-.astro-tile-title{
-  font-weight:950;
-  font-size:16px;
-}
-
-.astro-tile-pill{
-  padding:4px 10px;
-  border-radius:999px;
-  background:rgba(255,255,255,0.08);
-  font-size:12px;
-  font-weight:850;
-}
-
-/* SUN ARC */
-.sun-arc{
-  position:relative;
-  height:95px;
-}
-
-.sun-arc-svg{
-  width:100%;
-  height:70px;
-}
-
-.sun-arc-svg path{
-  stroke:rgba(255,255,255,0.7);
-  stroke-width:2;
-  fill:none;
-}
-
-.sun-dot{
-  position:absolute;
-  left:var(--sun-x);
-  top:calc(var(--sun-y) * 0.65);
-  transform:translate(-50%,-60%);
-  font-size:26px;
-}
-
-.sun-times{
-  position:absolute;
-  bottom:0;
-  left:0;
-  right:0;
-  display:flex;
-  justify-content:space-between;
-  font-size:12px;
-  color:var(--muted);
-}
-
-/* MOON */
-.moon-wrap{
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-}
-
-.moon-disc{
-  width:72px;
-  height:72px;
-  border-radius:999px;
-  background:
-    radial-gradient(circle at 50% 50%, #d7dbe1, #aab3bf);
-  position:relative;
-  overflow:hidden;
-}
-
-.moon-disc::after{
-  content:"";
-  position:absolute;
-  inset:0;
-  background:linear-gradient(
-    90deg,
-    rgba(6,10,30,0.9) 0%,
-    rgba(6,10,30,0.9) var(--moon-shadow),
-    transparent var(--moon-shadow)
-  );
-}
-
-.moon-tile[style*="--moon-dir:wane"] .moon-disc::after{
-  background:linear-gradient(
-    90deg,
-    transparent 0%,
-    transparent calc(100% - var(--moon-shadow)),
-    rgba(6,10,30,0.9) calc(100% - var(--moon-shadow))
-  );
-}
-
-.moon-phase{
-  font-weight:900;
-}
-
-.moon-sub{
-  margin-top:6px;
-  font-size:12px;
-  color:var(--muted);
-}
-
-/* Desktop grid */
-@media(min-width:900px){
-  .grid{
-    grid-template-columns:1fr 1fr;
-  }
-
-  #todayCard{ grid-column:2; }
-  #astroUvCard{ grid-column:2; }
-  #hourlyCard{ grid-column:1 / -1; }
-  #dailyCard{ grid-column:1 / -1; }
-}
-
-/* ✅ FIX: Shoe Index “i” popover getting clipped (card has overflow:hidden) */
-#shoeCard{
-  overflow: visible;           /* allow popover to extend without being cut off */
-}
-
-#shoeCard .card-body{
-  position: relative;          /* anchor any absolutely-positioned popover inside */
-}
-
-/* ✅ If your info panel uses any of these common classnames, make it wrap + size correctly */
-.shoe-info,
-.shoe-info-box,
-.shoe-info-panel,
-.shoe-popover,
-.shoe-tooltip{
-  white-space: normal;
-  overflow-wrap: anywhere;
-  height: auto;
-  max-height: 70vh;            /* prevents huge popovers from going off-screen */
-  overflow: auto;              /* scroll inside if needed */
-  z-index: 20;
-}
+/* ✅ FIX
