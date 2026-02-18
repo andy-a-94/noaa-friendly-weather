@@ -20,6 +20,14 @@ body{
   margin:0;
   color:var(--text);
   font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+
+  /* ✅ Global typography tweak:
+     - ~20% larger (16px -> 19px)
+     - lighter overall weight to reduce “chunky” look
+  */
+  font-size:19px;
+  font-weight:500;
+
   background: transparent;
   min-height: 100dvh;
   position: relative;
@@ -52,14 +60,15 @@ body::before{
 }
 
 .brand-title{
-  font-size:26px;
-  font-weight:900;
+  font-size:31px;     /* 26 -> ~31 (+20%) */
+  font-weight:700;   /* 900 -> lighter */
 }
 
 .brand-sub{
   margin-top:4px;
   color:var(--muted);
-  font-size:13px;
+  font-size:16px;    /* 13 -> ~16 (+20%) */
+  font-weight:500;
 }
 
 .zip{
@@ -76,7 +85,7 @@ body::before{
   border:1px solid var(--border);
   background:rgba(255,255,255,0.06);
   color:var(--text);
-  font-weight:800;
+  font-weight:650;   /* 800 -> lighter */
 }
 
 .zip-btn{
@@ -86,14 +95,15 @@ body::before{
   border:1px solid rgba(255,255,255,0.14);
   background:rgba(255,255,255,0.10);
   color:var(--text);
-  font-weight:900;
+  font-weight:700;   /* 900 -> lighter */
   cursor:pointer;
 }
 
 .status{
   min-height:22px;
   color:var(--muted);
-  font-size:13px;
+  font-size:16px;    /* 13 -> ~16 */
+  font-weight:500;
   margin:8px 2px 16px;
 }
 
@@ -121,8 +131,8 @@ body::before{
 
 .card-title{
   margin:0;
-  font-size:18px;
-  font-weight:900;
+  font-size:22px;    /* 18 -> ~22 */
+  font-weight:700;   /* 900 -> lighter */
 }
 
 .card-body{
@@ -132,32 +142,31 @@ body::before{
 /* CURRENT */
 .current-row{
   display:flex;
-  align-items:flex-start; /* ✅ align emoji with temp block */
+  align-items:center;
   justify-content:space-between;
 }
 
 .current-temp{
-  font-size:64px;
-  font-weight:950;
+  font-size:77px;    /* 64 -> ~77 */
+  font-weight:750;   /* 950 -> lighter */
 }
 
 .current-desc{
   margin-top:10px;
-  font-size:20px;
-  font-weight:850;
+  font-size:24px;    /* 20 -> 24 */
+  font-weight:650;   /* 850 -> lighter */
 }
 
 .current-meta{
   margin-top:10px;
   color:var(--muted);
-  font-size:14px;
-  font-weight:750;
+  font-size:17px;    /* 14 -> ~17 */
+  font-weight:550;   /* 750 -> lighter */
 }
 
+/* ✅ Change request: bigger emoji in current tile */
 .wx-icon{
-  font-size:78px;   /* ✅ bigger emoji in current tile */
-  line-height:1;
-  margin-top: 6px;  /* ✅ visually aligns with big temp numbers */
+  font-size:78px;    /* 62 -> bigger */
 }
 
 /* HOURLY */
@@ -174,9 +183,9 @@ body::before{
   padding:10px;
 }
 
-.hour-time{ font-size:12px; color:var(--muted); }
-.hour-temp{ font-size:18px; font-weight:800; margin-top:6px; }
-.hour-desc{ font-size:12px; color:var(--muted); margin-top:6px; }
+.hour-time{ font-size:14px; color:var(--muted); font-weight:500; }  /* 12 -> ~14 */
+.hour-temp{ font-size:22px; font-weight:650; margin-top:6px; }      /* 18 -> ~22, lighter */
+.hour-desc{ font-size:14px; color:var(--muted); margin-top:6px; font-weight:500; }
 
 /* DAILY */
 .daily-list{ padding:6px; }
@@ -189,71 +198,44 @@ body::before{
   list-style:none;
   cursor:pointer;
   padding:14px 12px;
-
-  /* ✅ Forecast row layout:
-     Row 1: Day name (left) + icon/temp (right)
-     Row 2: Short forecast spans full width under temps */
-  display:grid;
-  grid-template-columns: 1fr auto;
-  grid-template-rows: auto auto;
-  column-gap:12px;
-  row-gap:6px;
-  align-items:start;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
 }
-
-/* Turn the wrapper into "transparent" so children can be placed in the grid */
-.day-left{ display: contents; }
 
 .day-name{
-  grid-column:1;
-  grid-row:1;
-  font-weight:900;
-  font-size:18px;
-  line-height:1.15;
+  font-weight:700;   /* 900 -> lighter */
+  font-size:22px;    /* 18 -> ~22 */
 }
 
-/* ✅ short forecast now sits under everything (including under temps) */
 .day-short{
-  grid-column:1 / -1;
-  grid-row:2;
   color:var(--muted);
-  line-height:1.25;
-  overflow-wrap:anywhere;
-}
-
-/* ✅ Right side stays aligned with day name line */
-.day-right{
-  grid-column:2;
-  grid-row:1;
-  display:grid;
-  grid-auto-flow:column;
-  align-items:start;
-  gap:10px;
-  white-space:nowrap;
-}
-
-/* Day high */
-.day-temp{
-  font-weight:950;
-  font-size:18px;
-  line-height:1;
-}
-
-/* ✅ Night/low is smaller and visibly different */
-.day-temp .day-low{
-  display:inline-block;
-  font-size:16px;
-  line-height:1;
-  transform: translateY(1px);
   font-weight:500;
-  opacity:0.85;
+}
+
+.day-right{
+  display:flex;
+  align-items:center;
+  gap:10px;
+}
+
+.day-temp{
+  font-weight:700;   /* 950 -> lighter */
+  font-size:22px;    /* 18 -> ~22 */
+}
+
+/* ✅ Change request: night/low temp smaller than day/high */
+.day-low{
   color:var(--muted);
+  font-weight:550;   /* 850 -> lighter */
+  font-size:18px;    /* smaller than .day-temp */
 }
 
 .day-detail{
   padding:2px 12px 14px;
   color:var(--muted);
-  font-size:14px;
+  font-size:16px;    /* 14 -> ~16 */
+  font-weight:500;
 }
 
 .day-detail-block{
@@ -261,8 +243,8 @@ body::before{
 }
 
 .dn-title{
-  font-weight:900;
-  font-size:12px;
+  font-weight:700;   /* 900 -> lighter */
+  font-size:14px;    /* 12 -> ~14 */
   text-transform:uppercase;
   color:rgba(255,255,255,0.8);
 }
@@ -273,8 +255,8 @@ body::before{
 
 .detail-meta{
   margin-top:10px;
-  font-weight:800;
-  font-size:13px;
+  font-weight:550;   /* 800 -> lighter */
+  font-size:16px;    /* 13 -> ~16 */
   color:rgba(255,255,255,0.82);
 }
 
@@ -282,7 +264,7 @@ body::before{
 .today-rows{
   display:flex;
   flex-direction:column;
-  gap: 0; /* divider handles spacing */
+  gap: 12px;
 }
 
 .today-row{
@@ -290,15 +272,6 @@ body::before{
   grid-template-columns: 28px minmax(0, 1fr) auto;
   align-items:start;
   gap: 12px;
-
-  /* ✅ divider between Today / Tonight */
-  padding: 10px 0;
-  border-bottom: 1px solid rgba(255,255,255,0.08);
-}
-
-.today-row:last-child{
-  border-bottom: 0;
-  padding-bottom: 0;
 }
 
 .wx-icon-sm{
@@ -306,8 +279,8 @@ body::before{
   height: 28px;
   display:grid;
   place-items:center;
-  font-size: 20px;
-  line-height: 1;     /* ✅ prevents staggered emoji */
+  font-size: 22px;   /* 20 -> a touch bigger */
+  line-height: 1;
   user-select:none;
 }
 
@@ -316,12 +289,12 @@ body::before{
 }
 
 .today-name{
-  font-weight:900;
-  font-size:18px;
+  font-weight:700;   /* keep label bold-ish, but lighter than before */
+  font-size:22px;    /* 18 -> ~22 */
   line-height:1.15;
 }
 
-/* ✅ Change request: outlook description not bold */
+/* ✅ outlook description not bold */
 .today-short{
   margin-top: 2px;
   color: var(--text);
@@ -336,8 +309,8 @@ body::before{
 }
 
 .today-temp{
-  font-weight:950;
-  font-size:18px;
+  font-weight:700;   /* 950 -> lighter */
+  font-size:22px;    /* 18 -> ~22 */
 }
 
 .today-badges{
@@ -348,7 +321,7 @@ body::before{
   flex-wrap:wrap;
 }
 
-/* ✅ SHOE TILE (match attached: big icon + stacked text) */
+/* ✅ SHOE TILE */
 .shoe-row{
   display:flex;
   align-items:center;
@@ -369,8 +342,7 @@ body::before{
   overflow:hidden;
 }
 
-/* support both classnames */
-.shoe-img,
+/* NOTE: your JS uses .shoe-icon-img and .shoe-scale-img */
 .shoe-icon-img{
   width:78px;
   height:78px;
@@ -381,13 +353,14 @@ body::before{
   image-rendering:auto;
 }
 
-/* scale images (support both) */
 .shoe-scale-img{
   width:18px;
   height:18px;
   object-fit:contain;
   display:block;
 }
+
+/* ✅ (Removed the stray extra "}" that was here in your pasted CSS) */
 
 .shoe-text{
   display:flex;
@@ -397,15 +370,15 @@ body::before{
 }
 
 .shoe-title{
-  font-weight:950;
-  font-size:22px;
+  font-weight:750;   /* 950 -> lighter */
+  font-size:26px;    /* 22 -> ~26 */
   line-height:1.1;
 }
 
 .shoe-sub{
   color: var(--muted);
-  font-weight:850;
-  font-size:14px;
+  font-weight:550;   /* 850 -> lighter */
+  font-size:17px;    /* 14 -> ~17 */
 }
 
 /* ✅ Shoe info icon + popover */
@@ -423,7 +396,7 @@ body::before{
   border:1px solid rgba(255,255,255,0.16);
   background:rgba(255,255,255,0.08);
   color:rgba(255,255,255,0.9);
-  font-weight:900;
+  font-weight:700;   /* 900 -> lighter */
   font-size:14px;
   line-height:1;
   display:grid;
@@ -450,15 +423,15 @@ body::before{
 }
 
 .shoe-popover-title{
-  font-weight:950;
-  font-size:13px;
+  font-weight:700;   /* 950 -> lighter */
+  font-size:15px;    /* 13 -> ~15 */
   margin-bottom:6px;
 }
 
 .shoe-popover-text{
   color: var(--muted);
-  font-weight:650;
-  font-size:12px;
+  font-weight:500;
+  font-size:14px;    /* 12 -> ~14 */
   line-height:1.35;
 }
 
@@ -474,13 +447,13 @@ body::before{
   grid-template-columns: 24px 1fr auto;
   gap:10px;
   align-items:center;
-  font-size:12px;
+  font-size:14px;    /* 12 -> ~14 */
   color: rgba(255,255,255,0.9);
 }
 
 .shoe-scale-emoji{ font-size:16px; }
-.shoe-scale-label{ font-weight:850; }
-.shoe-scale-range{ color: var(--muted); font-weight:750; }
+.shoe-scale-label{ font-weight:650; }  /* 850 -> lighter */
+.shoe-scale-range{ color: var(--muted); font-weight:500; }
 
 /* SUN & MOON TILES */
 .astro-tiles{
@@ -509,16 +482,16 @@ body::before{
 }
 
 .astro-tile-title{
-  font-weight:950;
-  font-size:16px;
+  font-weight:700;   /* 950 -> lighter */
+  font-size:19px;    /* 16 -> ~19 */
 }
 
 .astro-tile-pill{
   padding:4px 10px;
   border-radius:999px;
   background:rgba(255,255,255,0.08);
-  font-size:12px;
-  font-weight:850;
+  font-size:14px;    /* 12 -> ~14 */
+  font-weight:600;   /* 850 -> lighter */
 }
 
 /* SUN ARC */
@@ -543,7 +516,7 @@ body::before{
   left:var(--sun-x);
   top:calc(var(--sun-y) * 0.65);
   transform:translate(-50%,-60%);
-  font-size:26px;
+  font-size:32px; /* a touch bigger with global scaling */
 }
 
 .sun-times{
@@ -553,8 +526,9 @@ body::before{
   right:0;
   display:flex;
   justify-content:space-between;
-  font-size:12px;
+  font-size:14px;    /* 12 -> ~14 */
   color:var(--muted);
+  font-weight:500;
 }
 
 /* MOON */
@@ -596,13 +570,14 @@ body::before{
 }
 
 .moon-phase{
-  font-weight:900;
+  font-weight:700;   /* 900 -> lighter */
 }
 
 .moon-sub{
   margin-top:6px;
-  font-size:12px;
+  font-size:14px;    /* 12 -> ~14 */
   color:var(--muted);
+  font-weight:500;
 }
 
 /* Desktop grid */
@@ -626,6 +601,7 @@ body::before{
   position: relative;
 }
 
+/* ✅ Make info panel wrap + size correctly */
 .shoe-info,
 .shoe-info-box,
 .shoe-info-panel,
