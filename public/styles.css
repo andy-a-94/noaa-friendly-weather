@@ -20,14 +20,6 @@ body{
   margin:0;
   color:var(--text);
   font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
-
-  /* ✅ Global typography tweak:
-     - ~20% larger (16px -> 19px)
-     - lighter overall weight to reduce “chunky” look
-  */
-  font-size:19px;
-  font-weight:500;
-
   background: transparent;
   min-height: 100dvh;
   position: relative;
@@ -60,15 +52,14 @@ body::before{
 }
 
 .brand-title{
-  font-size:31px;     /* 26 -> ~31 (+20%) */
-  font-weight:700;   /* 900 -> lighter */
+  font-size:26px;
+  font-weight:900;
 }
 
 .brand-sub{
   margin-top:4px;
   color:var(--muted);
-  font-size:16px;    /* 13 -> ~16 (+20%) */
-  font-weight:500;
+  font-size:13px;
 }
 
 .zip{
@@ -85,7 +76,7 @@ body::before{
   border:1px solid var(--border);
   background:rgba(255,255,255,0.06);
   color:var(--text);
-  font-weight:650;   /* 800 -> lighter */
+  font-weight:800;
 }
 
 .zip-btn{
@@ -95,15 +86,14 @@ body::before{
   border:1px solid rgba(255,255,255,0.14);
   background:rgba(255,255,255,0.10);
   color:var(--text);
-  font-weight:700;   /* 900 -> lighter */
+  font-weight:900;
   cursor:pointer;
 }
 
 .status{
   min-height:22px;
   color:var(--muted);
-  font-size:16px;    /* 13 -> ~16 */
-  font-weight:500;
+  font-size:13px;
   margin:8px 2px 16px;
 }
 
@@ -131,8 +121,8 @@ body::before{
 
 .card-title{
   margin:0;
-  font-size:22px;    /* 18 -> ~22 */
-  font-weight:700;   /* 900 -> lighter */
+  font-size:18px;
+  font-weight:900;
 }
 
 .card-body{
@@ -147,26 +137,25 @@ body::before{
 }
 
 .current-temp{
-  font-size:77px;    /* 64 -> ~77 */
-  font-weight:750;   /* 950 -> lighter */
+  font-size:64px;
+  font-weight:950;
 }
 
 .current-desc{
   margin-top:10px;
-  font-size:24px;    /* 20 -> 24 */
-  font-weight:650;   /* 850 -> lighter */
+  font-size:20px;
+  font-weight:850;
 }
 
 .current-meta{
   margin-top:10px;
   color:var(--muted);
-  font-size:17px;    /* 14 -> ~17 */
-  font-weight:550;   /* 750 -> lighter */
+  font-size:14px;
+  font-weight:750;
 }
 
-/* ✅ Change request: bigger emoji in current tile */
 .wx-icon{
-  font-size:78px;    /* 62 -> bigger */
+  font-size:62px;
 }
 
 /* HOURLY */
@@ -183,9 +172,9 @@ body::before{
   padding:10px;
 }
 
-.hour-time{ font-size:14px; color:var(--muted); font-weight:500; }  /* 12 -> ~14 */
-.hour-temp{ font-size:22px; font-weight:650; margin-top:6px; }      /* 18 -> ~22, lighter */
-.hour-desc{ font-size:14px; color:var(--muted); margin-top:6px; font-weight:500; }
+.hour-time{ font-size:12px; color:var(--muted); }
+.hour-temp{ font-size:18px; font-weight:800; margin-top:6px; }
+.hour-desc{ font-size:12px; color:var(--muted); margin-top:6px; }
 
 /* DAILY */
 .daily-list{ padding:6px; }
@@ -204,13 +193,12 @@ body::before{
 }
 
 .day-name{
-  font-weight:700;   /* 900 -> lighter */
-  font-size:22px;    /* 18 -> ~22 */
+  font-weight:900;
+  font-size:18px;
 }
 
 .day-short{
   color:var(--muted);
-  font-weight:500;
 }
 
 .day-right{
@@ -220,22 +208,19 @@ body::before{
 }
 
 .day-temp{
-  font-weight:700;   /* 950 -> lighter */
-  font-size:22px;    /* 18 -> ~22 */
+  font-weight:950;
+  font-size:18px;
 }
 
-/* ✅ Change request: night/low temp smaller than day/high */
 .day-low{
   color:var(--muted);
-  font-weight:550;   /* 850 -> lighter */
-  font-size:18px;    /* smaller than .day-temp */
+  font-weight:850;
 }
 
 .day-detail{
   padding:2px 12px 14px;
   color:var(--muted);
-  font-size:16px;    /* 14 -> ~16 */
-  font-weight:500;
+  font-size:14px;
 }
 
 .day-detail-block{
@@ -243,8 +228,8 @@ body::before{
 }
 
 .dn-title{
-  font-weight:700;   /* 900 -> lighter */
-  font-size:14px;    /* 12 -> ~14 */
+  font-weight:900;
+  font-size:12px;
   text-transform:uppercase;
   color:rgba(255,255,255,0.8);
 }
@@ -255,8 +240,8 @@ body::before{
 
 .detail-meta{
   margin-top:10px;
-  font-weight:550;   /* 800 -> lighter */
-  font-size:16px;    /* 13 -> ~16 */
+  font-weight:800;
+  font-size:13px;
   color:rgba(255,255,255,0.82);
 }
 
@@ -279,7 +264,7 @@ body::before{
   height: 28px;
   display:grid;
   place-items:center;
-  font-size: 22px;   /* 20 -> a touch bigger */
+  font-size: 20px;
   line-height: 1;
   user-select:none;
 }
@@ -289,12 +274,12 @@ body::before{
 }
 
 .today-name{
-  font-weight:700;   /* keep label bold-ish, but lighter than before */
-  font-size:22px;    /* 18 -> ~22 */
+  font-weight:900;
+  font-size:18px;
   line-height:1.15;
 }
 
-/* ✅ outlook description not bold */
+/* ✅ Change request: outlook description not bold */
 .today-short{
   margin-top: 2px;
   color: var(--text);
@@ -309,8 +294,8 @@ body::before{
 }
 
 .today-temp{
-  font-weight:700;   /* 950 -> lighter */
-  font-size:22px;    /* 18 -> ~22 */
+  font-weight:950;
+  font-size:18px;
 }
 
 .today-badges{
@@ -321,7 +306,7 @@ body::before{
   flex-wrap:wrap;
 }
 
-/* ✅ SHOE TILE */
+/* ✅ SHOE TILE (match attached: big icon + stacked text) */
 .shoe-row{
   display:flex;
   align-items:center;
@@ -339,10 +324,10 @@ body::before{
   background: rgba(59,130,246,0.26);
   border: 1px solid rgba(255,255,255,0.10);
   box-shadow: 0 10px 26px rgba(0,0,0,0.25);
-  overflow:hidden;
+  overflow:hidden; /* ensures the image respects the rounded corners */
 }
 
-/* NOTE: your JS uses .shoe-icon-img and .shoe-scale-img */
+/* ✅ FIX: match your JS class "shoe-icon-img" */
 .shoe-icon-img{
   width:78px;
   height:78px;
@@ -353,14 +338,13 @@ body::before{
   image-rendering:auto;
 }
 
+/* ✅ FIX: match your JS class "shoe-scale-img" */
 .shoe-scale-img{
   width:18px;
   height:18px;
   object-fit:contain;
   display:block;
 }
-
-/* ✅ (Removed the stray extra "}" that was here in your pasted CSS) */
 
 .shoe-text{
   display:flex;
@@ -370,15 +354,15 @@ body::before{
 }
 
 .shoe-title{
-  font-weight:750;   /* 950 -> lighter */
-  font-size:26px;    /* 22 -> ~26 */
+  font-weight:950;
+  font-size:22px;
   line-height:1.1;
 }
 
 .shoe-sub{
   color: var(--muted);
-  font-weight:550;   /* 850 -> lighter */
-  font-size:17px;    /* 14 -> ~17 */
+  font-weight:850;
+  font-size:14px;
 }
 
 /* ✅ Shoe info icon + popover */
@@ -396,7 +380,7 @@ body::before{
   border:1px solid rgba(255,255,255,0.16);
   background:rgba(255,255,255,0.08);
   color:rgba(255,255,255,0.9);
-  font-weight:700;   /* 900 -> lighter */
+  font-weight:900;
   font-size:14px;
   line-height:1;
   display:grid;
@@ -423,15 +407,15 @@ body::before{
 }
 
 .shoe-popover-title{
-  font-weight:700;   /* 950 -> lighter */
-  font-size:15px;    /* 13 -> ~15 */
+  font-weight:950;
+  font-size:13px;
   margin-bottom:6px;
 }
 
 .shoe-popover-text{
   color: var(--muted);
-  font-weight:500;
-  font-size:14px;    /* 12 -> ~14 */
+  font-weight:650;
+  font-size:12px;
   line-height:1.35;
 }
 
@@ -447,13 +431,13 @@ body::before{
   grid-template-columns: 24px 1fr auto;
   gap:10px;
   align-items:center;
-  font-size:14px;    /* 12 -> ~14 */
+  font-size:12px;
   color: rgba(255,255,255,0.9);
 }
 
 .shoe-scale-emoji{ font-size:16px; }
-.shoe-scale-label{ font-weight:650; }  /* 850 -> lighter */
-.shoe-scale-range{ color: var(--muted); font-weight:500; }
+.shoe-scale-label{ font-weight:850; }
+.shoe-scale-range{ color: var(--muted); font-weight:750; }
 
 /* SUN & MOON TILES */
 .astro-tiles{
@@ -482,16 +466,16 @@ body::before{
 }
 
 .astro-tile-title{
-  font-weight:700;   /* 950 -> lighter */
-  font-size:19px;    /* 16 -> ~19 */
+  font-weight:950;
+  font-size:16px;
 }
 
 .astro-tile-pill{
   padding:4px 10px;
   border-radius:999px;
   background:rgba(255,255,255,0.08);
-  font-size:14px;    /* 12 -> ~14 */
-  font-weight:600;   /* 850 -> lighter */
+  font-size:12px;
+  font-weight:850;
 }
 
 /* SUN ARC */
@@ -516,7 +500,7 @@ body::before{
   left:var(--sun-x);
   top:calc(var(--sun-y) * 0.65);
   transform:translate(-50%,-60%);
-  font-size:32px; /* a touch bigger with global scaling */
+  font-size:26px;
 }
 
 .sun-times{
@@ -526,9 +510,8 @@ body::before{
   right:0;
   display:flex;
   justify-content:space-between;
-  font-size:14px;    /* 12 -> ~14 */
+  font-size:12px;
   color:var(--muted);
-  font-weight:500;
 }
 
 /* MOON */
@@ -570,14 +553,13 @@ body::before{
 }
 
 .moon-phase{
-  font-weight:700;   /* 900 -> lighter */
+  font-weight:900;
 }
 
 .moon-sub{
   margin-top:6px;
-  font-size:14px;    /* 12 -> ~14 */
+  font-size:12px;
   color:var(--muted);
-  font-weight:500;
 }
 
 /* Desktop grid */
@@ -594,14 +576,14 @@ body::before{
 
 /* ✅ FIX: Shoe Index “i” popover getting clipped (card has overflow:hidden) */
 #shoeCard{
-  overflow: visible;
+  overflow: visible;           /* allow popover to extend without being cut off */
 }
 
 #shoeCard .card-body{
-  position: relative;
+  position: relative;          /* anchor any absolutely-positioned popover inside */
 }
 
-/* ✅ Make info panel wrap + size correctly */
+/* ✅ If your info panel uses any of these common classnames, make it wrap + size correctly */
 .shoe-info,
 .shoe-info-box,
 .shoe-info-panel,
@@ -610,7 +592,7 @@ body::before{
   white-space: normal;
   overflow-wrap: anywhere;
   height: auto;
-  max-height: 70vh;
-  overflow: auto;
+  max-height: 70vh;            /* prevents huge popovers from going off-screen */
+  overflow: auto;              /* scroll inside if needed */
   z-index: 20;
 }
