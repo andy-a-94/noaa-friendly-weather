@@ -1,162 +1,171 @@
-:root{ 
-  --bg0:#060a1e;
-  --bg1:#0b1230;
-  --card:#101a3b;
-  --card-strong:#121f47;
-  --border:rgba(255,255,255,0.10);
-  --text:rgba(255,255,255,0.95);
-  --muted:rgba(255,255,255,0.70);
-  --muted2:rgba(255,255,255,0.55);
-  --radius:26px;
-  --radius-sm:18px;
-  --shadow:0 18px 55px rgba(0,0,0,0.55);
+/* Almanac Weather - Frontend styles */
+
+:root{
+  --bg: #0b1020;
+  --panel: rgba(255,255,255,0.07);
+  --panel2: rgba(255,255,255,0.10);
+  --text: rgba(255,255,255,0.92);
+  --muted: rgba(255,255,255,0.72);
+  --accent: rgba(120, 180, 255, 0.95);
 }
 
-*{box-sizing:border-box}
-html,body{height:100%}
+*{ box-sizing:border-box; }
 
-/* ✅ Background fix (continuous gradient; same colors, no “stop/start”) */
-body{
+html,body{
+  height:100%;
   margin:0;
-  color:var(--text);
-  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
-  background: transparent;
-  min-height: 100dvh;
-  position: relative;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+  background: radial-gradient(1200px 600px at 20% -10%, rgba(110,170,255,0.20), transparent 60%),
+              radial-gradient(900px 700px at 100% 0%, rgba(255,200,120,0.10), transparent 60%),
+              var(--bg);
+  color: var(--text);
 }
 
-/* Fixed gradient layer prevents iOS/Safari scroll “banding” */
-body::before{
-  content:"";
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  background:
-    radial-gradient(1100px 700px at 22% 12%, rgba(99,102,241,0.22), transparent 55%),
-    radial-gradient(900px 600px at 80% 22%, rgba(168,85,247,0.16), transparent 55%),
-    radial-gradient(1200px 800px at 50% 90%, rgba(14,165,233,0.10), transparent 60%),
-    linear-gradient(180deg, var(--bg1), var(--bg0));
+a{ color: inherit; }
+
+.container{
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 18px 14px 40px;
 }
 
-.wrap{
-  width:min(1100px, 94vw);
-  margin: 28px auto 34px;
-}
-
-.top{
-  display:flex;
-  align-items:flex-end;
-  justify-content:space-between;
-  gap:18px;
-  margin-bottom:16px;
-}
-
-.brand-title{
-  font-size:26px;
-  font-weight:900;
-}
-
-.brand-sub{
-  margin-top:4px;
-  color:var(--muted);
-  font-size:13px;
-}
-
-.zip{
+header{
   display:flex;
   align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  margin-bottom: 12px;
+}
+
+.brand{
+  display:flex;
   gap:10px;
+  align-items:center;
+}
+.brand .logo{
+  width:36px;
+  height:36px;
+  border-radius:10px;
+  background: linear-gradient(135deg, rgba(140,200,255,0.55), rgba(255,220,160,0.30));
+  box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+}
+.brand h1{
+  font-size: 18px;
+  margin:0;
+  letter-spacing: 0.2px;
+}
+.brand .sub{
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 2px;
 }
 
-.zip-input{
-  width:135px;
-  height:44px;
-  padding:0 12px;
-  border-radius:14px;
-  border:1px solid var(--border);
-  background:rgba(255,255,255,0.06);
-  color:var(--text);
-  font-weight:800;
-}
-
-.zip-btn{
-  height:44px;
-  padding:0 14px;
-  border-radius:14px;
-  border:1px solid rgba(255,255,255,0.14);
-  background:rgba(255,255,255,0.10);
-  color:var(--text);
-  font-weight:900;
-  cursor:pointer;
-}
-
-.status{
-  min-height:22px;
-  color:var(--muted);
-  font-size:13px;
-  margin:8px 2px 16px;
-}
-
-.grid{
-  display:grid;
-  grid-template-columns:1fr;
-  gap:16px;
+#statusBar{
+  margin: 8px 0 14px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.10);
+  color: rgba(255,255,255,0.82);
+  font-weight: 650;
 }
 
 .card{
-  border-radius:var(--radius);
-  background:
-    radial-gradient(800px 400px at 20% 18%, rgba(255,255,255,0.11), transparent 55%),
-    radial-gradient(800px 400px at 70% 18%, rgba(255,255,255,0.08), transparent 60%),
-    linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.03));
-  border:1px solid rgba(255,255,255,0.10);
-  box-shadow:var(--shadow);
-  overflow:hidden;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.10);
+  border-radius: 18px;
+  padding: 12px;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.25);
+  margin-top: 12px;
 }
 
-.card-head{
-  padding:18px 20px 14px;
-  border-bottom:1px solid rgba(255,255,255,0.08);
+.card h2{
+  margin: 4px 0 10px;
+  font-size: 16px;
+  letter-spacing: 0.2px;
 }
 
-.card-title{
-  margin:0;
-  font-size:18px;
-  font-weight:900;
+.row{
+  display:flex;
+  gap:12px;
+  align-items:center;
 }
 
-.card-body{
-  padding:16px 18px;
+#zipForm{
+  display:flex;
+  gap:10px;
+  align-items:center;
+}
+
+#zipInput{
+  width: 140px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.14);
+  background: rgba(0,0,0,0.22);
+  color: var(--text);
+  outline: none;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+}
+
+#zipBtn{
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.14);
+  background: rgba(120,180,255,0.20);
+  color: var(--text);
+  font-weight: 800;
+  cursor: pointer;
+}
+#zipBtn:disabled{
+  opacity: 0.55;
+  cursor: default;
 }
 
 /* CURRENT */
 .current-row{
   display:flex;
-  align-items:center;
   justify-content:space-between;
+  align-items:center;
+  gap:12px;
 }
-
 .current-temp{
-  font-size:64px;
-  font-weight:950;
+  font-size: 44px;
+  font-weight: 900;
+  letter-spacing: -0.4px;
 }
-
 .current-desc{
-  margin-top:10px;
-  font-size:20px;
-  font-weight:850;
+  margin-top: 2px;
+  color: rgba(255,255,255,0.86);
+  font-weight: 700;
 }
-
 .current-meta{
-  margin-top:10px;
-  color:var(--muted);
-  font-size:14px;
-  font-weight:750;
+  margin-top: 8px;
+  color: rgba(255,255,255,0.76);
+  font-weight: 650;
+  font-size: 13px;
+}
+.wx-icon{
+  font-size: 74px;
+  line-height: 1;
+  user-select:none;
 }
 
-/* ✅ Enlarge main weather emoji ~20% */
-.wx-icon{
-  font-size:74px; /* was 62px */
+/* Alerts */
+.alerts{
+  margin-top: 10px;
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+}
+.alert-pill{
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(255,120,120,0.18);
+  border: 1px solid rgba(255,160,160,0.25);
+  font-weight: 800;
+  font-size: 12px;
 }
 
 /* HOURLY */
@@ -164,18 +173,36 @@ body::before{
   display:flex;
   gap:10px;
   overflow-x:auto;
+  padding-bottom: 6px;
 }
-
 .hour-card{
-  min-width:120px;
-  background:var(--card-strong);
-  border-radius:var(--radius-sm);
-  padding:10px;
+  min-width: 120px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.10);
+  border-radius: 16px;
+  padding: 10px;
 }
-
-.hour-time{ font-size:12px; color:var(--muted); }
-.hour-temp{ font-size:18px; font-weight:800; margin-top:6px; }
-.hour-desc{ font-size:12px; color:var(--muted); margin-top:6px; }
+.hour-time{
+  font-weight: 900;
+  font-size: 13px;
+}
+.hour-temp{
+  margin-top: 6px;
+  font-weight: 950;
+  font-size: 22px;
+}
+.hour-desc{
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 12px;
+  min-height: 32px;
+}
+.hour-meta{
+  margin-top: 8px;
+  display:flex;
+  gap:8px;
+  align-items:center;
+}
 
 /* DAILY */
 .daily-list{ padding:6px; }
@@ -213,6 +240,10 @@ body::before{
 }
 
 .day-summary .day-right{
+  display: contents;
+}
+
+.day-summary .day-left{
   display: contents;
 }
 
@@ -256,9 +287,9 @@ body::before{
   line-height:1.05;
 }
 
-/* Always show precip (even if JS adds is-hidden) */
+/* Reserve the precip lane (hide content, keep spacing) */
 .day-summary .precip.is-hidden{
-  visibility:visible;
+  visibility:hidden; /* keep the space, hide the content */
 }
 
 /* 💧 ~20% smaller (covers common markup patterns) */
@@ -284,24 +315,13 @@ body::before{
   line-height:1;
 }
 
-/* ✅ Fallback: if a row’s icon element does NOT have .wx-icon,
-   this still forces “the non-precip, non-temp item” into the icon column. */
-.day-summary .day-right > *:not(.precip):not(.day-temp){
-  grid-area:icon;
-  grid-row:1 / span 2;
-  justify-self:center;
-  align-self:center;
-  width:28px;
-  text-align:center;
-  font-size:29px;
-  line-height:1;
-}
-
 /* Temps column */
 .day-temp{
   grid-area:temps;
   grid-row:1 / span 2;
-  justify-self:end;
+  justify-self:start;
+  padding-left:10px;
+  text-align:left;
   align-self:center;
   font-weight:950;
   font-size:18px;
@@ -342,20 +362,117 @@ body::before{
   color:rgba(255,255,255,0.82);
 }
 
-/* ✅ OUTLOOK fix (restore clean “row” layout inside the Outlook card) */
+/* ✅ OUTLOOK (Forecast rows) — fixed 4-lane layout */
 .today-rows{
   display:flex;
   flex-direction:column;
-  gap: 12px;
+  gap:12px;
 }
 
 .today-row{
   display:grid;
-  grid-template-columns: 28px minmax(0, 1fr) auto;
-  align-items:start;
-  gap: 12px;
+
+  /* left | precip | icon | temp */
+  grid-template-columns: 1fr 56px 34px 92px;
+
+  grid-template-areas:
+    "left precip icon temps"
+    "left precip icon temps";
+
+  grid-template-rows:auto auto;
+
+  column-gap:10px;
+  row-gap:4px;
+
+  /* keep both Forecast rows perfectly aligned */
+  height:76px;
+  align-content:center;
 }
 
+.today-row .today-left{
+  display: contents;
+}
+
+.today-name{
+  grid-area:left;
+  grid-row:1;
+  font-weight:900;
+  font-size:18px;
+  line-height:1.15;
+  min-width:0;
+}
+
+/* outlook description not bold */
+.today-short{
+  grid-area:left;
+  grid-row:2;
+  margin-top:0;
+  color:var(--text);
+  font-weight:400;
+  line-height:1.25;
+  min-width:0;
+  overflow-wrap:anywhere;
+
+  display:-webkit-box;
+  -webkit-line-clamp:2;
+  -webkit-box-orient:vertical;
+  overflow:hidden;
+}
+
+.today-precip{
+  grid-area:precip;
+  grid-row:1 / span 2;
+  justify-self:center;
+  align-self:center;
+  width:56px;
+  text-align:center;
+
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:2px;
+  line-height:1.05;
+}
+
+.today-precip.is-hidden{
+  visibility:hidden; /* keep the space, hide the content */
+}
+
+.today-precip .drop{
+  font-size:0.8em;
+  line-height:1;
+}
+
+.today-icon{
+  grid-area:icon;
+  grid-row:1 / span 2;
+  justify-self:center;
+  align-self:center;
+  width:28px;
+  text-align:center;
+  font-size:26px;
+  line-height:1;
+  user-select:none;
+}
+
+.today-temp{
+  grid-area:temps;
+  grid-row:1 / span 2;
+
+  /* left-aligned within its lane + breathing room from the emoji */
+  justify-self:start;
+  align-self:center;
+  padding-left:10px;
+  text-align:left;
+
+  font-weight:950;
+  font-size:18px;
+  white-space:nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Small emoji helper used elsewhere (Hourly, etc.) */
 .wx-icon-sm{
   width: 28px;
   height: 28px;
@@ -366,330 +483,218 @@ body::before{
   user-select:none;
 }
 
-.today-mid{
-  min-width:0;
-}
-
-.today-name{
-  font-weight:900;
-  font-size:18px;
-  line-height:1.15;
-}
-
-/* ✅ Change request: outlook description not bold */
-.today-short{
-  margin-top: 2px;
-  color: var(--text);
-  font-weight: 400;
-  line-height: 1.25;
-  overflow-wrap:anywhere;
-}
-
-.today-right{
-  text-align:right;
-  white-space:nowrap;
-}
-
-.today-temp{
-  font-weight:950;
-  font-size:18px;
-}
-
-.today-badges{
-  margin-top: 6px;
-  display:flex;
-  gap: 8px;
-  justify-content:flex-end;
-  flex-wrap:wrap;
-}
-
-/* ✅ SHOE TILE (match attached: big icon + stacked text) */
-.shoe-row{
-  display:flex;
-  align-items:center;
-  gap:18px;
-  padding:8px 6px;
-}
-
-.shoe-icon{
-  width:92px;
-  height:92px;
-  border-radius:24px;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  background: rgba(59,130,246,0.26);
-  border: 1px solid rgba(255,255,255,0.10);
-  box-shadow: 0 10px 26px rgba(0,0,0,0.25);
-  overflow:hidden; /* ensures the image respects the rounded corners */
-}
-
-/* ✅ FIX: match your JS class "shoe-icon-img" */
-.shoe-icon-img{
-  width:78px;
-  height:78px;
-  object-fit:contain;
-  display:block;
-  user-select:none;
-  -webkit-user-drag:none;
-  image-rendering:auto;
-}
-
-/* ✅ FIX: match your JS class "shoe-scale-img" */
-.shoe-scale-img{
-  width:18px;
-  height:18px;
-  object-fit:contain;
-  display:block;
-}
-
-.shoe-text{
-  display:flex;
-  flex-direction:column;
-  gap:6px;
-  min-width:0;
-}
-
-.shoe-title{
-  font-weight:950;
-  font-size:22px;
-  line-height:1.1;
-}
-
-.shoe-sub{
-  color: var(--muted);
-  font-weight:850;
-  font-size:14px;
-}
-
-/* ✅ Shoe info icon + popover */
+/* ✅ SHOE TILE */
 .shoe-wrap{
   position:relative;
+}
+.shoe-row{
+  display:flex;
+  gap:12px;
+  align-items:center;
+}
+.shoe-icon{
+  width:44px;
+  height:44px;
+  border-radius: 14px;
+  display:grid;
+  place-items:center;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.10);
+}
+.shoe-icon-img{
+  width: 34px;
+  height: 34px;
+  object-fit: contain;
+}
+.shoe-text{
+  min-width:0;
+}
+.shoe-title{
+  font-weight: 950;
+  font-size: 18px;
+  line-height: 1.2;
+}
+.shoe-sub{
+  margin-top: 2px;
+  color: var(--muted);
+  font-weight: 650;
+  font-size: 13px;
 }
 
 .shoe-info-btn{
   position:absolute;
-  right:10px;
-  bottom:10px;
-  width:26px;
-  height:26px;
-  border-radius:999px;
-  border:1px solid rgba(255,255,255,0.16);
-  background:rgba(255,255,255,0.08);
-  color:rgba(255,255,255,0.9);
-  font-weight:900;
-  font-size:14px;
-  line-height:1;
-  display:grid;
-  place-items:center;
-  cursor:pointer;
-}
-
-.shoe-info-btn:active{
-  transform:translateY(1px);
+  top: 10px;
+  right: 10px;
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.14);
+  background: rgba(0,0,0,0.25);
+  color: rgba(255,255,255,0.85);
+  font-weight: 900;
+  cursor: pointer;
 }
 
 .shoe-popover{
   position:absolute;
-  right:10px;
-  bottom:44px;
-  width:min(320px, calc(100% - 20px));
-  border-radius:16px;
-  border:1px solid rgba(255,255,255,0.14);
-  background: rgba(6,10,30,0.92);
-  box-shadow: 0 18px 55px rgba(0,0,0,0.55);
-  padding:12px 12px 10px;
-  z-index:5;
-  backdrop-filter: blur(10px);
+  top: 46px;
+  right: 10px;
+  width: min(380px, calc(100% - 20px));
+  background: rgba(18,24,44,0.98);
+  border: 1px solid rgba(255,255,255,0.14);
+  border-radius: 16px;
+  padding: 12px 12px 10px;
+  box-shadow: 0 18px 50px rgba(0,0,0,0.45);
+  z-index: 10;
 }
 
 .shoe-popover-title{
-  font-weight:950;
-  font-size:13px;
-  margin-bottom:6px;
+  font-weight: 950;
+  margin-bottom: 6px;
 }
-
 .shoe-popover-text{
-  color: var(--muted);
-  font-weight:650;
-  font-size:12px;
-  line-height:1.35;
+  color: rgba(255,255,255,0.82);
+  font-size: 13px;
+  line-height: 1.35;
 }
 
 .shoe-scale{
-  margin-top:10px;
-  display:flex;
-  flex-direction:column;
-  gap:8px;
+  margin-top: 10px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.10);
+  border-radius: 14px;
+  padding: 10px;
 }
-
 .shoe-scale-row{
   display:grid;
-  grid-template-columns: 24px 1fr auto;
-  gap:10px;
+  grid-template-columns: 34px 1fr auto;
   align-items:center;
-  font-size:12px;
-  color: rgba(255,255,255,0.9);
+  gap:10px;
+  padding: 6px 2px;
+}
+.shoe-scale-label{
+  font-weight: 900;
+}
+.shoe-scale-range{
+  color: var(--muted);
+  font-weight: 700;
+  font-size: 12px;
+}
+.shoe-scale-img{
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
 }
 
-.shoe-scale-emoji{ font-size:16px; }
-.shoe-scale-label{ font-weight:850; }
-.shoe-scale-range{ color: var(--muted); font-weight:750; }
-
-/* SUN & MOON TILES */
+/* ASTRO (Sun & Moon + UV) */
 .astro-tiles{
   display:grid;
-  gap:12px;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
 }
-
-@media(min-width:650px){
-  .astro-tiles{
-    grid-template-columns:1fr 1fr;
-  }
-}
-
 .astro-tile{
-  border-radius:var(--radius-sm);
-  background:rgba(0,0,0,0.12);
-  border:1px solid rgba(255,255,255,0.08);
-  padding:12px;
-  min-height:140px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.10);
+  border-radius: 16px;
+  padding: 12px;
 }
-
 .astro-tile-head{
   display:flex;
   justify-content:space-between;
-  margin-bottom:10px;
+  align-items:center;
+  gap:10px;
+  margin-bottom: 8px;
 }
-
 .astro-tile-title{
-  font-weight:950;
-  font-size:16px;
+  font-weight: 950;
 }
-
 .astro-tile-pill{
-  padding:4px 10px;
-  border-radius:999px;
-  background:rgba(255,255,255,0.08);
-  font-size:12px;
-  font-weight:850;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(120,180,255,0.18);
+  border: 1px solid rgba(120,180,255,0.28);
+  font-weight: 900;
+  font-size: 12px;
 }
 
-/* SUN ARC */
+/* Sun arc */
 .sun-arc{
   position:relative;
-  height:95px;
+  height: 120px;
+  border-radius: 16px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  overflow:hidden;
+  padding: 10px;
 }
-
 .sun-arc-svg{
-  width:100%;
-  height:70px;
+  position:absolute;
+  left:10px; right:10px;
+  bottom: 20px;
+  height: 60px;
+  opacity: 0.35;
+  stroke: rgba(255,255,255,0.55);
+  stroke-width: 2;
 }
-
-.sun-arc-svg path{
-  stroke:rgba(255,255,255,0.7);
-  stroke-width:2;
-  fill:none;
-}
-
 .sun-dot{
   position:absolute;
-  left:var(--sun-x);
-  top:calc(var(--sun-y) * 0.65);
-  transform:translate(-50%,-60%);
-  font-size:26px;
+  left: calc(10px + (var(--sun-x, 50) * 1%));
+  top: calc(10px + (var(--sun-y, 90) * 0.6%));
+  transform: translate(-50%, -50%);
+  font-size: 22px;
+  line-height: 1;
 }
-
 .sun-times{
   position:absolute;
-  bottom:0;
-  left:0;
-  right:0;
+  left:10px; right:10px;
+  bottom: 8px;
   display:flex;
   justify-content:space-between;
-  font-size:12px;
-  color:var(--muted);
+  color: rgba(255,255,255,0.80);
+  font-weight: 800;
+  font-size: 12px;
 }
 
-/* MOON */
+/* Moon */
 .moon-wrap{
   display:flex;
-  justify-content:space-between;
+  gap:12px;
   align-items:center;
 }
-
 .moon-disc{
-  width:72px;
-  height:72px;
-  border-radius:999px;
-  background:
-    radial-gradient(circle at 50% 50%, #d7dbe1, #aab3bf);
+  width: 46px;
+  height: 46px;
+  border-radius: 999px;
+  background: radial-gradient(circle at 30% 30%, rgba(255,255,255,0.98), rgba(255,255,255,0.70) 55%, rgba(255,255,255,0.20));
   position:relative;
   overflow:hidden;
 }
-
 .moon-disc::after{
   content:"";
   position:absolute;
-  inset:0;
-  background:linear-gradient(
-    90deg,
-    rgba(6,10,30,0.9) 0%,
-    rgba(6,10,30,0.9) var(--moon-shadow),
-    transparent var(--moon-shadow)
-  );
+  top:0; bottom:0;
+  width: calc(var(--moon-shadow, 50) * 1%);
+  background: rgba(0,0,0,0.50);
+  filter: blur(0.5px);
+  right: 0;
 }
-
-.moon-tile[style*="--moon-dir:wane"] .moon-disc::after{
-  background:linear-gradient(
-    90deg,
-    transparent 0%,
-    transparent calc(100% - var(--moon-shadow)),
-    rgba(6,10,30,0.9) calc(100% - var(--moon-shadow))
-  );
+.moon-label{
+  min-width:0;
 }
-
 .moon-phase{
-  font-weight:900;
+  font-weight: 950;
 }
-
 .moon-sub{
-  margin-top:6px;
-  font-size:12px;
-  color:var(--muted);
+  margin-top: 3px;
+  color: var(--muted);
+  font-weight: 700;
+  font-size: 12px;
+  line-height: 1.25;
 }
 
-/* Desktop grid */
-@media(min-width:900px){
-  .grid{
-    grid-template-columns:1fr 1fr;
+/* Responsive */
+@media (max-width: 740px){
+  .astro-tiles{
+    grid-template-columns: 1fr;
   }
-
-  #todayCard{ grid-column:2; }
-  #astroUvCard{ grid-column:2; }
-  #hourlyCard{ grid-column:1 / -1; }
-  #dailyCard{ grid-column:1 / -1; }
-}
-
-/* ✅ FIX: Shoe Index “i” popover getting clipped (card has overflow:hidden) */
-#shoeCard{
-  overflow: visible;           /* allow popover to extend without being cut off */
-}
-
-#shoeCard .card-body{
-  position: relative;          /* anchor any absolutely-positioned popover inside */
-}
-
-/* ✅ If your info panel uses any of these common classnames, make it wrap + size correctly */
-.shoe-info,
-.shoe-info-box,
-.shoe-info-panel,
-.shoe-popover,
-.shoe-tooltip{
-  white-space: normal;
-  overflow-wrap: anywhere;
-  height: auto;
-  max-height: 70vh;            /* prevents huge popovers from going off-screen */
-  overflow: auto;              /* scroll inside if needed */
-  z-index: 20;
 }
