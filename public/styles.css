@@ -184,7 +184,7 @@ body::before{
   border-bottom:1px solid rgba(255,255,255,0.08);
 }
 
-/* ✅ DAILY: lock columns with named areas so missing precip can't shift the icon */
+/* ✅ FIX: Weather emoji stays in its own column even if precip is missing */
 .day-summary{
   list-style:none;
   cursor:pointer;
@@ -192,28 +192,26 @@ body::before{
 
   display:grid;
 
-  /* columns stay the same */
-  grid-template-columns: 1fr 56px 34px 92px; /* left | precip | icon | temps */
+  /* left | precip | icon | temps */
+  grid-template-columns: 1fr 56px 34px 92px;
 
-  /* ✅ named grid areas prevent "sliding" when .precip is missing */
+  /* ✅ named areas prevent any “slide left” when .precip isn't rendered */
   grid-template-areas:
     "left precip icon temps"
     "left precip icon temps";
 
-  /* left gets 2 lines */
   grid-template-rows:auto auto;
 
   column-gap:10px;
   row-gap:4px;
 
-  /* ✅ consistent height for every day row */
+  /* ✅ every day row same height */
   height:76px;
 
-  /* center the two-row layout within the fixed height */
+  /* center the 2-line left block inside the fixed height */
   align-content:center;
 }
 
-/* Let existing wrapper feed children into the grid */
 .day-summary .day-right{
   display: contents;
 }
@@ -241,11 +239,12 @@ body::before{
   overflow:hidden;
 }
 
-/* Precip column (stack 💧 over %) */
+/* Precip column (reserved lane; stack droplet over percent if split into elements by JS) */
 .day-summary .precip{
   grid-area:precip;
   grid-row:1 / span 2;
   justify-self:center;
+  align-self:center;
   width:56px;
   text-align:center;
 
@@ -271,14 +270,30 @@ body::before{
   line-height:1;
 }
 
-/* ✅ Weather icon column: always stays in icon area + ~20% bigger */
+/* ✅ Primary daily icon selector */
 .day-summary .wx-icon{
   grid-area:icon;
   grid-row:1 / span 2;
   justify-self:center;
+  align-self:center;
   width:28px;
   text-align:center;
+
+  /* ✅ Enlarge daily weather emoji by ~20% */
   font-size:29px; /* was 24px */
+  line-height:1;
+}
+
+/* ✅ Fallback: if a row’s icon element does NOT have .wx-icon,
+   this still forces “the non-precip, non-temp item” into the icon column. */
+.day-summary .day-right > *:not(.precip):not(.day-temp){
+  grid-area:icon;
+  grid-row:1 / span 2;
+  justify-self:center;
+  align-self:center;
+  width:28px;
+  text-align:center;
+  font-size:29px;
   line-height:1;
 }
 
@@ -287,6 +302,7 @@ body::before{
   grid-area:temps;
   grid-row:1 / span 2;
   justify-self:end;
+  align-self:center;
   font-weight:950;
   font-size:18px;
   white-space:nowrap;
