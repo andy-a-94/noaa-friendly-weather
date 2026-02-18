@@ -1,676 +1,793 @@
-:root{
-  --bg0:#060a1e;
-  --bg1:#0b1230;
-  --card:#101a3b;
-  --card-strong:#121f47;
-  --border:rgba(255,255,255,0.10);
-  --text:rgba(255,255,255,0.95);
-  --muted:rgba(255,255,255,0.70);
-  --muted2:rgba(255,255,255,0.55);
-  --radius:26px;
-  --radius-sm:18px;
-  --shadow:0 18px 55px rgba(0,0,0,0.55);
-}
-
-*{box-sizing:border-box}
-html,body{height:100%}
-
-/* ✅ Background fix (continuous gradient; same colors, no “stop/start”) */
-body{
-  margin:0;
-  color:var(--text);
-  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
-  background: transparent;
-  min-height: 100dvh;
-  position: relative;
-}
-
-/* Fixed gradient layer prevents iOS/Safari scroll “banding” */
-body::before{
-  content:"";
-  position: fixed;
-  inset: 0;
-  z-index: -1;
-  background:
-    radial-gradient(1100px 700px at 22% 12%, rgba(99,102,241,0.22), transparent 55%),
-    radial-gradient(900px 600px at 80% 22%, rgba(168,85,247,0.16), transparent 55%),
-    radial-gradient(1200px 800px at 50% 90%, rgba(14,165,233,0.10), transparent 60%),
-    linear-gradient(180deg, var(--bg1), var(--bg0));
-}
-
-.wrap{
-  width:min(1100px, 94vw);
-  margin: 28px auto 34px;
-}
-
-.top{
-  display:flex;
-  align-items:flex-end;
-  justify-content:space-between;
-  gap:18px;
-  margin-bottom:16px;
-}
-
-.brand-title{
-  font-size:26px;
-  font-weight:900;
-}
-
-.brand-sub{
-  margin-top:4px;
-  color:var(--muted);
-  font-size:13px;
-}
-
-.zip{
-  display:flex;
-  align-items:center;
-  gap:10px;
-}
-
-.zip-input{
-  width:135px;
-  height:44px;
-  padding:0 12px;
-  border-radius:14px;
-  border:1px solid var(--border);
-  background:rgba(255,255,255,0.06);
-  color:var(--text);
-  font-weight:800;
-}
-
-.zip-btn{
-  height:44px;
-  padding:0 14px;
-  border-radius:14px;
-  border:1px solid rgba(255,255,255,0.14);
-  background:rgba(255,255,255,0.10);
-  color:var(--text);
-  font-weight:900;
-  cursor:pointer;
-}
-
-.status{
-  min-height:22px;
-  color:var(--muted);
-  font-size:13px;
-  margin:8px 2px 16px;
-}
-
-.grid{
-  display:grid;
-  grid-template-columns:1fr;
-  gap:16px;
-}
-
-.card{
-  border-radius:var(--radius);
-  background:
-    radial-gradient(800px 400px at 20% 18%, rgba(255,255,255,0.11), transparent 55%),
-    radial-gradient(800px 400px at 70% 18%, rgba(255,255,255,0.08), transparent 60%),
-    linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.03));
-  border:1px solid rgba(255,255,255,0.10);
-  box-shadow:var(--shadow);
-  overflow:hidden;
-}
-
-.card-head{
-  padding:18px 20px 14px;
-  border-bottom:1px solid rgba(255,255,255,0.08);
-}
-
-.card-title{
-  margin:0;
-  font-size:18px;
-  font-weight:900;
-}
-
-.card-body{
-  padding:16px 18px;
-}
-
-/* CURRENT */
-.current-row{
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-}
-
-.current-temp{
-  font-size:64px;
-  font-weight:950;
-}
-
-.current-desc{
-  margin-top:10px;
-  font-size:20px;
-  font-weight:850;
-}
-
-.current-meta{
-  margin-top:10px;
-  color:var(--muted);
-  font-size:14px;
-  font-weight:750;
-}
-
-/* ✅ Enlarge main weather emoji ~20% */
-.wx-icon{
-  font-size:74px; /* was 62px */
-}
-
-/* HOURLY */
-.row-scroll{
-  display:flex;
-  gap:10px;
-  overflow-x:auto;
-}
-
-.hour-card{
-  min-width:120px;
-  background:var(--card-strong);
-  border-radius:var(--radius-sm);
-  padding:10px;
-}
-
-.hour-time{ font-size:12px; color:var(--muted); }
-.hour-temp{ font-size:18px; font-weight:800; margin-top:6px; }
-.hour-desc{ font-size:12px; color:var(--muted); margin-top:6px; }
-
-/* DAILY */
-.daily-list{ padding:6px; }
-
-.day-details{
-  border-bottom:1px solid rgba(255,255,255,0.08);
-}
-
-/* ✅ UPDATED: stable columns + fixed row height so every day row matches */
-.day-summary{
-  list-style:none;
-  cursor:pointer;
-
-  /* keep spacing rhythm */
-  padding:14px 12px;
-
-  /* lock the row into columns so everything aligns */
-  display:grid;
-  grid-template-columns: 1fr 56px 34px 92px; /* left text | precip | icon | temps */
-  align-items:center;
-  gap:10px;
-
-  /* ✅ consistent row height across all days */
-  height:76px;           /* fixed height */
-  min-height:unset;      /* remove previous min-height behavior */
-}
+/* Almanac Weather - Frontend (Pages)
+   - Calls same-origin Worker routes (/api/*) by default
+   - Renders: Current, Outlook, Shoe, Sun & Moon (+UV), Hourly, Daily
+*/
 
-/* Make the existing right wrapper feed its children into the grid columns */
-.day-summary .day-right{
-  display: contents;
-}
-
-/* Left text stays in column 1 and can wrap without pushing other columns */
-.day-name{
-  grid-column:1;
-  font-weight:900;
-  font-size:18px;
-  line-height:1.15;
-  min-width:0;
-}
-
-.day-short{
-  grid-column:1;
-  color:var(--muted);
-  min-width:0;
-
-  /* clamp so row height stays consistent */
-  line-height:1.2;
-  display:-webkit-box;
-  -webkit-line-clamp:2;
-  -webkit-box-orient:vertical;
-  overflow:hidden;
-}
-
-/* ✅ Precip column: stack 💧 and % vertically, centered, same position every row */
-.day-summary .precip{
-  grid-column:2;
-  justify-self:center;
-  width:56px;
-  text-align:center;
-
-  display:grid;
-  grid-template-rows:auto auto;
-  place-items:center;
-  row-gap:4px;
-
-  line-height:1;
-  font-variant-numeric: tabular-nums;
-}
-
-/* ✅ Always show precip (even if JS adds is-hidden) */
-.day-summary .precip.is-hidden{
-  visibility:visible; /* was hidden */
-}
-
-/* ✅ Make 💧 20% smaller, and keep % directly under it */
-.day-summary .precip .precip-emoji{
-  font-size:16px; /* ~20% smaller vs typical ~20px */
-  line-height:1;
-}
-
-.day-summary .precip .precip-pct{
-  font-size:12px;
-  font-weight:900;
-  line-height:1;
-}
-
-/* If your precip is a single text node, this still keeps it centered */
-.day-summary .precip{
-  font-size:12px;
-  font-weight:900;
-}
-
-/* ✅ Forecast icon column: increase daily icon ~20% */
-.day-summary .wx-icon{
-  grid-column:3;
-  justify-self:center;
-  width:28px;
-  text-align:center;
-
-  font-size:29px; /* was 24px */
-  line-height:1;
-}
-
-/* Temps column */
-.day-temp{
-  grid-column:4;
-  justify-self:end;
-  font-weight:950;
-  font-size:18px;
-  white-space:nowrap;
-  font-variant-numeric: tabular-nums;
-}
-
-.day-low{
-  color:var(--muted);
-  font-weight:850;
-}
-
-.day-detail{
-  padding:2px 12px 14px;
-  color:var(--muted);
-  font-size:14px;
-}
-
-.day-detail-block{
-  margin-top:10px;
-}
-
-.dn-title{
-  font-weight:900;
-  font-size:12px;
-  text-transform:uppercase;
-  color:rgba(255,255,255,0.8);
-}
-
-.dn-text{
-  margin-top:6px;
-}
-
-.detail-meta{
-  margin-top:10px;
-  font-weight:800;
-  font-size:13px;
-  color:rgba(255,255,255,0.82);
-}
-
-/* ✅ OUTLOOK fix (restore clean “row” layout inside the Outlook card) */
-.today-rows{
-  display:flex;
-  flex-direction:column;
-  gap: 12px;
-}
-
-.today-row{
-  display:grid;
-  grid-template-columns: 28px minmax(0, 1fr) auto;
-  align-items:start;
-  gap: 12px;
-}
-
-.wx-icon-sm{
-  width: 28px;
-  height: 28px;
-  display:grid;
-  place-items:center;
-  font-size: 20px;
-  line-height: 1;
-  user-select:none;
-}
-
-.today-mid{
-  min-width:0;
-}
-
-.today-name{
-  font-weight:900;
-  font-size:18px;
-  line-height:1.15;
-}
+const els = {
+  statusBar: document.getElementById("statusBar"),
 
-/* ✅ Change request: outlook description not bold */
-.today-short{
-  margin-top: 2px;
-  color: var(--text);
-  font-weight: 400;
-  line-height: 1.25;
-  overflow-wrap:anywhere;
-}
-
-.today-right{
-  text-align:right;
-  white-space:nowrap;
-}
+  zipForm: document.getElementById("zipForm"),
+  zipInput: document.getElementById("zipInput"),
+  zipBtn: document.getElementById("zipBtn"),
 
-.today-temp{
-  font-weight:950;
-  font-size:18px;
-}
+  currentCard: document.getElementById("currentCard"),
+  currentContent: document.getElementById("currentContent"),
 
-.today-badges{
-  margin-top: 6px;
-  display:flex;
-  gap: 8px;
-  justify-content:flex-end;
-  flex-wrap:wrap;
-}
+  todayCard: document.getElementById("todayCard"),
+  todayContent: document.getElementById("todayContent"),
 
-/* ✅ SHOE TILE (match attached: big icon + stacked text) */
-.shoe-row{
-  display:flex;
-  align-items:center;
-  gap:18px;
-  padding:8px 6px;
-}
+  // ✅ Shoe
+  shoeCard: document.getElementById("shoeCard"),
+  shoeContent: document.getElementById("shoeContent"),
 
-.shoe-icon{
-  width:92px;
-  height:92px;
-  border-radius:24px;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  background: rgba(59,130,246,0.26);
-  border: 1px solid rgba(255,255,255,0.10);
-  box-shadow: 0 10px 26px rgba(0,0,0,0.25);
-  overflow:hidden; /* ensures the image respects the rounded corners */
-}
+  astroUvCard: document.getElementById("astroUvCard"),
+  astroUvContent: document.getElementById("astroUvContent"),
 
-/* ✅ FIX: match your JS class "shoe-icon-img" */
-.shoe-icon-img{
-  width:78px;
-  height:78px;
-  object-fit:contain;
-  display:block;
-  user-select:none;
-  -webkit-user-drag:none;
-  image-rendering:auto;
-}
+  hourlyCard: document.getElementById("hourlyCard"),
+  hourlyContent: document.getElementById("hourlyContent"),
 
-/* ✅ FIX: match your JS class "shoe-scale-img" */
-.shoe-scale-img{
-  width:18px;
-  height:18px;
-  object-fit:contain;
-  display:block;
-}
+  dailyCard: document.getElementById("dailyCard"),
+  dailyContent: document.getElementById("dailyContent"),
+};
 
-.shoe-text{
-  display:flex;
-  flex-direction:column;
-  gap:6px;
-  min-width:0;
-}
+const STORAGE_KEYS = {
+  zip: "aw_zip",
+  lastLat: "aw_lat",
+  lastLon: "aw_lon",
+  label: "aw_label",
+};
 
-.shoe-title{
-  font-weight:950;
-  font-size:22px;
-  line-height:1.1;
+function getWorkerBaseUrl() {
+  const meta = document.querySelector('meta[name="worker-base-url"]');
+  const v = meta?.getAttribute("content")?.trim();
+  return v ? v.replace(/\/+$/, "") : "";
 }
+const WORKER_BASE = getWorkerBaseUrl();
 
-.shoe-sub{
-  color: var(--muted);
-  font-weight:850;
-  font-size:14px;
+function apiUrl(path, params = {}) {
+  const u = new URL(`${WORKER_BASE}${path}`, window.location.origin);
+  for (const [k, v] of Object.entries(params)) {
+    if (v !== undefined && v !== null && String(v).length) u.searchParams.set(k, v);
+  }
+  return u.toString();
 }
 
-/* ✅ Shoe info icon + popover */
-.shoe-wrap{
-  position:relative;
+function setStatus(msg) {
+  els.statusBar.textContent = msg || "";
 }
 
-.shoe-info-btn{
-  position:absolute;
-  right:10px;
-  bottom:10px;
-  width:26px;
-  height:26px;
-  border-radius:999px;
-  border:1px solid rgba(255,255,255,0.16);
-  background:rgba(255,255,255,0.08);
-  color:rgba(255,255,255,0.9);
-  font-weight:900;
-  font-size:14px;
-  line-height:1;
-  display:grid;
-  place-items:center;
-  cursor:pointer;
+function clamp(n, min, max) {
+  return Math.max(min, Math.min(max, n));
 }
 
-.shoe-info-btn:active{
-  transform:translateY(1px);
+function safeText(s) {
+  return (s ?? "").toString().trim();
 }
 
-.shoe-popover{
-  position:absolute;
-  right:10px;
-  bottom:44px;
-  width:min(320px, calc(100% - 20px));
-  border-radius:16px;
-  border:1px solid rgba(255,255,255,0.14);
-  background: rgba(6,10,30,0.92);
-  box-shadow: 0 18px 55px rgba(0,0,0,0.55);
-  padding:12px 12px 10px;
-  z-index:5;
-  backdrop-filter: blur(10px);
+function toInt(v) {
+  const n = Number(v);
+  return Number.isFinite(n) ? Math.round(n) : null;
 }
 
-.shoe-popover-title{
-  font-weight:950;
-  font-size:13px;
-  margin-bottom:6px;
+function formatTempF(n) {
+  const t = toInt(n);
+  return t === null ? "—" : `${t}°`; // ✅ no "F"
 }
 
-.shoe-popover-text{
-  color: var(--muted);
-  font-weight:650;
-  font-size:12px;
-  line-height:1.35;
+function parseWind(dir, speedStr) {
+  const d = safeText(dir);
+  const s = safeText(speedStr);
+  if (!d && !s) return "";
+  return `${s}${d ? ` ${d}` : ""}`.trim();
 }
 
-.shoe-scale{
-  margin-top:10px;
-  display:flex;
-  flex-direction:column;
-  gap:8px;
+function stripChanceOfPrecipSentence(text) {
+  let t = safeText(text);
+  t = t.replace(/\s*Chance of precipitation is\s*\d+%\.?\s*/gi, " ");
+  t = t.replace(/\s{2,}/g, " ").trim();
+  return t;
 }
 
-.shoe-scale-row{
-  display:grid;
-  grid-template-columns: 24px 1fr auto;
-  gap:10px;
-  align-items:center;
-  font-size:12px;
-  color: rgba(255,255,255,0.9);
-}
+function extractPopPercent(period) {
+  const v = period?.probabilityOfPrecipitation?.value;
+  if (typeof v === "number") return clamp(Math.round(v), 0, 100);
 
-.shoe-scale-emoji{ font-size:16px; }
-.shoe-scale-label{ font-weight:850; }
-.shoe-scale-range{ color: var(--muted); font-weight:750; }
+  const combined = `${safeText(period?.detailedForecast)} ${safeText(period?.shortForecast)}`;
+  const m = combined.match(/Chance of precipitation is\s*(\d+)%/i);
+  if (m) return clamp(Number(m[1]), 0, 100);
 
-/* SUN & MOON TILES */
-.astro-tiles{
-  display:grid;
-  gap:12px;
+  return null;
 }
 
-@media(min-width:650px){
-  .astro-tiles{
-    grid-template-columns:1fr 1fr;
+function formatDateShort(iso, timeZone) {
+  try {
+    const d = new Date(iso);
+    return new Intl.DateTimeFormat("en-US", {
+      timeZone: timeZone || undefined,
+      weekday: "short",
+      month: "short",
+      day: "numeric",
+    }).format(d);
+  } catch {
+    return "";
   }
 }
 
-.astro-tile{
-  border-radius:var(--radius-sm);
-  background:rgba(0,0,0,0.12);
-  border:1px solid rgba(255,255,255,0.08);
-  padding:12px;
-  min-height:140px;
+/* ---------- Time helpers for Sun position ---------- */
+
+function parseHHMMToMinutes(hhmm) {
+  const t = safeText(hhmm);
+  const m = t.match(/^(\d{1,2}):(\d{2})$/);
+  if (!m) return null;
+  const hh = Number(m[1]);
+  const mm = Number(m[2]);
+  if (!Number.isFinite(hh) || !Number.isFinite(mm)) return null;
+  return clamp(hh, 0, 23) * 60 + clamp(mm, 0, 59);
 }
 
-.astro-tile-head{
-  display:flex;
-  justify-content:space-between;
-  margin-bottom:10px;
+function getNowMinutesInTimeZone(timeZone) {
+  try {
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone: timeZone || undefined,
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).formatToParts(new Date());
+
+    const hh = Number(parts.find(p => p.type === "hour")?.value);
+    const mm = Number(parts.find(p => p.type === "minute")?.value);
+    if (!Number.isFinite(hh) || !Number.isFinite(mm)) return null;
+    return hh * 60 + mm;
+  } catch {
+    return null;
+  }
 }
 
-.astro-tile-title{
-  font-weight:950;
-  font-size:16px;
+/* ---------- Moon display helpers ---------- */
+
+function moonIllumFromPhaseLabel(phaseLabel) {
+  const p = safeText(phaseLabel).toLowerCase();
+  if (!p) return { illum: null, waxing: null, label: "" };
+
+  let illum = null;
+  if (p.includes("new")) illum = 0;
+  else if (p.includes("full")) illum = 1;
+  else if (p.includes("gibbous")) illum = 0.75;
+  else if (p.includes("quarter")) illum = 0.5;
+  else if (p.includes("crescent")) illum = 0.25;
+
+  const waxing = p.includes("waxing") ? true : (p.includes("waning") ? false : null);
+  const label = safeText(phaseLabel) || "—";
+  return { illum, waxing, label };
 }
 
-.astro-tile-pill{
-  padding:4px 10px;
-  border-radius:999px;
-  background:rgba(255,255,255,0.08);
-  font-size:12px;
-  font-weight:850;
+async function fetchLocationByZip(zip) {
+  const res = await fetch(apiUrl("/api/location", { zip }), { cache: "no-store" });
+  if (!res.ok) throw new Error(`Location lookup failed (${res.status})`);
+  return await res.json();
 }
 
-/* SUN ARC */
-.sun-arc{
-  position:relative;
-  height:95px;
+async function fetchWeather(lat, lon, zip) {
+  const res = await fetch(apiUrl("/api/weather", { lat, lon, zip }), { cache: "no-store" });
+  if (!res.ok) {
+    const t = await res.text().catch(() => "");
+    throw new Error(`Weather fetch failed (${res.status}) ${t}`);
+  }
+  return await res.json();
 }
 
-.sun-arc-svg{
-  width:100%;
-  height:70px;
+function resetVisibleSections() {
+  els.currentCard.hidden = true;
+  els.todayCard.hidden = true;
+  els.shoeCard.hidden = true;
+  els.astroUvCard.hidden = true;
+  els.hourlyCard.hidden = true;
+  els.dailyCard.hidden = true;
+
+  els.currentContent.innerHTML = "";
+  els.todayContent.innerHTML = "";
+  els.shoeContent.innerHTML = "";
+  els.astroUvContent.innerHTML = "";
+  els.hourlyContent.innerHTML = "";
+  els.dailyContent.innerHTML = "";
 }
 
-.sun-arc-svg path{
-  stroke:rgba(255,255,255,0.7);
-  stroke-width:2;
-  fill:none;
+function iconFromForecastIconUrl(url, shortForecast) {
+  const s = safeText(shortForecast).toLowerCase();
+  if (s.includes("thunder")) return "⛈️";
+  if (s.includes("snow")) return "🌨️";
+  if (s.includes("sleet") || s.includes("ice")) return "🌧️";
+  if (s.includes("rain") || s.includes("showers") || s.includes("drizzle")) return "🌧️";
+  if (s.includes("fog")) return "🌫️";
+  if (s.includes("cloudy")) return s.includes("partly") ? "⛅" : "☁️";
+  if (s.includes("clear")) return "🌙";
+  if (s.includes("sunny")) return "☀️";
+  return "🌤️";
 }
 
-.sun-dot{
-  position:absolute;
-  left:var(--sun-x);
-  top:calc(var(--sun-y) * 0.65);
-  transform:translate(-50%,-60%);
-  font-size:26px;
-}
+function renderCurrent(data) {
+  const current = data?.current;
+  if (!current) return;
 
-.sun-times{
-  position:absolute;
-  bottom:0;
-  left:0;
-  right:0;
-  display:flex;
-  justify-content:space-between;
-  font-size:12px;
-  color:var(--muted);
-}
+  const temp = formatTempF(current.temperatureF ?? current.temperature);
+  const desc = safeText(current.shortForecast || current.textDescription || "—");
+  const icon = iconFromForecastIconUrl(current.icon, desc);
 
-/* MOON */
-.moon-wrap{
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-}
+  const windStr = parseWind(current.windDirection, current.windSpeed);
+  const pop = extractPopPercent(current);
 
-.moon-disc{
-  width:72px;
-  height:72px;
-  border-radius:999px;
-  background:
-    radial-gradient(circle at 50% 50%, #d7dbe1, #aab3bf);
-  position:relative;
-  overflow:hidden;
-}
+  const metaParts = [];
+  if (windStr) metaParts.push(`💨 ${windStr}`);
+  if (typeof pop === "number" && pop >= 10) metaParts.push(`💧 ${pop}%`);
 
-.moon-disc::after{
-  content:"";
-  position:absolute;
-  inset:0;
-  background:linear-gradient(
-    90deg,
-    rgba(6,10,30,0.9) 0%,
-    rgba(6,10,30,0.9) var(--moon-shadow),
-    transparent var(--moon-shadow)
-  );
-}
+  const meta = metaParts.join(" • ");
 
-.moon-tile[style*="--moon-dir:wane"] .moon-disc::after{
-  background:linear-gradient(
-    90deg,
-    transparent 0%,
-    transparent calc(100% - var(--moon-shadow)),
-    rgba(6,10,30,0.9) calc(100% - var(--moon-shadow))
-  );
-}
+  els.currentContent.innerHTML = `
+    <div class="current-row">
+      <div>
+        <div class="current-temp">${temp}</div>
+        <div class="current-desc">${desc}</div>
+        ${meta ? `<div class="current-meta">${meta}</div>` : ""}
+      </div>
+      <div class="wx-icon" aria-hidden="true">${icon}</div>
+    </div>
+  `;
 
-.moon-phase{
-  font-weight:900;
-}
-
-.moon-sub{
-  margin-top:6px;
-  font-size:12px;
-  color:var(--muted);
-}
-
-/* Desktop grid */
-@media(min-width:900px){
-  .grid{
-    grid-template-columns:1fr 1fr;
+  if (Array.isArray(data.alerts) && data.alerts.length) {
+    const pills = data.alerts
+      .slice(0, 6)
+      .map(a => `<span class="alert-pill">⚠️ ${safeText(a.event || "Alert")}</span>`)
+      .join("");
+    els.currentContent.insertAdjacentHTML("beforeend", `<div class="alerts">${pills}</div>`);
   }
 
-  #todayCard{ grid-column:2; }
-  #astroUvCard{ grid-column:2; }
-  #hourlyCard{ grid-column:1 / -1; }
-  #dailyCard{ grid-column:1 / -1; }
+  els.currentCard.hidden = false;
 }
 
-/* ✅ FIX: Shoe Index “i” popover getting clipped (card has overflow:hidden) */
-#shoeCard{
-  overflow: visible;           /* allow popover to extend without being cut off */
+function renderToday(data) {
+  const outlook = data?.outlook;
+  if (!outlook || !Array.isArray(outlook.periods) || outlook.periods.length === 0) return;
+
+  const rows = outlook.periods.slice(0, 2).map(p => {
+    const name = safeText(p.name || "");
+    const short = safeText(p.shortForecast || "");
+    const icon = iconFromForecastIconUrl(p.icon, short);
+    const temp = formatTempF(p.temperature);
+
+    const windStr = parseWind(p.windDirection, p.windSpeed);
+    const pop = extractPopPercent(p);
+
+    const badges = [];
+    if (typeof pop === "number" && pop >= 10) {
+      badges.push(`<span class="pop-badge"><span class="drop">💧</span>${pop}%</span>`);
+    }
+    if (windStr) {
+      badges.push(`<span class="pop-badge"><span class="drop">💨</span>${windStr}</span>`);
+    }
+
+    return `
+      <div class="today-row">
+        <div class="wx-icon-sm" aria-hidden="true">${icon}</div>
+        <div class="today-mid">
+          <div class="today-name">${name}</div>
+          <div class="today-short">${short || "—"}</div>
+        </div>
+        <div class="today-right">
+          <div class="today-temp">${temp}</div>
+          <div class="today-badges">${badges.join("")}</div>
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  els.todayContent.innerHTML = `<div class="today-rows">${rows}</div>`;
+  els.todayCard.hidden = false;
 }
 
-#shoeCard .card-body{
-  position: relative;          /* anchor any absolutely-positioned popover inside */
+/* ✅ Shoe tile (swap emojis -> images) */
+
+const SHOE_ICONS = {
+  Sandal: "/assets/shoes/sandal.png",
+  Sneaker: "/assets/shoes/sneaker.png",
+  "Hiking Boot": "/assets/shoes/hiking-boot.png",
+  Boot: "/assets/shoes/boot.png",
+};
+
+// If your filenames/paths differ, only update these strings.
+function shoeIconSrcForLabel(label) {
+  const key = safeText(label);
+  return SHOE_ICONS[key] || SHOE_ICONS.Sneaker;
 }
 
-/* ✅ If your info panel uses any of these common classnames, make it wrap + size correctly */
-.shoe-info,
-.shoe-info-box,
-.shoe-info-panel,
-.shoe-popover,
-.shoe-tooltip{
-  white-space: normal;
-  overflow-wrap: anywhere;
-  height: auto;
-  max-height: 70vh;            /* prevents huge popovers from going off-screen */
-  overflow: auto;              /* scroll inside if needed */
-  z-index: 20;
+function shoeLabelFromSoilMoisture(sm) {
+  const v = Number(sm);
+  if (!Number.isFinite(v)) return { label: "—", sub: "—" };
+
+  // Thresholds (match Worker): <0.12 dry, 0.12–0.22 damp, 0.22–0.32 wet, >0.32 muddy
+  if (v < 0.12) return { label: "Sandal", sub: `${Math.round(v * 100)}% Soil Moisture` };
+  if (v < 0.22) return { label: "Sneaker", sub: `${Math.round(v * 100)}% Soil Moisture` };
+  if (v < 0.32) return { label: "Hiking Boot", sub: `${Math.round(v * 100)}% Soil Moisture` };
+  return { label: "Boot", sub: `${Math.round(v * 100)}% Soil Moisture` };
 }
+
+function renderShoe(data) {
+  const soil = data?.soil;
+  if (!soil) return;
+
+  const sm = soil?.soilMoisture0To7cm;
+  const smOk = !!soil?.ok && typeof sm === "number";
+
+  // ✅ Prefer Worker-computed (and rain-boosted) shoe result if available
+  const shoe = soil?.shoe;
+  const useBoosted = !!shoe?.ok && (shoe.boostedLabel || shoe.boostedEmoji);
+
+  const baseComputed = smOk ? shoeLabelFromSoilMoisture(sm) : { label: "—", sub: "—" };
+
+  const label = useBoosted ? (shoe.boostedLabel || "—") : (baseComputed.label || "—");
+
+  // Keep your existing sub line (soil moisture %), optionally add boost note
+  const subBase = smOk ? `${Math.round(sm * 100)}% Soil Moisture` : "—";
+  const subBoost = (useBoosted && typeof shoe.boost === "number" && shoe.boost > 0)
+    ? ` • +${shoe.boost} for rain`
+    : "";
+  const sub = `${subBase}${subBoost}`;
+
+  const iconSrc = shoeIconSrcForLabel(label);
+
+  els.shoeContent.innerHTML = `
+    <div class="shoe-wrap">
+      <div class="shoe-row">
+        <div class="shoe-icon" aria-hidden="true">
+          <img class="shoe-icon-img" src="${iconSrc}" alt="" />
+        </div>
+        <div class="shoe-text">
+          <div class="shoe-title">${label}</div>
+          <div class="shoe-sub">${sub}</div>
+        </div>
+      </div>
+
+      <button class="shoe-info-btn" type="button" aria-label="About Shoe Index">i</button>
+
+      <div class="shoe-popover" hidden>
+        <div class="shoe-popover-title">About Shoe Index</div>
+        <div class="shoe-popover-text">
+          Shoe Index is a super scientific representation of moisture in the soil so you know what shoes to wear today.
+        </div>
+
+        <div class="shoe-scale">
+          <div class="shoe-scale-row">
+            <span class="shoe-scale-emoji">
+              <img class="shoe-scale-img" src="${SHOE_ICONS.Sandal}" alt="" />
+            </span>
+            <span class="shoe-scale-label">Sandal</span>
+            <span class="shoe-scale-range">0–11%</span>
+          </div>
+          <div class="shoe-scale-row">
+            <span class="shoe-scale-emoji">
+              <img class="shoe-scale-img" src="${SHOE_ICONS.Sneaker}" alt="" />
+            </span>
+            <span class="shoe-scale-label">Sneaker</span>
+            <span class="shoe-scale-range">12–21%</span>
+          </div>
+          <div class="shoe-scale-row">
+            <span class="shoe-scale-emoji">
+              <img class="shoe-scale-img" src="${SHOE_ICONS["Hiking Boot"]}" alt="" />
+            </span>
+            <span class="shoe-scale-label">Hiking Boot</span>
+            <span class="shoe-scale-range">22–31%</span>
+          </div>
+          <div class="shoe-scale-row">
+            <span class="shoe-scale-emoji">
+              <img class="shoe-scale-img" src="${SHOE_ICONS.Boot}" alt="" />
+            </span>
+            <span class="shoe-scale-label">Boot</span>
+            <span class="shoe-scale-range">32%+</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  // Toggle popover
+  const wrap = els.shoeContent.querySelector(".shoe-wrap");
+  const btn = els.shoeContent.querySelector(".shoe-info-btn");
+  const pop = els.shoeContent.querySelector(".shoe-popover");
+
+  const close = () => { if (pop) pop.hidden = true; };
+
+  btn?.addEventListener("click", (e) => {
+    e.stopPropagation();
+    if (!pop) return;
+    pop.hidden = !pop.hidden;
+  });
+
+  // Close when tapping elsewhere inside the tile
+  wrap?.addEventListener("click", (e) => {
+    if (e.target.closest(".shoe-popover") || e.target.closest(".shoe-info-btn")) return;
+    close();
+  });
+
+  els.shoeCard.hidden = false;
+}
+
+function renderAstroUv(data) {
+  const astro = data?.astro;
+  if (!astro) return;
+
+  const timeZone = data?.timeZone || null;
+
+  const sunrise = safeText(astro.sunrise);
+  const sunset = safeText(astro.sunset);
+  const moonrise = safeText(astro.moonrise);
+  const moonset = safeText(astro.moonset);
+
+  const { illum, waxing, label: phaseLabel } = moonIllumFromPhaseLabel(astro.moonPhase);
+
+  const uv = data?.uv;
+  const showUv = !!astro.isDaytimeNow;
+
+  const uvLabel = (() => {
+    if (!showUv) return "";
+    if (uv?.ok && typeof uv.current === "number") return `UV ${Math.round(uv.current)}`;
+    return "UV —";
+  })();
+
+  const srMin = parseHHMMToMinutes(sunrise);
+  const ssMin = parseHHMMToMinutes(sunset);
+  const nowMin = getNowMinutesInTimeZone(timeZone);
+
+  let sunT = null;
+  if (srMin !== null && ssMin !== null && nowMin !== null && ssMin > srMin) {
+    sunT = clamp((nowMin - srMin) / (ssMin - srMin), 0, 1);
+  }
+
+  const moonIllumPct = (typeof illum === "number") ? Math.round(illum * 100) : null;
+  const moonShadePct = (typeof illum === "number") ? Math.round((1 - illum) * 100) : 50;
+  const moonDir = waxing === null ? "wax" : (waxing ? "wax" : "wane");
+
+  const sunX = (typeof sunT === "number") ? (sunT * 100) : 50;
+  const sunY = (typeof sunT === "number")
+    ? ((1 - Math.sin(Math.PI * sunT)) * 100)
+    : 100;
+
+  els.astroUvContent.innerHTML = `
+    <div class="astro-tiles">
+      <div class="astro-tile sun-tile">
+        <div class="astro-tile-head">
+          <div class="astro-tile-title">Sun</div>
+          ${showUv ? `<div class="astro-tile-pill">${uvLabel}</div>` : ``}
+        </div>
+
+        <div class="sun-arc" style="--sun-x:${sunX}%; --sun-y:${sunY}%;">
+          <svg class="sun-arc-svg" viewBox="0 0 100 55" preserveAspectRatio="none" aria-hidden="true">
+            <path d="M 0 55 Q 50 0 100 55" fill="none" />
+          </svg>
+          <div class="sun-dot" aria-hidden="true">☀️</div>
+
+          <div class="sun-times">
+            <div class="sun-time-left">${sunrise || "—"}</div>
+            <div class="sun-time-right">${sunset || "—"}</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="astro-tile moon-tile" style="--moon-shadow:${moonShadePct}%; --moon-dir:${moonDir};">
+        <div class="astro-tile-head">
+          <div class="astro-tile-title">Moon</div>
+        </div>
+
+        <div class="moon-wrap">
+          <div class="moon-disc" aria-hidden="true"></div>
+          <div class="moon-label">
+            <div class="moon-phase">${phaseLabel || "—"}</div>
+            <div class="moon-sub">⬆️ ${moonrise || "—"} • ⬇️ ${moonset || "—"}${moonIllumPct !== null ? ` • ${moonIllumPct}%` : ""}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  els.astroUvCard.hidden = false;
+}
+
+function renderHourly(data) {
+  const hourly = data?.hourly;
+  if (!hourly || !Array.isArray(hourly.periods) || hourly.periods.length === 0) return;
+
+  const timeZone = data?.timeZone || null;
+
+  const cards = hourly.periods.slice(0, 18).map(p => {
+    const d = new Date(p.startTime);
+    const time = (() => {
+      try {
+        return new Intl.DateTimeFormat("en-US", {
+          timeZone: timeZone || undefined,
+          hour: "numeric",
+        }).format(d);
+      } catch {
+        return safeText(p.name || "");
+      }
+    })();
+
+    const temp = formatTempF(p.temperature);
+    const desc = safeText(p.shortForecast || "");
+    const icon = iconFromForecastIconUrl(p.icon, desc);
+    const pop = extractPopPercent(p);
+
+    return `
+      <div class="hour-card">
+        <div class="hour-time">${time}</div>
+        <div class="hour-temp">${temp}</div>
+        <div class="hour-desc">${desc || "—"}</div>
+        <div class="hour-meta">
+          <div class="wx-icon-sm" aria-hidden="true">${icon}</div>
+          ${
+            (typeof pop === "number" && pop >= 10)
+              ? `<span class="pop-badge"><span class="drop">💧</span>${pop}%</span>`
+              : ``
+          }
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  els.hourlyContent.innerHTML = `<div class="row-scroll">${cards}</div>`;
+  els.hourlyCard.hidden = false;
+}
+
+/* ---------- Daily ---------- */
+
+function dayKeyFromIso(iso, timeZone) {
+  try {
+    const d = new Date(iso);
+    const parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone: timeZone || undefined,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).formatToParts(d);
+
+    const y = parts.find(p => p.type === "year")?.value;
+    const m = parts.find(p => p.type === "month")?.value;
+    const da = parts.find(p => p.type === "day")?.value;
+    return y && m && da ? `${y}-${m}-${da}` : safeText(iso).slice(0, 10);
+  } catch {
+    return safeText(iso).slice(0, 10);
+  }
+}
+
+function groupDailyIntoDays(periods, timeZone) {
+  const out = [];
+  for (let i = 0; i < periods.length; i++) {
+    const p = periods[i];
+    if (!p) continue;
+    if (!p.isDaytime) continue;
+
+    const k = dayKeyFromIso(p.startTime, timeZone);
+
+    let night = null;
+    for (let j = i + 1; j < Math.min(i + 3, periods.length); j++) {
+      const q = periods[j];
+      if (q && q.isDaytime === false) {
+        const k2 = dayKeyFromIso(q.startTime, timeZone);
+        if (k2 === k) {
+          night = q;
+          break;
+        }
+      }
+    }
+
+    out.push({ day: p, night });
+    if (out.length >= 7) break;
+  }
+
+  if (out.length === 0) {
+    return periods.slice(0, 7).map(p => ({ day: p, night: null }));
+  }
+
+  return out;
+}
+
+function renderDaily(data) {
+  const daily = data?.daily;
+  if (!daily || !Array.isArray(daily.periods) || daily.periods.length === 0) return;
+
+  const timeZone = data?.timeZone || null;
+  const metrics = data?.periodMetrics || {};
+
+  const grouped = groupDailyIntoDays(daily.periods, timeZone);
+
+  const list = grouped.map(({ day, night }) => {
+    const name = safeText(day?.name || "");
+    const short = safeText(day?.shortForecast || "");
+    const icon = iconFromForecastIconUrl(day?.icon, short);
+
+    const hi = formatTempF(day?.temperature);
+    const lo = night ? formatTempF(night?.temperature) : "—";
+    const popDay = extractPopPercent(day);
+    const popNight = night ? extractPopPercent(night) : null;
+
+    const when = day?.startTime ? formatDateShort(day.startTime, timeZone) : "";
+
+    const windDay = parseWind(day?.windDirection, day?.windSpeed);
+    const mDay = metrics?.[String(day?.number)] || metrics?.[day?.number];
+    const dewDayF = (mDay && typeof mDay.dewpointF === "number") ? Math.round(mDay.dewpointF) : null;
+    const rhDay = (mDay && typeof mDay.relativeHumidityPct === "number") ? Math.round(mDay.relativeHumidityPct) : null;
+
+    const windNight = night ? parseWind(night?.windDirection, night?.windSpeed) : "";
+    const mNight = night ? (metrics?.[String(night?.number)] || metrics?.[night?.number]) : null;
+    const dewNightF = (mNight && typeof mNight.dewpointF === "number") ? Math.round(mNight.dewpointF) : null;
+    const rhNight = (mNight && typeof mNight.relativeHumidityPct === "number") ? Math.round(mNight.relativeHumidityPct) : null;
+
+    const buildTagsLine = ({ pop, windStr, dewF, rh }) => {
+      const parts = [];
+      if (typeof pop === "number") parts.push(`💧 ${pop}%`);
+      if (windStr) parts.push(`💨 ${windStr}`);
+      if (dewF !== null) parts.push(`Dew Point ${dewF}°F`);
+      if (rh !== null) parts.push(`Relative Humidity ${rh}%`);
+      return parts.length ? parts.join(" • ") : "";
+    };
+
+    const dayTags = buildTagsLine({ pop: popDay, windStr: windDay, dewF: dewDayF, rh: rhDay });
+    const nightTags = night ? buildTagsLine({ pop: popNight, windStr: windNight, dewF: dewNightF, rh: rhNight }) : "";
+
+    const dayDetail = stripChanceOfPrecipSentence(day?.detailedForecast || short);
+    const nightDetail = night ? stripChanceOfPrecipSentence(night?.detailedForecast || night?.shortForecast) : "";
+
+    const detailHtml = `
+      <div class="day-detail-block">
+        <div class="dn-title">Day</div>
+        ${dayTags ? `<div class="detail-meta">${(when ? `${when} • ` : "") + dayTags}</div>` : (when ? `<div class="detail-meta">${when}</div>` : "")}
+        <div class="dn-text">${dayDetail || "—"}</div>
+      </div>
+      ${
+        night
+          ? `<div class="day-detail-block">
+               <div class="dn-title">Night</div>
+               ${nightTags ? `<div class="detail-meta">${nightTags}</div>` : ``}
+               <div class="dn-text">${nightDetail || "—"}</div>
+             </div>`
+          : ``
+      }
+    `;
+
+    return `
+      <details class="day-details">
+        <summary class="day-summary">
+          <div class="day-left">
+            <div class="day-name">${name}</div>
+            <div class="day-short">${short || "—"}</div>
+          </div>
+          <div class="day-right">
+            ${
+              (typeof popDay === "number" && popDay >= 10)
+                ? `<span class="pop-badge"><span class="drop">💧</span>${popDay}%</span>`
+                : ``
+            }
+            <div class="wx-icon-sm" aria-hidden="true">${icon}</div>
+            <div class="day-temp">${hi}<span class="day-low">/${lo}</span></div>
+          </div>
+        </summary>
+        <div class="day-detail">
+          ${detailHtml}
+        </div>
+      </details>
+    `;
+  }).join("");
+
+  els.dailyContent.innerHTML = `<div class="daily-list">${list}</div>`;
+  els.dailyCard.hidden = false;
+}
+
+async function loadAndRender({ lat, lon, labelOverride = null, zipForUv = null }) {
+  resetVisibleSections();
+  setStatus("Loading forecast…");
+
+  const data = await fetchWeather(lat, lon, zipForUv);
+
+  localStorage.setItem(STORAGE_KEYS.lastLat, String(lat));
+  localStorage.setItem(STORAGE_KEYS.lastLon, String(lon));
+  if (labelOverride) localStorage.setItem(STORAGE_KEYS.label, labelOverride);
+
+  const label = labelOverride || data?.location?.label || localStorage.getItem(STORAGE_KEYS.label) || "";
+  setStatus(label ? `Showing weather for ${label}` : "");
+
+  renderCurrent(data);
+  renderToday(data);
+  renderShoe(data);      // between Outlook and Sun/Moon
+  renderAstroUv(data);
+  renderHourly(data);
+  renderDaily(data);
+}
+
+function getStoredZip() {
+  const z = safeText(localStorage.getItem(STORAGE_KEYS.zip));
+  return /^\d{5}$/.test(z) ? z : "";
+}
+
+async function init() {
+  els.zipForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const zip = safeText(els.zipInput.value);
+    if (!/^\d{5}$/.test(zip)) {
+      setStatus("Please enter a valid 5-digit ZIP code.");
+      return;
+    }
+
+    els.zipBtn.disabled = true;
+    setStatus("Finding ZIP location…");
+    try {
+      const loc = await fetchLocationByZip(zip);
+      localStorage.setItem(STORAGE_KEYS.zip, zip);
+      els.zipInput.value = zip;
+
+      await loadAndRender({
+        lat: loc.lat,
+        lon: loc.lon,
+        labelOverride: loc.label,
+        zipForUv: zip,
+      });
+    } catch (err) {
+      console.error(err);
+      setStatus("Could not find that ZIP. Try another.");
+    } finally {
+      els.zipBtn.disabled = false;
+    }
+  });
+
+  const storedZip = getStoredZip();
+  if (storedZip) {
+    els.zipInput.value = storedZip;
+    try {
+      setStatus("Loading saved ZIP…");
+      const loc = await fetchLocationByZip(storedZip);
+      await loadAndRender({
+        lat: loc.lat,
+        lon: loc.lon,
+        labelOverride: loc.label,
+        zipForUv: storedZip,
+      });
+      return;
+    } catch (e) {
+      console.warn("Stored ZIP failed, falling back.", e);
+    }
+  }
+
+  if ("geolocation" in navigator) {
+    setStatus("Finding your location…");
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const lat = pos.coords.latitude;
+        const lon = pos.coords.longitude;
+        try {
+          await loadAndRender({ lat, lon, labelOverride: null, zipForUv: null });
+        } catch (err) {
+          console.error(err);
+          setStatus("Unable to load weather for your location.");
+        }
+      },
+      async (err) => {
+        console.warn(err);
+        const lastLat = Number(localStorage.getItem(STORAGE_KEYS.lastLat));
+        const lastLon = Number(localStorage.getItem(STORAGE_KEYS.lastLon));
+        if (Number.isFinite(lastLat) && Number.isFinite(lastLon)) {
+          try {
+            await loadAndRender({ lat: lastLat, lon: lastLon, labelOverride: null, zipForUv: null });
+            return;
+          } catch (e2) {
+            console.error(e2);
+          }
+        }
+        setStatus("Location permission denied. Enter a ZIP to continue.");
+      },
+      { enableHighAccuracy: false, timeout: 7000, maximumAge: 300000 }
+    );
+  } else {
+    setStatus("Geolocation not supported. Enter a ZIP to continue.");
+  }
+}
+
+init().catch((e) => {
+  console.error(e);
+  setStatus("Something went wrong loading the app.");
+});
