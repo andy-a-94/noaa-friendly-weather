@@ -302,7 +302,7 @@ const SHOE_ICONS = {
   Sandal: "/assets/shoes/sandal.png",
   Sneaker: "/assets/shoes/sneaker.png",
   "Hiking Boot": "/assets/shoes/hiking-boot.png",
-  Boot: "/assets/shoes/boot.png",
+  "Rain Boot": "/assets/shoes/boot.png",
 };
 
 // If your filenames/paths differ, only update these strings.
@@ -315,11 +315,11 @@ function shoeLabelFromSoilMoisture(sm) {
   const v = Number(sm);
   if (!Number.isFinite(v)) return { label: "—", sub: "—" };
 
-  // Thresholds (match Worker): <0.12 dry, 0.12–0.22 damp, 0.22–0.32 wet, >0.32 muddy
+  // Thresholds (match Worker): <0.12 dry, 0.12–0.25 damp, >0.25–<0.40 wet, >=0.40 rainy
   if (v < 0.12) return { label: "Sandal", sub: `${Math.round(v * 100)}% Soil Moisture` };
-  if (v < 0.22) return { label: "Sneaker", sub: `${Math.round(v * 100)}% Soil Moisture` };
-  if (v < 0.32) return { label: "Hiking Boot", sub: `${Math.round(v * 100)}% Soil Moisture` };
-  return { label: "Boot", sub: `${Math.round(v * 100)}% Soil Moisture` };
+  if (v <= 0.25) return { label: "Sneaker", sub: `${Math.round(v * 100)}% Soil Moisture` };
+  if (v < 0.4) return { label: "Hiking Boot", sub: `${Math.round(v * 100)}% Soil Moisture` };
+  return { label: "Rain Boot", sub: `${Math.round(v * 100)}% Soil Moisture` };
 }
 
 function renderShoe(data) {
@@ -379,21 +379,21 @@ function renderShoe(data) {
               <img class="shoe-scale-img" src="${SHOE_ICONS.Sneaker}" alt="" />
             </span>
             <span class="shoe-scale-label">Sneaker</span>
-            <span class="shoe-scale-range">12–21%</span>
+            <span class="shoe-scale-range">12–25%</span>
           </div>
           <div class="shoe-scale-row">
             <span class="shoe-scale-emoji">
               <img class="shoe-scale-img" src="${SHOE_ICONS["Hiking Boot"]}" alt="" />
             </span>
             <span class="shoe-scale-label">Hiking Boot</span>
-            <span class="shoe-scale-range">22–31%</span>
+            <span class="shoe-scale-range">26–39%</span>
           </div>
           <div class="shoe-scale-row">
             <span class="shoe-scale-emoji">
-              <img class="shoe-scale-img" src="${SHOE_ICONS.Boot}" alt="" />
+              <img class="shoe-scale-img" src="${SHOE_ICONS["Rain Boot"]}" alt="" />
             </span>
-            <span class="shoe-scale-label">Boot</span>
-            <span class="shoe-scale-range">32%+</span>
+            <span class="shoe-scale-label">Rain Boot</span>
+            <span class="shoe-scale-range">40%+</span>
           </div>
         </div>
       </div>
