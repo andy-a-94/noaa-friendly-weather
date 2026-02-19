@@ -361,11 +361,11 @@ function ymdUtc(dateObj) {
 
 function shoeLevelFromSoilMoisture(sm) {
   // 0..3 mapping to your UI tiers:
-  // 0 Sandal (dry), 1 Sneaker (damp), 2 Hiking Boot (wet), 3 Boot (muddy)
+  // 0 Sandal (dry), 1 Sneaker (damp), 2 Hiking Boot (wet), 3 Rain Boot (rainy/muddy)
   const v = Number(sm);
   if (!Number.isFinite(v)) return null;
-  if (v >= 0.32) return 3;
-  if (v >= 0.22) return 2;
+  if (v >= 0.4) return 3;
+  if (v >= 0.25) return 2;
   if (v >= 0.12) return 1;
   return 0;
 }
@@ -375,7 +375,7 @@ function shoeLabelEmojiFromLevel(level) {
   if (L === 0) return { label: "Sandal", emoji: "🩴" };
   if (L === 1) return { label: "Sneaker", emoji: "👟" };
   if (L === 2) return { label: "Hiking Boot", emoji: "🥾" };
-  return { label: "Boot", emoji: "👢" };
+  return { label: "Rain Boot", emoji: "👢" };
 }
 
 function rainBoostFromForecastText(text) {
@@ -802,4 +802,3 @@ export default {
     }
   },
 };
-
