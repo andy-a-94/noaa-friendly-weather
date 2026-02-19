@@ -125,6 +125,21 @@ function parseHHMMToMinutes(hhmm) {
   return clamp(hh, 0, 23) * 60 + clamp(mm, 0, 59);
 }
 
+function formatHHMMTo12h(hhmm) {
+  const t = safeText(hhmm);
+  const m = t.match(/^(\d{1,2}):(\d{2})$/);
+  if (!m) return t || "—";
+  let hh = Number(m[1]);
+  const mm = Number(m[2]);
+  if (!Number.isFinite(hh) || !Number.isFinite(mm)) return t || "—";
+
+  const ampm = hh >= 12 ? "PM" : "AM";
+  hh = hh % 12;
+  if (hh === 0) hh = 12;
+
+  return `${hh}:${String(mm).padStart(2, "0")} ${ampm}`;
+}
+
 function getNowMinutesInTimeZone(timeZone) {
   try {
     const parts = new Intl.DateTimeFormat("en-US", {
@@ -413,10 +428,15 @@ function renderAstroUv(data) {
 
   const timeZone = data?.timeZone || null;
 
-  const sunrise = safeText(astro.sunrise);
-  const sunset = safeText(astro.sunset);
-  const moonrise = safeText(astro.moonrise);
-  const moonset = safeText(astro.moonset);
+  const sunriseRaw = safeText(astro.sunrise);
+  const sunsetRaw  = safeText(astro.sunset);
+  const moonriseRaw = safeText(astro.moonrise);
+  const moonsetRaw  = safeText(astro.moonset);
+
+  const sunrise = sunriseRaw ? formatHHMMTo12h(sunriseRaw) : "";
+  const sunset  = sunsetRaw  ? formatHHMMTo12h(sunsetRaw)  : "";
+  const moonrise = moonriseRaw ? formatHHMMTo12h(moonriseRaw) : "";
+  const moonset  = moonsetRaw  ? formatHHMMTo12h(moonsetRaw)  : "";
 
   const { illum, waxing, label: phaseLabel } = moonIllumFromPhaseLabel(astro.moonPhase);
 
@@ -429,23 +449,39 @@ function renderAstroUv(data) {
     return "UV —";
   })();
 
-  const srMin = parseHHMMToMinutes(sunrise);
-  const ssMin = parseHHMMToMinutes(sunset);
+  const srMin = parseHHMMToMinutes(sunriseRaw);
+  const ssMin = parseHHMMToMinutes(sunsetRaw);
   const nowMin = getNowMinutesInTimeZone(timeZone);
 
   let sunT = null;
+  let sunState = ""; // "", "before", "after"
   if (srMin !== null && ssMin !== null && nowMin !== null && ssMin > srMin) {
+    if (nowMin < srMin) sunState = "before";
+    else if (nowMin > ssMin) sunState = "after";
+    else sunState = "";
+
     sunT = clamp((nowMin - srMin) / (ssMin - srMin), 0, 1);
   }
 
+  // X across the arc (0–100%)
+  const sunX = (typeof sunT === "number") ? (sunT * 100) : 50;
+
+  // Y along the arc, but converted to pixels based on the SVG height (60px)
+  // SVG path uses 0..55 vertical space. We'll map that to 0..60px.
+  const ySvg = (typeof sunT === "number")
+    ? (55 - (55 * Math.sin(Math.PI * sunT))) // 55 at ends, 0 at noon
+    : 55;
+
+  const sunYPx = clamp((ySvg / 55) * 60, 0, 60);
+
   const moonIllumPct = (typeof illum === "number") ? Math.round(illum * 100) : null;
   const moonShadePct = (typeof illum === "number") ? Math.round((1 - illum) * 100) : 50;
-  const moonDir = waxing === null ? "wax" : (waxing ? "wax" : "wane");
 
-  const sunX = (typeof sunT === "number") ? (sunT * 100) : 50;
-  const sunY = (typeof sunT === "number")
-    ? ((1 - Math.sin(Math.PI * sunT)) * 100)
-    : 100;
+  const moonClass = (waxing === null) ? "" : (waxing ? "is-waxing" : "is-waning");
+
+  const sunArcClass =
+    sunState === "before" ? "is-before" :
+    sunState === "after"  ? "is-after"  : "";
 
   els.astroUvContent.innerHTML = `
     <div class="astro-tiles">
@@ -455,11 +491,12 @@ function renderAstroUv(data) {
           ${showUv ? `<div class="astro-tile-pill">${uvLabel}</div>` : ``}
         </div>
 
-        <div class="sun-arc" style="--sun-x:${sunX}%; --sun-y:${sunY}%;">
+        <div class="sun-arc ${sunArcClass}" style="--sun-x:${sunX}%; --sun-y-px:${sunYPx};">
           <svg class="sun-arc-svg" viewBox="0 0 100 55" preserveAspectRatio="none" aria-hidden="true">
             <path d="M 0 55 Q 50 0 100 55" fill="none" />
           </svg>
-          <div class="sun-dot" aria-hidden="true">☀️</div>
+
+          <div class="sun-dot" aria-hidden="true"></div>
 
           <div class="sun-times">
             <div class="sun-time-left">${sunrise || "—"}</div>
@@ -468,7 +505,8 @@ function renderAstroUv(data) {
         </div>
       </div>
 
-      <div class="astro-tile moon-tile" style="--moon-shadow:${moonShadePct}%; --moon-dir:${moonDir};">
+      <div class="astro-tile moon-tile ${moonClass}" style="--moon-shadow:${moonShadePct}%;">
+
         <div class="astro-tile-head">
           <div class="astro-tile-title">Moon</div>
         </div>
@@ -477,7 +515,7 @@ function renderAstroUv(data) {
           <div class="moon-disc" aria-hidden="true"></div>
           <div class="moon-label">
             <div class="moon-phase">${phaseLabel || "—"}</div>
-            <div class="moon-sub">⬆️ ${moonrise || "—"} • ⬇️ ${moonset || "—"}${moonIllumPct !== null ? ` • ${moonIllumPct}%` : ""}</div>
+            <div class="moon-sub">↑ ${moonrise || "—"} • ↓ ${moonset || "—"}${moonIllumPct !== null ? ` • ${moonIllumPct}%` : ""}</div>
           </div>
         </div>
       </div>
@@ -486,6 +524,7 @@ function renderAstroUv(data) {
 
   els.astroUvCard.hidden = false;
 }
+
 
 function renderHourly(data) {
   const hourly = data?.hourly;
