@@ -11,22 +11,59 @@
 
 *{ box-sizing:border-box; }
 
-html,body{
-  height:100%;
+/* ✅ FIX: Make the background gradient continuous for the full scroll height
+   - Put the gradient on <html> (which always paints the whole page)
+   - Keep body transparent so the html background shows through
+*/
+html{
+  min-height: 100%;
+  background:
+    radial-gradient(1200px 600px at 20% -10%, rgba(110,170,255,0.20), transparent 60%),
+    radial-gradient(900px 700px at 100% 0%, rgba(255,200,120,0.10), transparent 60%),
+    var(--bg);
+  background-attachment: fixed; /* helps prevent “start/stop” feeling on scroll */
+}
+
+body{
+  min-height: 100vh;
   margin:0;
   font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
-  background: radial-gradient(1200px 600px at 20% -10%, rgba(110,170,255,0.20), transparent 60%),
-              radial-gradient(900px 700px at 100% 0%, rgba(255,200,120,0.10), transparent 60%),
-              var(--bg);
+  background: transparent;
   color: var(--text);
 }
 
 a{ color: inherit; }
 
+/* ✅ Desktop padding / centered content
+   Your HTML uses <main class="wrap">, so we style .wrap directly.
+   (Keeping .container too, just in case it's used elsewhere.)
+*/
+.wrap,
 .container{
-  max-width: 980px;
+  width:100%;
   margin: 0 auto;
-  padding: 18px 14px 40px;
+  padding: 18px 14px 40px; /* mobile / default */
+  max-width: none;         /* mobile can use full width */
+}
+
+/* Desktop: constrain width + add larger side gutters */
+@media (min-width: 900px){
+  .wrap,
+  .container{
+    max-width: 980px;      /* your prior container width */
+    padding-left: 24px;
+    padding-right: 24px;
+  }
+}
+
+/* Big desktop: slightly wider cap + even more breathing room (optional but nice) */
+@media (min-width: 1200px){
+  .wrap,
+  .container{
+    max-width: 1000px;
+    padding-left: 32px;
+    padding-right: 32px;
+  }
 }
 
 header{
@@ -256,6 +293,24 @@ header{
   line-height:1.15;
   min-width:0;
 }
+
+/* ✅ HIDE the short forecast line under each day tile (Forecast section only)
+   Everything else remains identical.
+/* Forecast tiles: show short forecast on desktop by default */
+#dailyCard .day-short{
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Mobile: hide the short forecast line */
+@media (max-width: 740px){
+  #dailyCard .day-short{
+    display:none;
+  }
+}
+
 
 .day-short{
   grid-area:left;
