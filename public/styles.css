@@ -294,8 +294,6 @@ header{
   min-width:0;
 }
 
-/* ✅ HIDE the short forecast line under each day tile (Forecast section only)
-   Everything else remains identical.
 /* Forecast tiles: show short forecast on desktop by default */
 #dailyCard .day-short{
   display: -webkit-box;
