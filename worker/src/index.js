@@ -365,7 +365,7 @@ function shoeLevelFromSoilMoisture(sm) {
   const v = Number(sm);
   if (!Number.isFinite(v)) return null;
   if (v >= 0.4) return 3;
-  if (v >= 0.25) return 2;
+  if (v > 0.25) return 2;
   if (v >= 0.12) return 1;
   return 0;
 }

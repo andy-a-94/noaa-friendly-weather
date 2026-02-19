@@ -315,9 +315,9 @@ function shoeLabelFromSoilMoisture(sm) {
   const v = Number(sm);
   if (!Number.isFinite(v)) return { label: "—", sub: "—" };
 
-  // Thresholds (match Worker): <0.12 dry, 0.12–0.25 damp, 0.25–0.40 wet, >=0.40 rainy
+  // Thresholds (match Worker): <0.12 dry, 0.12–0.25 damp, >0.25–<0.40 wet, >=0.40 rainy
   if (v < 0.12) return { label: "Sandal", sub: `${Math.round(v * 100)}% Soil Moisture` };
-  if (v < 0.25) return { label: "Sneaker", sub: `${Math.round(v * 100)}% Soil Moisture` };
+  if (v <= 0.25) return { label: "Sneaker", sub: `${Math.round(v * 100)}% Soil Moisture` };
   if (v < 0.4) return { label: "Hiking Boot", sub: `${Math.round(v * 100)}% Soil Moisture` };
   return { label: "Rain Boot", sub: `${Math.round(v * 100)}% Soil Moisture` };
 }
@@ -379,14 +379,14 @@ function renderShoe(data) {
               <img class="shoe-scale-img" src="${SHOE_ICONS.Sneaker}" alt="" />
             </span>
             <span class="shoe-scale-label">Sneaker</span>
-            <span class="shoe-scale-range">12–24%</span>
+            <span class="shoe-scale-range">12–25%</span>
           </div>
           <div class="shoe-scale-row">
             <span class="shoe-scale-emoji">
               <img class="shoe-scale-img" src="${SHOE_ICONS["Hiking Boot"]}" alt="" />
             </span>
             <span class="shoe-scale-label">Hiking Boot</span>
-            <span class="shoe-scale-range">25–39%</span>
+            <span class="shoe-scale-range">26–39%</span>
           </div>
           <div class="shoe-scale-row">
             <span class="shoe-scale-emoji">
