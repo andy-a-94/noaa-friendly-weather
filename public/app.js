@@ -433,10 +433,10 @@ function renderAstroUv(data) {
   const moonriseRaw = safeText(astro.moonrise);
   const moonsetRaw  = safeText(astro.moonset);
 
-  const sunrise = formatHHMMToAmPm(sunriseRaw);
-  const sunset  = formatHHMMToAmPm(sunsetRaw);
-  const moonrise = formatHHMMToAmPm(moonriseRaw);
-  const moonset  = formatHHMMToAmPm(moonsetRaw);
+   const sunrise = formatHHMMTo12h(sunriseRaw);
+   const sunset  = formatHHMMTo12h(sunsetRaw);
+   const moonrise = formatHHMMTo12h(moonriseRaw);
+   const moonset  = formatHHMMTo12h(moonsetRaw);
 
   const { illum, waxing, label: phaseLabel } = moonIllumFromPhaseLabel(astro.moonPhase);
 
