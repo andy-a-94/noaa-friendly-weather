@@ -433,10 +433,10 @@ function renderAstroUv(data) {
   const moonriseRaw = safeText(astro.moonrise);
   const moonsetRaw  = safeText(astro.moonset);
 
-  const sunrise = sunriseRaw ? formatHHMMTo12h(sunriseRaw) : "";
-  const sunset  = sunsetRaw  ? formatHHMMTo12h(sunsetRaw)  : "";
-  const moonrise = moonriseRaw ? formatHHMMTo12h(moonriseRaw) : "";
-  const moonset  = moonsetRaw  ? formatHHMMTo12h(moonsetRaw)  : "";
+  const sunrise = formatHHMMToAmPm(sunriseRaw);
+  const sunset  = formatHHMMToAmPm(sunsetRaw);
+  const moonrise = formatHHMMToAmPm(moonriseRaw);
+  const moonset  = formatHHMMToAmPm(moonsetRaw);
 
   const { illum, waxing, label: phaseLabel } = moonIllumFromPhaseLabel(astro.moonPhase);
 
@@ -449,39 +449,59 @@ function renderAstroUv(data) {
     return "UV —";
   })();
 
+  // --- Sun position along the daylight arc ---
   const srMin = parseHHMMToMinutes(sunriseRaw);
   const ssMin = parseHHMMToMinutes(sunsetRaw);
   const nowMin = getNowMinutesInTimeZone(timeZone);
 
   let sunT = null;
-  let sunState = ""; // "", "before", "after"
   if (srMin !== null && ssMin !== null && nowMin !== null && ssMin > srMin) {
-    if (nowMin < srMin) sunState = "before";
-    else if (nowMin > ssMin) sunState = "after";
-    else sunState = "";
-
     sunT = clamp((nowMin - srMin) / (ssMin - srMin), 0, 1);
   }
 
-  // X across the arc (0–100%)
+  const beforeSunrise = (srMin !== null && nowMin !== null) ? (nowMin < srMin) : false;
+  const afterSunset   = (ssMin !== null && nowMin !== null) ? (nowMin > ssMin) : false;
+
+  // Make the dot follow the *same* quadratic curve as the SVG:
+  // Path: M0,55 Q50,0 100,55
+  // Parameter t in [0..1]:
+  // x = 100t
+  // y = (1-t)^2*55 + 2(1-t)t*0 + t^2*55 = 55(1 - 2t + 2t^2)
   const sunX = (typeof sunT === "number") ? (sunT * 100) : 50;
 
-  // Y along the arc, but converted to pixels based on the SVG height (60px)
-  // SVG path uses 0..55 vertical space. We'll map that to 0..60px.
   const ySvg = (typeof sunT === "number")
-    ? (55 - (55 * Math.sin(Math.PI * sunT))) // 55 at ends, 0 at noon
+    ? (55 * (1 - 2 * sunT + 2 * sunT * sunT))
     : 55;
 
-  const sunYPx = clamp((ySvg / 55) * 60, 0, 60);
+  // Convert SVG y (0..55) into a % for our box where the SVG occupies 60px height.
+  // We place the SVG at bottom:20px and it has height:60px.
+  // So: y% inside that 60px area.
+  const sunY = clamp((ySvg / 55) * 60, 0, 60);
 
+  // Positioning scheme:
+  // left: calc(10px + (sunX * 1%)) => ok
+  // top:  10px + (sunY% of the tile) doesn't work directly, so we treat sunY as "percent-like"
+  // by converting 0..60px into 0..100 scale relative to the 120px tile:
+  const sunYAsPct = clamp((sunY / 120) * 100, 0, 100);
+
+  // --- Moon phase visual: compute shadow offset in px ---
+  // We shift a same-sized dark circle:
+  // - illum 0 => offset 0 (fully dark)
+  // - illum 0.5 => offset radius (half lit)
+  // - illum 1 => offset diameter (fully lit)
   const moonIllumPct = (typeof illum === "number") ? Math.round(illum * 100) : null;
-  const moonShadePct = (typeof illum === "number") ? Math.round((1 - illum) * 100) : 50;
 
-  const moonClass = (waxing === null) ? "" : (waxing ? "is-waxing" : "is-waning");
+  const diameter = 46; // must match .moon-disc size in CSS
+  const shift = (typeof illum === "number") ? (illum * diameter) : (0.5 * diameter);
 
-  const sunArcClass =
-    sunState === "before" ? "is-before" :
-    sunState === "after"  ? "is-after"  : "";
+  // Waxing = light on right => move shadow left (negative)
+  // Waning = light on left  => move shadow right (positive)
+  let moonOffsetPx = 0;
+  if (waxing === true) moonOffsetPx = -shift;
+  else if (waxing === false) moonOffsetPx = shift;
+  else moonOffsetPx = 0;
+
+  const showSunDot = !!(typeof sunT === "number") && !beforeSunrise && !afterSunset;
 
   els.astroUvContent.innerHTML = `
     <div class="astro-tiles">
@@ -491,12 +511,20 @@ function renderAstroUv(data) {
           ${showUv ? `<div class="astro-tile-pill">${uvLabel}</div>` : ``}
         </div>
 
-        <div class="sun-arc ${sunArcClass}" style="--sun-x:${sunX}%; --sun-y-px:${sunYPx};">
+        <div class="sun-arc" style="--sun-x:${sunX}%; --sun-y:${sunYAsPct}%;">
           <svg class="sun-arc-svg" viewBox="0 0 100 55" preserveAspectRatio="none" aria-hidden="true">
             <path d="M 0 55 Q 50 0 100 55" fill="none" />
           </svg>
 
-          <div class="sun-dot" aria-hidden="true"></div>
+          ${
+            beforeSunrise
+              ? `<div class="sun-endglow left" aria-hidden="true"></div>`
+              : afterSunset
+                ? `<div class="sun-endglow right" aria-hidden="true"></div>`
+                : ``
+          }
+
+          <div class="sun-dot ${showSunDot ? "" : "is-hidden"}" aria-hidden="true"></div>
 
           <div class="sun-times">
             <div class="sun-time-left">${sunrise || "—"}</div>
@@ -505,8 +533,7 @@ function renderAstroUv(data) {
         </div>
       </div>
 
-      <div class="astro-tile moon-tile ${moonClass}" style="--moon-shadow:${moonShadePct}%;">
-
+      <div class="astro-tile moon-tile" style="--moon-offset:${moonOffsetPx}px;">
         <div class="astro-tile-head">
           <div class="astro-tile-title">Moon</div>
         </div>
