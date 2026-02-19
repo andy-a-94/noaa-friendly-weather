@@ -656,7 +656,7 @@ header{
   justify-content:space-between;
   align-items:center;
   gap:10px;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
 }
 .astro-tile-title{
   font-weight: 950;
@@ -684,7 +684,7 @@ header{
 .sun-arc-svg{
   position:absolute;
   left:10px; right:10px;
-  bottom: 20px;
+  bottom: 30px;
 
   width: calc(100% - 20px);
   height: 60px;
@@ -697,13 +697,13 @@ header{
 
 .sun-dot{
   position:absolute;
-  /* JS sets these as percent values in CSS vars */
-  left: calc(10px + (var(--sun-x, 50) * 1%));
-  top:  calc(10px + (var(--sun-y, 50) * 1%));
+  /* JS sets these CSS vars as percentage strings like "42%" */
+  left: calc(10px + var(--sun-x, 50%));
+  top:  calc(10px + var(--sun-y, 50%));
   transform: translate(-50%, -50%);
 
-  width: 10px;
-  height: 10px;
+  width: 14px;
+  height: 14px;
   border-radius: 999px;
   background: rgba(255, 220, 120, 0.98);
   box-shadow: 0 0 18px rgba(255, 210, 120, 0.55);
@@ -716,7 +716,7 @@ header{
 /* Half-circle sunrise/sunset glow */
 .sun-endglow{
   position:absolute;
-  bottom: 20px; /* align with arc baseline */
+  bottom: 30px; /* align with arc baseline */
   width: 58px;
   height: 34px;
   border-radius: 999px 999px 0 0;
@@ -744,7 +744,7 @@ header{
 .sun-times{
   position:absolute;
   left:10px; right:10px;
-  bottom: 8px;
+  bottom: 6px;
   display:flex;
   justify-content:space-between;
   color: rgba(255,255,255,0.80);
@@ -775,14 +775,19 @@ header{
   overflow:hidden;
 }
 
-/* Shadow disc overlay: shift left/right to create waxing/waning */
+/* Soft phase shadow (less "eclipse" look): wider oval mask with gentle falloff */
 .moon-disc::after{
   content:"";
   position:absolute;
-  inset:0;
+  top: -4px;
+  bottom: -4px;
+  width: 66px;
   border-radius: 999px;
-  background: rgba(10,14,26,0.62);
-  transform: translateX(var(--moon-offset, 0px));
+  left: calc(-10px + var(--moon-offset, 0px));
+  background: radial-gradient(ellipse at center,
+    rgba(9,13,24,0.70) 58%,
+    rgba(9,13,24,0.42) 72%,
+    rgba(9,13,24,0.0) 100%);
 }
 
 .moon-label{
