@@ -37,6 +37,9 @@ const STORAGE_KEYS = {
   label: "aw_label",
 };
 
+let expandedTile = null;
+let scrollCollapseTimer = null;
+
 function getWorkerBaseUrl() {
   const meta = document.querySelector('meta[name="worker-base-url"]');
   const v = meta?.getAttribute("content")?.trim();
@@ -111,6 +114,69 @@ function formatDateShort(iso, timeZone) {
   } catch {
     return "";
   }
+}
+
+function formatPercent(value) {
+  return `${Math.round(value)}%`;
+}
+
+
+function detailRowsHtml(rows) {
+  const visible = rows.filter(r => Number.isFinite(r?.value));
+  if (!visible.length) return "";
+
+  return `<div class="tile-details-rows">${visible
+    .map(r => `<div class="tile-detail-row"><span class="tile-detail-label">${r.label}</span><span class="tile-detail-value">${r.formatter(r.value)}</span></div>`)
+    .join("")}</div>`;
+}
+
+function getPeriodMetrics(metrics, periodNumber) {
+  if (!metrics || periodNumber === undefined || periodNumber === null) return null;
+  return metrics[String(periodNumber)] || metrics[periodNumber] || null;
+}
+
+function setExpandedTile(nextTile) {
+  if (expandedTile && expandedTile !== nextTile) {
+    expandedTile.classList.remove("is-expanded");
+    expandedTile.setAttribute("aria-expanded", "false");
+  }
+
+  if (!nextTile) {
+    expandedTile = null;
+    return;
+  }
+
+  const isExpanding = !nextTile.classList.contains("is-expanded");
+  nextTile.classList.toggle("is-expanded", isExpanding);
+  nextTile.setAttribute("aria-expanded", isExpanding ? "true" : "false");
+  expandedTile = isExpanding ? nextTile : null;
+}
+
+function setupExpandableTiles() {
+  document.addEventListener("click", (e) => {
+    const tile = e.target.closest("[data-expandable='true']");
+    if (!tile) return;
+    if (e.target.closest(".tile-details")) return;
+    if (e.target.closest(".shoe-info-btn") || e.target.closest(".shoe-popover")) return;
+    setExpandedTile(tile);
+  });
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter" && e.key !== " ") return;
+    const tile = e.target.closest("[data-expandable='true']");
+    if (!tile) return;
+    e.preventDefault();
+    setExpandedTile(tile);
+  });
+
+  const collapseOnScroll = () => {
+    if (scrollCollapseTimer) clearTimeout(scrollCollapseTimer);
+    scrollCollapseTimer = setTimeout(() => setExpandedTile(null), 150);
+  };
+
+  window.addEventListener("scroll", collapseOnScroll, { passive: true });
+  window.addEventListener("wheel", collapseOnScroll, { passive: true });
+  window.addEventListener("touchmove", collapseOnScroll, { passive: true });
 }
 
 /* ---------- Time helpers for Sun position ---------- */
@@ -192,6 +258,12 @@ async function fetchWeather(lat, lon, zip) {
 }
 
 function resetVisibleSections() {
+  setExpandedTile(null);
+  document.querySelectorAll(".is-expanded").forEach((el) => {
+    el.classList.remove("is-expanded");
+    if (el.matches("[data-expandable='true']")) el.setAttribute("aria-expanded", "false");
+  });
+
   els.currentCard.hidden = true;
   els.todayCard.hidden = true;
   els.shoeCard.hidden = true;
@@ -237,6 +309,27 @@ function renderCurrent(data) {
 
   const meta = metaParts.join(" • ");
 
+  const hourlyMetrics = data?.hourlyMetrics || {};
+  const currentMetrics = getPeriodMetrics(hourlyMetrics, current?.number) || getPeriodMetrics(data?.periodMetrics || {}, current?.number);
+  const apparent = Number.isFinite(currentMetrics?.apparentTempF) ? currentMetrics.apparentTempF : current?.temperature;
+
+  const nowRows = [
+    { label: "Dew Point", value: currentMetrics?.dewpointF, formatter: (v) => `${Math.round(v)}°F` },
+    { label: "Relative Humidity", value: currentMetrics?.relativeHumidityPct, formatter: formatPercent },
+    { label: "Cloud Cover", value: currentMetrics?.skyCoverPct, formatter: formatPercent },
+    { label: "Feels Like", value: apparent, formatter: (v) => `${Math.round(v)}°F` },
+  ];
+
+  const uvCurrent = data?.uv?.ok && Number.isFinite(data?.uv?.current) ? Math.round(data.uv.current) : null;
+  const uvMax = data?.uv?.ok && Number.isFinite(data?.uv?.max) ? Math.round(data.uv.max) : null;
+
+  const nowDetails = [
+    windStr ? `<div class="tile-detail-row"><span class="tile-detail-label">Wind</span><span class="tile-detail-value">${windStr}</span></div>` : "",
+    detailRowsHtml(nowRows),
+    uvCurrent !== null ? `<div class="tile-detail-row"><span class="tile-detail-label">UV Current</span><span class="tile-detail-value">${uvCurrent}</span></div>` : "",
+    uvMax !== null ? `<div class="tile-detail-row"><span class="tile-detail-label">UV Max</span><span class="tile-detail-value">${uvMax}</span></div>` : "",
+  ].filter(Boolean).join("");
+
   els.currentContent.innerHTML = `
     <div class="current-row">
       <div>
@@ -246,6 +339,7 @@ function renderCurrent(data) {
       </div>
       <div class="wx-icon" aria-hidden="true">${icon}</div>
     </div>
+    ${nowDetails ? `<div class="tile-details">${nowDetails}</div>` : ""}
   `;
 
   if (Array.isArray(data.alerts) && data.alerts.length) {
@@ -265,6 +359,8 @@ function renderToday(data) {
 
   const cleanName = (s) => safeText(s).replace(/^This\s+/i, "");
 
+  const periodMetrics = data?.periodMetrics || {};
+
   const rows = outlook.periods.slice(0, 2).map(p => {
     const name = cleanName(p.name || "");
     const short = safeText(p.shortForecast || "");
@@ -273,6 +369,16 @@ function renderToday(data) {
 
     const pop = extractPopPercent(p);
     const showPop = (typeof pop === "number" && pop >= 10);
+
+    const m = getPeriodMetrics(periodMetrics, p?.number);
+    const detailsRows = [
+      { label: "Chance of Precipitation", value: pop, formatter: formatPercent },
+      { label: "Dew Point", value: m?.dewpointF, formatter: (v) => `${Math.round(v)}°F` },
+      { label: "Relative Humidity", value: m?.relativeHumidityPct, formatter: formatPercent },
+      { label: "Cloud Cover", value: m?.skyCoverPct, formatter: formatPercent },
+      { label: "Feels Like", value: m?.apparentTempF, formatter: (v) => `${Math.round(v)}°F` },
+    ];
+    const windDetail = parseWind(p?.windDirection, p?.windSpeed);
 
     return `
       <div class="today-row">
@@ -288,6 +394,10 @@ function renderToday(data) {
 
         <div class="today-icon" aria-hidden="true">${icon}</div>
         <div class="today-temp">${temp}</div>
+      </div>
+      <div class="tile-details">
+        ${windDetail ? `<div class="tile-detail-row"><span class="tile-detail-label">Wind</span><span class="tile-detail-value">${windDetail}</span></div>` : ""}
+        ${detailRowsHtml(detailsRows)}
       </div>
     `;
   }).join("");
@@ -559,6 +669,8 @@ function renderHourly(data) {
 
   const timeZone = data?.timeZone || null;
 
+  const hourlyMetrics = data?.hourlyMetrics || {};
+
   const cards = hourly.periods.slice(0, 18).map(p => {
     const d = new Date(p.startTime);
     const time = (() => {
@@ -577,8 +689,18 @@ function renderHourly(data) {
     const icon = iconFromForecastIconUrl(p.icon, desc);
     const pop = extractPopPercent(p);
 
+    const m = getPeriodMetrics(hourlyMetrics, p?.number);
+    const wind = parseWind(p?.windDirection, p?.windSpeed);
+    const detailRows = [
+      { label: "Chance of Precipitation", value: pop, formatter: formatPercent },
+      { label: "Dew Point", value: m?.dewpointF, formatter: (v) => `${Math.round(v)}°F` },
+      { label: "Relative Humidity", value: m?.relativeHumidityPct, formatter: formatPercent },
+      { label: "Cloud Cover", value: m?.skyCoverPct, formatter: formatPercent },
+      { label: "Feels Like", value: m?.apparentTempF, formatter: (v) => `${Math.round(v)}°F` },
+    ];
+
     return `
-      <div class="hour-card">
+      <div class="hour-card" data-expandable="true" tabindex="0" role="button" aria-expanded="false">
         <div class="hour-time">${time}</div>
         <div class="hour-temp">${temp}</div>
         <div class="hour-desc">${desc || "—"}</div>
@@ -589,6 +711,10 @@ function renderHourly(data) {
               ? `<span class="pop-badge"><span class="drop">💧</span>${pop}%</span>`
               : ``
           }
+        </div>
+        <div class="tile-details">
+          ${wind ? `<div class="tile-detail-row"><span class="tile-detail-label">Wind</span><span class="tile-detail-value">${wind}</span></div>` : ""}
+          ${detailRowsHtml(detailRows)}
         </div>
       </div>
     `;
@@ -794,6 +920,15 @@ async function runZip(zip) {
 }
 
 async function init() {
+  setupExpandableTiles();
+
+  [els.currentCard, els.todayCard].forEach((card) => {
+    card.setAttribute("data-expandable", "true");
+    card.setAttribute("tabindex", "0");
+    card.setAttribute("role", "button");
+    card.setAttribute("aria-expanded", "false");
+  });
+
   els.zipForm.addEventListener("submit", async (e) => {
     e.preventDefault();
     const zip = safeText(els.zipInput.value);

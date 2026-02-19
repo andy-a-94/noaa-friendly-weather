@@ -116,6 +116,50 @@ header{
   margin-top: 12px;
 }
 
+.card[data-expandable="true"],
+.hour-card[data-expandable="true"]{
+  touch-action: manipulation;
+}
+
+.card[data-expandable="true"]:focus-visible,
+.hour-card[data-expandable="true"]:focus-visible{
+  outline: 2px solid rgba(120,180,255,0.7);
+  outline-offset: 2px;
+}
+
+.tile-details{
+  display:none;
+  margin-top: 10px;
+  border-top: 1px solid rgba(255,255,255,0.08);
+  padding-top: 10px;
+}
+
+.is-expanded > .card-body > .tile-details,
+.is-expanded .today-rows > .tile-details,
+.hour-card.is-expanded > .tile-details{
+  display:block;
+}
+
+.tile-detail-row{
+  display:flex;
+  justify-content:space-between;
+  gap: 8px;
+  margin-top: 6px;
+  font-size: 13px;
+}
+
+.tile-detail-row:first-child{
+  margin-top: 0;
+}
+
+.tile-detail-label{
+  color: rgba(255,255,255,0.74);
+}
+
+.tile-detail-value{
+  font-weight: 750;
+}
+
 .card h2{
   margin: 4px 0 10px;
   font-size: 16px;
