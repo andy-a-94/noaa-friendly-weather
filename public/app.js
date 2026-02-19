@@ -767,6 +767,32 @@ function getStoredZip() {
   return /^\d{5}$/.test(z) ? z : "";
 }
 
+async function runZip(zip) {
+  const z = safeText(zip);
+  if (!/^\d{5}$/.test(z)) return;
+
+  els.zipBtn.disabled = true;
+  setStatus("Finding ZIP location…");
+
+  try {
+    const loc = await fetchLocationByZip(z);
+    localStorage.setItem(STORAGE_KEYS.zip, z);
+    els.zipInput.value = z;
+
+    await loadAndRender({
+      lat: loc.lat,
+      lon: loc.lon,
+      labelOverride: loc.label,
+      zipForUv: z,
+    });
+  } catch (err) {
+    console.error(err);
+    setStatus("Could not find that ZIP. Try another.");
+  } finally {
+    els.zipBtn.disabled = false;
+  }
+}
+
 async function init() {
   els.zipForm.addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -776,44 +802,32 @@ async function init() {
       return;
     }
 
-    els.zipBtn.disabled = true;
-    setStatus("Finding ZIP location…");
-    try {
-      const loc = await fetchLocationByZip(zip);
-      localStorage.setItem(STORAGE_KEYS.zip, zip);
-      els.zipInput.value = zip;
-
-      await loadAndRender({
-        lat: loc.lat,
-        lon: loc.lon,
-        labelOverride: loc.label,
-        zipForUv: zip,
-      });
-    } catch (err) {
-      console.error(err);
-      setStatus("Could not find that ZIP. Try another.");
-    } finally {
-      els.zipBtn.disabled = false;
-    }
+   await runZip(zip);
   });
 
   const storedZip = getStoredZip();
-  if (storedZip) {
-    els.zipInput.value = storedZip;
-    try {
-      setStatus("Loading saved ZIP…");
-      const loc = await fetchLocationByZip(storedZip);
-      await loadAndRender({
-        lat: loc.lat,
-        lon: loc.lon,
-        labelOverride: loc.label,
-        zipForUv: storedZip,
-      });
-      return;
-    } catch (e) {
-      console.warn("Stored ZIP failed, falling back.", e);
-    }
+
+if (!storedZip) {
+  // --- Codex/GitHub preview convenience: auto-load a default ZIP ---
+  const params = new URLSearchParams(window.location.search);
+  const zipFromUrl = safeText(params.get("zip"));
+
+  const host = window.location.hostname || "";
+  const isPreviewHost =
+    host.includes("pages.dev") ||
+    host.includes("localhost") ||
+    host.includes("127.0.0.1") ||
+    host.includes("codex") ||
+    host.includes("github");
+
+  const previewZip = zipFromUrl || (isPreviewHost ? "10001" : "");
+
+  if (previewZip) {
+    els.zipInput.value = previewZip;
+    await runZip(previewZip);
+    return;
   }
+}
 
   if ("geolocation" in navigator) {
     setStatus("Finding your location…");
