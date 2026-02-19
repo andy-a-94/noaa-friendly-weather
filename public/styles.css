@@ -652,6 +652,10 @@ header{
   border: 1px solid rgba(255,255,255,0.10);
   border-radius: 16px;
   padding: 12px;
+
+  /* helps keep both tiles feeling consistent */
+  display:flex;
+  flex-direction:column;
 }
 .astro-tile-head{
   display:flex;
@@ -672,36 +676,76 @@ header{
   font-size: 12px;
 }
 
-/* Sun arc */
+/* Sun arc (no inner box) */
 .sun-arc{
   position:relative;
   height: 120px;
-  border-radius: 16px;
-  background: rgba(255,255,255,0.04);
-  border: 1px solid rgba(255,255,255,0.08);
   overflow:hidden;
-  padding: 10px;
 }
+
+/* Glows at arc ends for pre-sunrise / post-sunset */
+.sun-arc::before,
+.sun-arc::after{
+  content:"";
+  position:absolute;
+  bottom: 20px;
+  width: 54px;
+  height: 54px;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(255,170,90,0.55), rgba(255,170,90,0.18) 45%, transparent 70%);
+  filter: blur(1px);
+  opacity: 0;
+  pointer-events:none;
+}
+
+.sun-arc.is-before::before{
+  left: -6px;
+  opacity: 1;
+}
+.sun-arc.is-after::after{
+  right: -6px;
+  opacity: 1;
+}
+
 .sun-arc-svg{
   position:absolute;
-  left:10px; right:10px;
+  left:0; right:0;
   bottom: 20px;
   height: 60px;
   opacity: 0.35;
   stroke: rgba(255,255,255,0.55);
   stroke-width: 2;
 }
+
+/* Yellow marker dot */
 .sun-dot{
   position:absolute;
-  left: calc(10px + (var(--sun-x, 50) * 1%));
-  top: calc(10px + (var(--sun-y, 90) * 0.6%));
+
+  /* X is still % across the tile */
+  left: calc(var(--sun-x, 50) * 1%);
+
+  /* Y is pixel-accurate against the SVG's displayed height (60px) */
+  top: calc((100% - 20px - 60px) + (var(--sun-y-px, 60) * 1px));
+
   transform: translate(-50%, -50%);
-  font-size: 22px;
-  line-height: 1;
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(255, 211, 77, 0.98);
+  box-shadow:
+    0 0 0 2px rgba(0,0,0,0.28),
+    0 0 18px rgba(255, 200, 90, 0.35);
 }
+
+/* Hide the dot when sun is not up */
+.sun-arc.is-before .sun-dot,
+.sun-arc.is-after .sun-dot{
+  display:none;
+}
+
 .sun-times{
   position:absolute;
-  left:10px; right:10px;
+  left:0; right:0;
   bottom: 8px;
   display:flex;
   justify-content:space-between;
@@ -715,7 +759,11 @@ header{
   display:flex;
   gap:12px;
   align-items:center;
+
+  /* match the Sun tile body height */
+  min-height: 120px;
 }
+
 .moon-disc{
   width: 46px;
   height: 46px;
@@ -724,6 +772,7 @@ header{
   position:relative;
   overflow:hidden;
 }
+
 .moon-disc::after{
   content:"";
   position:absolute;
@@ -731,8 +780,12 @@ header{
   width: calc(var(--moon-shadow, 50) * 1%);
   background: rgba(0,0,0,0.50);
   filter: blur(0.5px);
-  right: 0;
 }
+
+/* shadow side depends on waxing/waning */
+.moon-tile.is-waxing .moon-disc::after{ left: 0; right: auto; }
+.moon-tile.is-waning .moon-disc::after{ right: 0; left: auto; }
+
 .moon-label{
   min-width:0;
 }
@@ -753,3 +806,4 @@ header{
     grid-template-columns: 1fr;
   }
 }
+
