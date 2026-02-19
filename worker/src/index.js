@@ -652,30 +652,46 @@ async function handleWeather(lat, lon, zip) {
 
   const outlook = { periods: dailyPeriods.slice(0, 2) };
 
-  // Period metrics (dew point + RH) from grid data, keyed by NWS period.number
+  // Grid-derived metrics sampled at period midpoint (daily + hourly)
   let periodMetrics = {};
-  if (gridRes.status === "fulfilled" && gridRes.value?.properties && Array.isArray(dailyPeriods) && dailyPeriods.length) {
+  let hourlyMetrics = {};
+  if (gridRes.status === "fulfilled" && gridRes.value?.properties) {
     const gp = gridRes.value.properties;
 
     const dewSeries = gp?.dewpoint?.values;
     const rhSeries = gp?.relativeHumidity?.values;
+    const skySeries = gp?.skyCover?.values;
+    const apparentSeries = gp?.apparentTemperature?.values;
 
-    for (const p of dailyPeriods) {
-      const startMs = Date.parse(p.startTime);
-      const endMs = Date.parse(p.endTime);
-      if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) continue;
+    const metricForMidpoint = (period) => {
+      const startMs = Date.parse(period?.startTime);
+      const endMs = Date.parse(period?.endTime);
+      if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs <= startMs) return null;
+
       const midMs = startMs + (endMs - startMs) / 2;
+      const out = {};
 
       const dewC = valueAt(dewSeries, midMs);
       const rh = valueAt(rhSeries, midMs);
+      const sky = valueAt(skySeries, midMs);
+      const apparentC = valueAt(apparentSeries, midMs);
 
-      const out = {};
       if (isFiniteNum(dewC)) out.dewpointF = cToF(dewC);
       if (isFiniteNum(rh)) out.relativeHumidityPct = clamp(rh, 0, 100);
+      if (isFiniteNum(sky)) out.skyCoverPct = clamp(sky, 0, 100);
+      if (isFiniteNum(apparentC)) out.apparentTempF = cToF(apparentC);
 
-      if (Object.keys(out).length) {
-        periodMetrics[String(p.number)] = out;
-      }
+      return Object.keys(out).length ? out : null;
+    };
+
+    for (const p of dailyPeriods) {
+      const out = metricForMidpoint(p);
+      if (out) periodMetrics[String(p.number)] = out;
+    }
+
+    for (const p of hourlyPeriods) {
+      const out = metricForMidpoint(p);
+      if (out) hourlyMetrics[String(p.number)] = out;
     }
   }
 
@@ -743,6 +759,7 @@ async function handleWeather(lat, lon, zip) {
     daily: { periods: dailyPeriods },
 
     periodMetrics,
+    hourlyMetrics,
     alerts,
 
     astro: astro && astro.ok ? {
