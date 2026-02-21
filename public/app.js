@@ -5,6 +5,7 @@
 
 const els = {
   statusBar: document.getElementById("statusBar"),
+  locationLabel: document.getElementById("locationLabel"),
 
   zipForm: document.getElementById("zipForm"),
   zipInput: document.getElementById("zipInput"),
@@ -57,6 +58,10 @@ function apiUrl(path, params = {}) {
 
 function setStatus(msg) {
   els.statusBar.textContent = msg || "";
+}
+
+function setLocationLabel(label) {
+  els.locationLabel.textContent = safeText(label);
 }
 
 function clamp(n, min, max) {
@@ -393,33 +398,34 @@ function renderToday(data) {
 
     const m = getPeriodMetrics(periodMetrics, p?.number);
     const detailsRows = [
-      { label: "Chance of Precipitation", value: pop, formatter: formatPercent },
-      { label: "Dew Point", value: m?.dewpointF, formatter: (v) => `${Math.round(v)}°F` },
-      { label: "Relative Humidity", value: m?.relativeHumidityPct, formatter: formatPercent },
-      { label: "Cloud Cover", value: m?.skyCoverPct, formatter: formatPercent },
       { label: "Feels Like", value: m?.apparentTempF, formatter: (v) => `${Math.round(v)}°F` },
+      { label: "Dew Point", value: m?.dewpointF, formatter: (v) => `${Math.round(v)}°F` },
+      { label: "Humidity", value: m?.relativeHumidityPct, formatter: formatPercent },
+      { label: "Cloud Cover", value: m?.skyCoverPct, formatter: formatPercent },
     ];
     const windDetail = parseWind(p?.windDirection, p?.windSpeed);
 
     return `
-      <div class="today-row">
-        <div class="today-left">
-          <div class="today-name">${name}</div>
-          <div class="today-short">${short || "—"}</div>
-        </div>
+      <section class="today-period" data-expandable="true" tabindex="0" role="button" aria-expanded="false">
+        <div class="today-row">
+          <div class="today-left">
+            <div class="today-name">${name}</div>
+            <div class="today-short">${short || "—"}</div>
+          </div>
 
-        <div class="today-precip ${showPop ? "" : "is-hidden"}">
-          <span class="drop">💧</span>
-          <span class="pct">${showPop ? `${pop}%` : ""}</span>
-        </div>
+          <div class="today-precip ${showPop ? "" : "is-hidden"}">
+            <span class="drop">💧</span>
+            <span class="pct">${showPop ? `${pop}%` : ""}</span>
+          </div>
 
-        <div class="today-icon" aria-hidden="true">${icon}</div>
-        <div class="today-temp">${temp}</div>
-      </div>
-      <div class="tile-details">
-        ${windDetail ? `<div class="tile-detail-row"><span class="tile-detail-label">Wind</span><span class="tile-detail-value">${windDetail}</span></div>` : ""}
-        ${detailRowsHtml(detailsRows)}
-      </div>
+          <div class="today-icon" aria-hidden="true">${icon}</div>
+          <div class="today-temp">${temp}</div>
+        </div>
+        <div class="tile-details">
+          ${windDetail ? `<div class="tile-detail-row"><span class="tile-detail-label">Wind</span><span class="tile-detail-value">${windDetail}</span></div>` : ""}
+          ${detailRowsHtml(detailsRows)}
+        </div>
+      </section>
     `;
   }).join("");
 
@@ -711,13 +717,11 @@ function renderHourly(data) {
     const pop = extractPopPercent(p);
 
     const m = getPeriodMetrics(hourlyMetrics, p?.number);
-    const wind = parseWind(p?.windDirection, p?.windSpeed);
     const detailRows = [
-      { label: "Chance of Precipitation", value: pop, formatter: formatPercent },
-      { label: "Dew Point", value: m?.dewpointF, formatter: (v) => `${Math.round(v)}°F` },
-      { label: "Relative Humidity", value: m?.relativeHumidityPct, formatter: formatPercent },
-      { label: "Cloud Cover", value: m?.skyCoverPct, formatter: formatPercent },
       { label: "Feels Like", value: m?.apparentTempF, formatter: (v) => `${Math.round(v)}°F` },
+      { label: "Dew Point", value: m?.dewpointF, formatter: (v) => `${Math.round(v)}°F` },
+      { label: "Humidity", value: m?.relativeHumidityPct, formatter: formatPercent },
+      { label: "Cloud Cover", value: m?.skyCoverPct, formatter: formatPercent },
     ];
 
     return `
@@ -738,7 +742,6 @@ function renderHourly(data) {
           </div>
           <div class="hour-face hour-back">
             <div class="tile-details tile-details-back">
-              ${wind ? `<div class="tile-detail-row"><span class="tile-detail-label">Wind</span><span class="tile-detail-value">${wind}</span></div>` : ""}
               ${detailRowsHtml(detailRows)}
             </div>
           </div>
@@ -905,7 +908,8 @@ async function loadAndRender({ lat, lon, labelOverride = null, zipForUv = null }
   if (labelOverride) localStorage.setItem(STORAGE_KEYS.label, labelOverride);
 
   const label = labelOverride || data?.location?.label || localStorage.getItem(STORAGE_KEYS.label) || "";
-  setStatus(label ? `Showing weather for ${label}` : "");
+  setLocationLabel(label);
+  setStatus("");
 
   renderCurrent(data);
   renderToday(data);
@@ -950,7 +954,7 @@ async function init() {
   setupExpandableTiles();
   setupHourlyFlip();
 
-  [els.currentCard, els.todayCard].forEach((card) => {
+  [els.currentCard].forEach((card) => {
     card.setAttribute("data-expandable", "true");
     card.setAttribute("tabindex", "0");
     card.setAttribute("role", "button");
