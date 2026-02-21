@@ -638,7 +638,7 @@ function renderAstroUv(data) {
   els.astroUvContent.innerHTML = `
     <div class="astro-tiles">
       <div class="astro-tile sun-tile">
-        <div class="sun-arc" style="--sun-x:${sunX}%; --sun-y-px:${sunYPx}px;">
+        <div class="sun-arc" style="--sun-x:${sunX}%; --sun-y:${sunYAsPct}%;">
           <div class="astro-tile-head sun-arc-head">
             <div class="astro-tile-title">Sun</div>
             ${showUv ? `<div class="astro-tile-pill">${uvLabel}</div>` : ``}
