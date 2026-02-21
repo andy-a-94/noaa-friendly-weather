@@ -68,10 +68,25 @@ a{ color: inherit; }
 
 header{
   display:flex;
-  align-items:center;
+  align-items:flex-end;
   justify-content:space-between;
   gap:12px;
   margin-bottom: 12px;
+}
+
+.top-right{
+  display:flex;
+  flex-direction:column;
+  align-items:flex-end;
+  gap:8px;
+}
+
+.location-label{
+  color: rgba(255,255,255,0.86);
+  font-weight: 700;
+  font-size: 13px;
+  text-align: right;
+  min-height: 1em;
 }
 
 .brand{
@@ -111,6 +126,10 @@ header{
   font-weight: 650;
 }
 
+#statusBar:empty{
+  display:none;
+}
+
 .card{
   background: rgba(255,255,255,0.06);
   border: 1px solid rgba(255,255,255,0.10);
@@ -121,12 +140,14 @@ header{
 }
 
 .card[data-expandable="true"],
+.today-period[data-expandable="true"],
 .hour-card[data-expandable="true"],
 .hour-card[data-flippable="true"]{
   touch-action: manipulation;
 }
 
 .card[data-expandable="true"]:focus-visible,
+.today-period[data-expandable="true"]:focus-visible,
 .hour-card[data-expandable="true"]:focus-visible,
 .hour-card[data-flippable="true"]:focus-visible{
   outline: 2px solid rgba(120,180,255,0.7);
@@ -141,8 +162,15 @@ header{
 }
 
 .is-expanded > .card-body > .tile-details,
-.is-expanded .today-rows > .tile-details,
 .hour-card.is-expanded > .tile-details{
+  display:block;
+}
+
+.today-period .tile-details{
+  display:none;
+}
+
+.today-period.is-expanded .tile-details{
   display:block;
 }
 
@@ -160,6 +188,7 @@ header{
 
 .tile-detail-label{
   color: rgba(255,255,255,0.74);
+  white-space: nowrap;
 }
 
 .tile-detail-value{

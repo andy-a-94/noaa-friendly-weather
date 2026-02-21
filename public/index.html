@@ -20,7 +20,9 @@
         <img class="brand-logo" src="./brand/logo.png" alt="Almanac Weather logo" />
       </div>
 
-      <form id="zipForm" class="zip" autocomplete="off">
+      <div class="top-right">
+        <div id="locationLabel" class="location-label" aria-live="polite"></div>
+        <form id="zipForm" class="zip" autocomplete="off">
         <input
           id="zipInput"
           class="zip-input"
@@ -32,6 +34,7 @@
         />
         <button id="zipBtn" class="zip-btn" type="submit">Go</button>
       </form>
+      </div>
     </header>
 
     <div id="statusBar" class="status" aria-live="polite"></div>
