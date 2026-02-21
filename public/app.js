@@ -179,6 +179,27 @@ function setupExpandableTiles() {
   window.addEventListener("touchmove", collapseOnScroll, { passive: true });
 }
 
+
+function setupHourlyFlip() {
+  document.addEventListener("click", (e) => {
+    const card = e.target.closest(".hour-card[data-flippable='true']");
+    if (!card) return;
+    const next = !card.classList.contains("is-flipped");
+    card.classList.toggle("is-flipped", next);
+    card.setAttribute("aria-pressed", next ? "true" : "false");
+  });
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter" && e.key !== " ") return;
+    const card = e.target.closest(".hour-card[data-flippable='true']");
+    if (!card) return;
+    e.preventDefault();
+    const next = !card.classList.contains("is-flipped");
+    card.classList.toggle("is-flipped", next);
+    card.setAttribute("aria-pressed", next ? "true" : "false");
+  });
+}
+
 /* ---------- Time helpers for Sun position ---------- */
 
 function parseHHMMToMinutes(hhmm) {
@@ -700,21 +721,27 @@ function renderHourly(data) {
     ];
 
     return `
-      <div class="hour-card" data-expandable="true" tabindex="0" role="button" aria-expanded="false">
-        <div class="hour-time">${time}</div>
-        <div class="hour-temp">${temp}</div>
-        <div class="hour-desc">${desc || "—"}</div>
-        <div class="hour-meta">
-          <div class="wx-icon-sm" aria-hidden="true">${icon}</div>
-          ${
-            (typeof pop === "number" && pop >= 10)
-              ? `<span class="pop-badge"><span class="drop">💧</span>${pop}%</span>`
-              : ``
-          }
-        </div>
-        <div class="tile-details">
-          ${wind ? `<div class="tile-detail-row"><span class="tile-detail-label">Wind</span><span class="tile-detail-value">${wind}</span></div>` : ""}
-          ${detailRowsHtml(detailRows)}
+      <div class="hour-card" data-flippable="true" tabindex="0" role="button" aria-pressed="false">
+        <div class="hour-flip">
+          <div class="hour-face hour-front">
+            <div class="hour-time">${time}</div>
+            <div class="hour-temp">${temp}</div>
+            <div class="hour-desc">${desc || "—"}</div>
+            <div class="hour-meta">
+              <div class="wx-icon-sm" aria-hidden="true">${icon}</div>
+              ${
+                (typeof pop === "number" && pop >= 10)
+                  ? `<span class="pop-badge"><span class="drop">💧</span>${pop}%</span>`
+                  : ``
+              }
+            </div>
+          </div>
+          <div class="hour-face hour-back">
+            <div class="tile-details tile-details-back">
+              ${wind ? `<div class="tile-detail-row"><span class="tile-detail-label">Wind</span><span class="tile-detail-value">${wind}</span></div>` : ""}
+              ${detailRowsHtml(detailRows)}
+            </div>
+          </div>
         </div>
       </div>
     `;
@@ -921,6 +948,7 @@ async function runZip(zip) {
 
 async function init() {
   setupExpandableTiles();
+  setupHourlyFlip();
 
   [els.currentCard, els.todayCard].forEach((card) => {
     card.setAttribute("data-expandable", "true");
