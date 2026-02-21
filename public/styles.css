@@ -817,9 +817,9 @@ header{
 
 .sun-dot{
   position:absolute;
-  /* JS sets these CSS vars as percentage strings like "42%" */
+  /* JS sets --sun-x as percent and --sun-y-px as a pixel position inside the plot band. */
   left: calc(10px + var(--sun-x, 50%));
-  top:  calc(10px + var(--sun-y, 50%));
+  top: var(--sun-y-px, 58px);
   transform: translate(-50%, -50%);
 
   width: 14px;
