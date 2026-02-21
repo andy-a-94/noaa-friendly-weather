@@ -610,16 +610,11 @@ function renderAstroUv(data) {
     ? (55 * (1 - 2 * sunT + 2 * sunT * sunT))
     : 55;
 
-  // Convert SVG y (0..55) into a % for our box where the SVG occupies 60px height.
-  // We place the SVG at bottom:20px and it has height:60px.
-  // So: y% inside that 60px area.
-  const sunY = clamp((ySvg / 55) * 60, 0, 60);
-
-  // Positioning scheme:
-  // left: calc(10px + (sunX * 1%)) => ok
-  // top:  10px + (sunY% of the tile) doesn't work directly, so we treat sunY as "percent-like"
-  // by converting 0..60px into 0..100 scale relative to the 120px tile:
-  const sunYAsPct = clamp((sunY / 120) * 100, 0, 100);
+  // Map SVG y (0..55) into an explicit pixel plotting band inside the 120px arc area.
+  // This keeps the sun marker below the in-arc header while following the same curve.
+  const sunPlotTopPx = 34;
+  const sunPlotBottomPx = 84;
+  const sunYPx = sunPlotTopPx + clamp(ySvg / 55, 0, 1) * (sunPlotBottomPx - sunPlotTopPx);
 
   // --- Moon phase visual: compute shadow offset in px ---
   // We shift a same-sized dark circle:
@@ -643,12 +638,12 @@ function renderAstroUv(data) {
   els.astroUvContent.innerHTML = `
     <div class="astro-tiles">
       <div class="astro-tile sun-tile">
-        <div class="astro-tile-head">
-          <div class="astro-tile-title">Sun</div>
-          ${showUv ? `<div class="astro-tile-pill">${uvLabel}</div>` : ``}
-        </div>
+        <div class="sun-arc" style="--sun-x:${sunX}%; --sun-y-px:${sunYPx}px;">
+          <div class="astro-tile-head sun-arc-head">
+            <div class="astro-tile-title">Sun</div>
+            ${showUv ? `<div class="astro-tile-pill">${uvLabel}</div>` : ``}
+          </div>
 
-        <div class="sun-arc" style="--sun-x:${sunX}%; --sun-y:${sunYAsPct}%;">
           <svg class="sun-arc-svg" viewBox="0 0 100 55" preserveAspectRatio="none" aria-hidden="true">
             <path d="M 0 55 Q 50 0 100 55" fill="none" />
           </svg>
@@ -679,7 +674,7 @@ function renderAstroUv(data) {
           <div class="moon-disc" aria-hidden="true"></div>
           <div class="moon-label">
             <div class="moon-phase">${phaseLabel || "—"}</div>
-            <div class="moon-sub">↑ ${moonrise || "—"} • ↓ ${moonset || "—"}${moonIllumPct !== null ? ` • ${moonIllumPct}%` : ""}</div>
+            <div class="moon-sub">↑ ${moonrise || "—"} • ↓ ${moonset || "—"}${moonIllumPct !== null ? ` • 💡 ${moonIllumPct}%` : ""}</div>
           </div>
         </div>
       </div>
