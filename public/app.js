@@ -643,12 +643,12 @@ function renderAstroUv(data) {
   els.astroUvContent.innerHTML = `
     <div class="astro-tiles">
       <div class="astro-tile sun-tile">
-        <div class="astro-tile-head">
-          <div class="astro-tile-title">Sun</div>
-          ${showUv ? `<div class="astro-tile-pill">${uvLabel}</div>` : ``}
-        </div>
-
         <div class="sun-arc" style="--sun-x:${sunX}%; --sun-y:${sunYAsPct}%;">
+          <div class="astro-tile-head sun-arc-head">
+            <div class="astro-tile-title">Sun</div>
+            ${showUv ? `<div class="astro-tile-pill">${uvLabel}</div>` : ``}
+          </div>
+
           <svg class="sun-arc-svg" viewBox="0 0 100 55" preserveAspectRatio="none" aria-hidden="true">
             <path d="M 0 55 Q 50 0 100 55" fill="none" />
           </svg>
@@ -679,7 +679,7 @@ function renderAstroUv(data) {
           <div class="moon-disc" aria-hidden="true"></div>
           <div class="moon-label">
             <div class="moon-phase">${phaseLabel || "—"}</div>
-            <div class="moon-sub">↑ ${moonrise || "—"} • ↓ ${moonset || "—"}${moonIllumPct !== null ? ` • ${moonIllumPct}%` : ""}</div>
+            <div class="moon-sub">↑ ${moonrise || "—"} • ↓ ${moonset || "—"}${moonIllumPct !== null ? ` • 💡 ${moonIllumPct}%` : ""}</div>
           </div>
         </div>
       </div>

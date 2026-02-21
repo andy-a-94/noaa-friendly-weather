@@ -750,6 +750,11 @@ header{
   object-fit: contain;
 }
 
+
+.astro-section{
+  margin-top: 12px;
+}
+
 /* ASTRO (Sun & Moon + UV) */
 .astro-tiles{
   display:grid;
@@ -785,11 +790,15 @@ header{
 .sun-arc{
   position:relative;
   height: 120px;
-  border-radius: 16px;
-  background: rgba(255,255,255,0.04);
-  border: 1px solid rgba(255,255,255,0.08);
   overflow:hidden;
-  padding: 10px;
+  padding: 0;
+}
+
+.sun-arc-head{
+  position: relative;
+  z-index: 2;
+  margin-bottom: 0;
+  padding: 10px 10px 0;
 }
 
 .sun-arc-svg{
