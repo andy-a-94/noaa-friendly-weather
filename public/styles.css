@@ -76,8 +76,12 @@ header{
 
 .brand{
   display:flex;
-  gap:10px;
   align-items:center;
+}
+.brand-logo{
+  width: clamp(66px, 10.8vw, 102px);
+  height: auto;
+  display: block;
 }
 .brand .logo{
   width:36px;
@@ -117,12 +121,14 @@ header{
 }
 
 .card[data-expandable="true"],
-.hour-card[data-expandable="true"]{
+.hour-card[data-expandable="true"],
+.hour-card[data-flippable="true"]{
   touch-action: manipulation;
 }
 
 .card[data-expandable="true"]:focus-visible,
-.hour-card[data-expandable="true"]:focus-visible{
+.hour-card[data-expandable="true"]:focus-visible,
+.hour-card[data-flippable="true"]:focus-visible{
   outline: 2px solid rgba(120,180,255,0.7);
   outline-offset: 2px;
 }
@@ -258,10 +264,42 @@ header{
 }
 .hour-card{
   min-width: 120px;
+  height: 176px;
+  background: transparent;
+  border: 0;
+  border-radius: 16px;
+  padding: 0;
+  perspective: 900px;
+  cursor: pointer;
+}
+.hour-flip{
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+  transition: transform 260ms ease;
+}
+.hour-card.is-flipped .hour-flip{
+  transform: rotateY(180deg);
+}
+.hour-face{
+  position: absolute;
+  inset: 0;
   background: rgba(255,255,255,0.05);
   border: 1px solid rgba(255,255,255,0.10);
   border-radius: 16px;
   padding: 10px;
+  backface-visibility: hidden;
+}
+.hour-back{
+  transform: rotateY(180deg);
+  overflow-y: auto;
+}
+.tile-details-back{
+  display: block;
+  margin-top: 0;
+  border-top: 0;
+  padding-top: 0;
 }
 .hour-time{
   font-weight: 900;
