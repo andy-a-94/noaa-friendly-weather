@@ -638,7 +638,7 @@ function renderAstroUv(data) {
   els.astroUvContent.innerHTML = `
     <div class="astro-tiles">
       <div class="astro-tile sun-tile">
-        <div class="sun-arc" style="--sun-x:${sunX}%; --sun-y:${sunYAsPct}%;">
+        <div class="sun-arc" style="--sun-x:${sunX}%; --sun-y-px:${sunYPx}px;">
           <div class="astro-tile-head sun-arc-head">
             <div class="astro-tile-title">Sun</div>
             ${showUv ? `<div class="astro-tile-pill">${uvLabel}</div>` : ``}
@@ -931,12 +931,17 @@ async function runZip(zip) {
     localStorage.setItem(STORAGE_KEYS.zip, z);
     els.zipInput.value = z;
 
-    await loadAndRender({
-      lat: loc.lat,
-      lon: loc.lon,
-      labelOverride: loc.label,
-      zipForUv: z,
-    });
+    try {
+      await loadAndRender({
+        lat: loc.lat,
+        lon: loc.lon,
+        labelOverride: loc.label,
+        zipForUv: z,
+      });
+    } catch (err) {
+      console.error(err);
+      setStatus("Unable to load weather for that ZIP right now.");
+    }
   } catch (err) {
     console.error(err);
     setStatus("Could not find that ZIP. Try another.");
