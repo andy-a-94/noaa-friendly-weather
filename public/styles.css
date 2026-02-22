@@ -74,6 +74,23 @@ header{
   margin-bottom: 12px;
 }
 
+.card-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+}
+
+.card-head-split{
+  align-items:flex-end;
+}
+
+.hint{
+  font-size: 13px;
+  color: rgba(255,255,255,0.72);
+  font-weight: 700;
+}
+
 .top-right{
   display:flex;
   flex-direction:column;
@@ -194,6 +211,12 @@ header{
 
 .tile-detail-value{
   font-weight: 750;
+}
+
+.tile-detail-value-fixed{
+  min-width: 52px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 
 .card h2{
@@ -337,7 +360,7 @@ header{
 }
 .hour-card{
   min-width: 120px;
-  height: 176px;
+  height: 150px;
   background: transparent;
   border: 0;
   border-radius: 16px;
@@ -378,6 +401,12 @@ header{
   font-weight: 900;
   font-size: 13px;
 }
+.hour-day{
+  margin-top: 2px;
+  font-size: 11px;
+  font-weight: 750;
+  color: rgba(255,255,255,0.74);
+}
 .hour-temp{
   margin-top: 6px;
   font-weight: 950;
@@ -398,7 +427,7 @@ header{
 
 .hour-load-more{
   min-width: 120px;
-  height: 176px;
+  height: 150px;
   border-radius: 16px;
   border: 1px dashed rgba(255,255,255,0.3);
   background: rgba(255,255,255,0.03);
@@ -994,26 +1023,44 @@ header{
 }
 
 .alerts-card{
-  margin-top: -2px;
+  margin-top: 12px;
 }
 
 .graph-controls{
   display:flex;
-  align-items:center;
-  gap:10px;
+  flex-wrap: wrap;
+  align-items:stretch;
+  gap:0;
   margin-bottom: 10px;
+  border: 1px solid rgba(255,255,255,0.16);
+  border-radius: 10px;
+  overflow: hidden;
 }
 .graph-label-title{
   font-size: 12px;
   font-weight: 800;
   color: rgba(255,255,255,0.82);
+  flex-basis: 100%;
+  padding: 0 0 8px;
 }
-.graph-select{
-  border-radius: 10px;
-  background: rgba(255,255,255,0.08);
-  color: rgba(255,255,255,0.94);
-  border: 1px solid rgba(255,255,255,0.2);
-  padding: 6px 10px;
+.graph-option{
+  border: 0;
+  border-right: 1px solid rgba(255,255,255,0.16);
+  background: rgba(255,255,255,0.04);
+  color: rgba(255,255,255,0.9);
+  padding: 8px 10px;
+  font-size: 12px;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.graph-option:last-child{
+  border-right: 0;
+}
+
+.graph-option.is-active{
+  background: rgba(120,180,255,0.24);
+  color: #fff;
 }
 .graph-scroll{ overflow-x: auto; }
 .metric-graph{ width: 100%; min-width: 680px; height: 220px; }
@@ -1021,4 +1068,5 @@ header{
 .graph-line{ fill: none; stroke: #71b5ff; stroke-width: 2.5; }
 .graph-dot{ fill: #c0ddff; }
 .graph-label{ fill: rgba(255,255,255,0.82); font-size: 11px; font-weight: 700; }
+.graph-grid{ stroke: rgba(255,255,255,0.12); stroke-width: 1; }
 .graph-empty{ color: rgba(255,255,255,0.75); font-size: 13px; }

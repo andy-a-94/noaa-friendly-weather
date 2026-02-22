@@ -140,12 +140,31 @@ function formatPercent(value) {
 }
 
 
+function getDayKey(iso, timeZone) {
+  try {
+    const d = new Date(iso);
+    const parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone: timeZone || undefined,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).formatToParts(d);
+    const y = parts.find((part) => part.type === "year")?.value;
+    const m = parts.find((part) => part.type === "month")?.value;
+    const da = parts.find((part) => part.type === "day")?.value;
+    return y && m && da ? `${y}-${m}-${da}` : "";
+  } catch {
+    return "";
+  }
+}
+
+
 function detailRowsHtml(rows) {
   const visible = rows.filter(r => Number.isFinite(r?.value));
   if (!visible.length) return "";
 
   return `<div class="tile-details-rows">${visible
-    .map(r => `<div class="tile-detail-row"><span class="tile-detail-label">${r.label}</span><span class="tile-detail-value">${r.formatter(r.value)}</span></div>`)
+    .map(r => `<div class="tile-detail-row"><span class="tile-detail-label">${r.label}</span><span class="tile-detail-value tile-detail-value-fixed">${r.formatter(r.value)}</span></div>`)
     .join("")}</div>`;
 }
 
@@ -828,6 +847,7 @@ function renderHourly(data) {
 
   const timeZone = data?.timeZone || null;
   const hourlyMetrics = data?.hourlyMetrics || {};
+  const todayKey = getDayKey(new Date().toISOString(), timeZone);
 
   const allPeriods = hourly.periods;
   const visible = clamp(hourlyVisibleCount, HOURLY_INITIAL_COUNT, allPeriods.length);
@@ -845,6 +865,16 @@ function renderHourly(data) {
       }
     })();
 
+    const dayLabel = (() => {
+      const periodDay = getDayKey(p.startTime, timeZone);
+      if (!periodDay || periodDay === todayKey) return "";
+      try {
+        return new Intl.DateTimeFormat("en-US", { timeZone: timeZone || undefined, weekday: "short" }).format(d);
+      } catch {
+        return "";
+      }
+    })();
+
     const temp = formatTempF(p.temperature);
     const desc = safeText(p.shortForecast || "");
     const icon = iconFromForecastIconUrl(p.icon, desc);
@@ -855,7 +885,7 @@ function renderHourly(data) {
       { label: "Feels Like", value: m?.apparentTempF, formatter: (v) => `${Math.round(v)}°F` },
       { label: "Dew Point", value: m?.dewpointF, formatter: (v) => `${Math.round(v)}°F` },
       { label: "Humidity", value: m?.relativeHumidityPct, formatter: formatPercent },
-      { label: "Cloud Cover", value: m?.skyCoverPct, formatter: formatPercent },
+      { label: "Cloud Cov", value: m?.skyCoverPct, formatter: formatPercent },
     ];
 
     return `
@@ -863,6 +893,7 @@ function renderHourly(data) {
         <div class="hour-flip">
           <div class="hour-face hour-front">
             <div class="hour-time">${time}</div>
+            ${dayLabel ? `<div class="hour-day">${dayLabel}</div>` : ""}
             <div class="hour-temp">${temp}</div>
             <div class="hour-desc">${desc || "—"}</div>
             <div class="hour-meta">
@@ -942,7 +973,7 @@ function getHourlyGraphPoints(data, metric) {
 
       return { label, value };
     })
-    .filter((pt, idx) => idx % 12 === 0 && Number.isFinite(pt.value));
+    .filter((pt) => Number.isFinite(pt.value));
 }
 
 function renderLineGraphSvg(points) {
@@ -950,26 +981,39 @@ function renderLineGraphSvg(points) {
 
   const width = 700;
   const height = 220;
-  const pad = 26;
+  const padL = 42;
+  const padR = 16;
+  const padT = 14;
+  const padB = 30;
+
   const values = points.map((p) => p.value);
   const minV = Math.min(...values);
   const maxV = Math.max(...values);
   const span = Math.max(maxV - minV, 1);
 
   const coords = points.map((p, idx) => {
-    const x = pad + (idx * (width - pad * 2) / Math.max(points.length - 1, 1));
-    const y = height - pad - ((p.value - minV) / span) * (height - pad * 2);
+    const x = padL + (idx * (width - padL - padR) / Math.max(points.length - 1, 1));
+    const y = height - padB - ((p.value - minV) / span) * (height - padT - padB);
     return { ...p, x, y };
   });
 
   const path = coords.map((p, idx) => `${idx === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ");
+  const yTicks = [0, 0.5, 1].map((ratio) => {
+    const value = maxV - ratio * span;
+    const y = padT + ratio * (height - padT - padB);
+    return { value, y };
+  });
 
   return `
     <svg class="metric-graph" viewBox="0 0 ${width} ${height}" role="img" aria-label="Hourly trend graph">
-      <line x1="${pad}" y1="${height - pad}" x2="${width - pad}" y2="${height - pad}" class="graph-axis"/>
+      ${yTicks.map((tick) => `<line x1="${padL}" y1="${tick.y}" x2="${width - padR}" y2="${tick.y}" class="graph-grid"/>`).join("")}
+      <line x1="${padL}" y1="${padT}" x2="${padL}" y2="${height - padB}" class="graph-axis"/>
+      <line x1="${padL}" y1="${height - padB}" x2="${width - padR}" y2="${height - padB}" class="graph-axis"/>
+      ${yTicks.map((tick) => `<text x="${padL - 8}" y="${tick.y + 4}" text-anchor="end" class="graph-label">${Math.round(tick.value)}</text>`).join("")}
       <path d="${path}" class="graph-line"/>
-      ${coords.map((p) => `<circle cx="${p.x}" cy="${p.y}" r="4" class="graph-dot"></circle>`).join("")}
-      ${coords.map((p) => `<text x="${p.x}" y="${height - 8}" text-anchor="middle" class="graph-label">${p.label}</text>`).join("")}
+      ${coords.map((p) => `<circle cx="${p.x}" cy="${p.y}" r="3.2" class="graph-dot"></circle>`).join("")}
+      <text x="${padL}" y="${height - 8}" text-anchor="start" class="graph-label">${coords[0]?.label || ""}</text>
+      <text x="${width - padR}" y="${height - 8}" text-anchor="end" class="graph-label">${coords[coords.length - 1]?.label || ""}</text>
     </svg>
   `;
 }
@@ -988,19 +1032,17 @@ function renderGraphs(data) {
   const graphPoints = getHourlyGraphPoints(data, selectedGraphMetric);
 
   els.graphsContent.innerHTML = `
-    <div class="graph-controls">
-      <label for="metricSelect" class="graph-label-title">Metric</label>
-      <select id="metricSelect" class="graph-select">
-        ${options.map(([v, label]) => `<option value="${v}" ${selectedGraphMetric === v ? "selected" : ""}>${label}</option>`).join("")}
-      </select>
+    <div class="graph-controls" role="tablist" aria-label="Graph metric options">
+      ${options.map(([v, label]) => `<button type="button" class="graph-option ${selectedGraphMetric === v ? "is-active" : ""}" data-graph-metric="${v}" role="tab" aria-selected="${selectedGraphMetric === v ? "true" : "false"}">${label}</button>`).join("")}
     </div>
     <div class="graph-scroll">${renderLineGraphSvg(graphPoints)}</div>
   `;
 
-  const metricSelect = els.graphsContent.querySelector("#metricSelect");
-  metricSelect?.addEventListener("change", (e) => {
-    selectedGraphMetric = safeText(e.target.value) || "precipitation";
-    renderGraphs(data);
+  els.graphsContent.querySelectorAll("[data-graph-metric]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      selectedGraphMetric = safeText(btn.getAttribute("data-graph-metric")) || "precipitation";
+      renderGraphs(data);
+    });
   });
 
   els.graphsCard.hidden = false;
