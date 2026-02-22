@@ -471,7 +471,7 @@ function shoeLevelFromSoilMoisture(sm) {
   // 0 Sandal (dry), 1 Sneaker (damp), 2 Hiking Boot (wet), 3 Rain Boot (rainy/muddy)
   const v = Number(sm);
   if (!Number.isFinite(v)) return null;
-  if (v >= 0.4) return 3;
+  if (v >= 0.46) return 3;
   if (v > 0.25) return 2;
   if (v >= 0.12) return 1;
   return 0;
@@ -751,6 +751,8 @@ async function handleWeather(lat, lon, zip) {
           event: p.event,
           severity: p.severity,
           headline: p.headline,
+          description: p.description,
+          instruction: p.instruction,
           ends: p.ends,
           effective: p.effective,
         }));

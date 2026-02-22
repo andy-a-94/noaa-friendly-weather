@@ -45,6 +45,10 @@ let suggestionItems = [];
 let suggestionActiveIndex = -1;
 let suggestionFetchTimer = null;
 let suggestionAbortController = null;
+let hourlyVisibleCount = 18;
+
+const HOURLY_INITIAL_COUNT = 18;
+const HOURLY_LOAD_STEP = 24;
 
 function getWorkerBaseUrl() {
   const meta = document.querySelector('meta[name="worker-base-url"]');
@@ -207,6 +211,21 @@ function setupHourlyFlip() {
     const next = !card.classList.contains("is-flipped");
     card.classList.toggle("is-flipped", next);
     card.setAttribute("aria-pressed", next ? "true" : "false");
+  });
+}
+
+function setupAlertDisclosure() {
+  document.addEventListener("click", (e) => {
+    const btn = e.target.closest(".alert-pill[data-alert-toggle='true']");
+    if (!btn) return;
+
+    const panelId = btn.getAttribute("aria-controls");
+    const panel = panelId ? document.getElementById(panelId) : null;
+    if (!panel) return;
+
+    const shouldExpand = btn.getAttribute("aria-expanded") !== "true";
+    btn.setAttribute("aria-expanded", shouldExpand ? "true" : "false");
+    panel.hidden = !shouldExpand;
   });
 }
 
@@ -452,7 +471,17 @@ function renderCurrent(data) {
   if (Array.isArray(data.alerts) && data.alerts.length) {
     const pills = data.alerts
       .slice(0, 6)
-      .map(a => `<span class="alert-pill">⚠️ ${safeText(a.event || "Alert")}</span>`)
+      .map((a, idx) => {
+        const eventName = safeText(a.event || "Alert");
+        const detail = safeText(a.description || a.instruction || a.headline || "No additional details provided.");
+        const detailId = `alert-detail-${idx}`;
+        return `
+          <div class="alert-item">
+            <button class="alert-pill" type="button" data-alert-toggle="true" aria-expanded="false" aria-controls="${detailId}">⚠️ ${eventName}</button>
+            <div id="${detailId}" class="alert-detail" hidden>${detail}</div>
+          </div>
+        `;
+      })
       .join("");
     els.currentContent.insertAdjacentHTML("beforeend", `<div class="alerts">${pills}</div>`);
   }
@@ -533,10 +562,10 @@ function shoeLabelFromSoilMoisture(sm) {
   const v = Number(sm);
   if (!Number.isFinite(v)) return { label: "—", sub: "—" };
 
-  // Thresholds (match Worker): <0.12 dry, 0.12–0.25 damp, >0.25–<0.40 wet, >=0.40 rainy
+  // Thresholds (match Worker): <0.12 dry, 0.12–0.25 damp, >0.25–<0.46 wet, >=0.46 rainy
   if (v < 0.12) return { label: "Sandal", sub: `${Math.round(v * 100)}% Soil Moisture` };
   if (v <= 0.25) return { label: "Sneaker", sub: `${Math.round(v * 100)}% Soil Moisture` };
-  if (v < 0.4) return { label: "Hiking Boot", sub: `${Math.round(v * 100)}% Soil Moisture` };
+  if (v < 0.46) return { label: "Hiking Boot", sub: `${Math.round(v * 100)}% Soil Moisture` };
   return { label: "Rain Boot", sub: `${Math.round(v * 100)}% Soil Moisture` };
 }
 
@@ -581,7 +610,7 @@ function renderShoe(data) {
       <div class="shoe-popover" hidden>
         <div class="shoe-popover-title">About Shoe Index</div>
         <div class="shoe-popover-text">
-          Shoe Index is a super scientific representation of moisture in the soil so you know what shoes to wear today.
+          Shoe Index is a super scientific representation of today's forecast and current ground conditions so you know what shoes to wear outside today.
         </div>
 
         <div class="shoe-scale">
@@ -604,16 +633,17 @@ function renderShoe(data) {
               <img class="shoe-scale-img" src="${SHOE_ICONS["Hiking Boot"]}" alt="" />
             </span>
             <span class="shoe-scale-label">Hiking Boot</span>
-            <span class="shoe-scale-range">26–39%</span>
+            <span class="shoe-scale-range">26–45%</span>
           </div>
           <div class="shoe-scale-row">
             <span class="shoe-scale-emoji">
               <img class="shoe-scale-img" src="${SHOE_ICONS["Rain Boot"]}" alt="" />
             </span>
             <span class="shoe-scale-label">Rain Boot</span>
-            <span class="shoe-scale-range">40%+</span>
+            <span class="shoe-scale-range">46%+</span>
           </div>
         </div>
+        <div class="shoe-popover-note">(+1) Based on the severity of rain in the forecast, the Index may recommend the next level of feet protection.</div>
       </div>
     </div>
   `;
@@ -771,10 +801,12 @@ function renderHourly(data) {
   if (!hourly || !Array.isArray(hourly.periods) || hourly.periods.length === 0) return;
 
   const timeZone = data?.timeZone || null;
-
   const hourlyMetrics = data?.hourlyMetrics || {};
 
-  const cards = hourly.periods.slice(0, 18).map(p => {
+  const allPeriods = hourly.periods;
+  const visible = clamp(hourlyVisibleCount, HOURLY_INITIAL_COUNT, allPeriods.length);
+
+  const cards = allPeriods.slice(0, visible).map(p => {
     const d = new Date(p.startTime);
     const time = (() => {
       try {
@@ -818,6 +850,7 @@ function renderHourly(data) {
           </div>
           <div class="hour-face hour-back">
             <div class="tile-details tile-details-back">
+              ${typeof pop === "number" ? `<div class="tile-detail-row"><span class="tile-detail-label">Precip</span><span class="tile-detail-value">${pop}%</span></div>` : ""}
               ${detailRowsHtml(detailRows)}
             </div>
           </div>
@@ -826,7 +859,17 @@ function renderHourly(data) {
     `;
   }).join("");
 
-  els.hourlyContent.innerHTML = `<div class="row-scroll">${cards}</div>`;
+  const remaining = allPeriods.length - visible;
+  const loadMoreCard = remaining > 0
+    ? `<button class="hour-load-more" type="button" data-hour-load-more="true" aria-label="Load more hourly forecast"><span class="hour-load-arrow">&gt;</span><span class="hour-load-text">Load Next ${Math.min(HOURLY_LOAD_STEP, remaining)} Hours</span></button>`
+    : "";
+
+  els.hourlyContent.innerHTML = `<div class="row-scroll">${cards}${loadMoreCard}</div>`;
+  const loadBtn = els.hourlyContent.querySelector("[data-hour-load-more='true']");
+  loadBtn?.addEventListener("click", () => {
+    hourlyVisibleCount = Math.min(allPeriods.length, visible + HOURLY_LOAD_STEP);
+    renderHourly(data);
+  });
   els.hourlyCard.hidden = false;
 }
 
@@ -978,6 +1021,7 @@ async function loadAndRender({ lat, lon, labelOverride = null, zipForUv = null }
   setStatus("Loading forecast…");
 
   const data = await fetchWeather(lat, lon, zipForUv);
+  hourlyVisibleCount = HOURLY_INITIAL_COUNT;
 
   localStorage.setItem(STORAGE_KEYS.lastLat, String(lat));
   localStorage.setItem(STORAGE_KEYS.lastLon, String(lon));
@@ -1034,6 +1078,7 @@ async function runSearch(query) {
 async function init() {
   setupExpandableTiles();
   setupHourlyFlip();
+  setupAlertDisclosure();
 
   [els.currentCard].forEach((card) => {
     card.setAttribute("data-expandable", "true");
