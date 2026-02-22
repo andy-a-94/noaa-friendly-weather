@@ -1,7 +1,8 @@
 /**
  * Almanac Weather - Cloudflare Worker
  * Routes:
- *  - GET /api/location?zip=12345
+ *  - GET /api/location?q=10001 OR /api/location?q=Seattle, WA
+ *  - GET /api/location/suggest?q=san%20f
  *  - GET /api/weather?lat=..&lon=..[&zip=12345]
  *
  * Data sources:
@@ -201,15 +202,116 @@ function cToF(c) {
   return (c * 9) / 5 + 32;
 }
 
-async function handleLocation(zip) {
-  const z = safeStr(zip);
-  if (!/^\d{5}$/.test(z)) {
-    return jsonResponse({ error: "Invalid ZIP" }, 400);
+function parseCityStateQuery(q) {
+  const text = safeStr(q);
+  if (!text || /^\d{5}$/.test(text)) return null;
+
+  const states = {
+    alabama: "AL", alaska: "AK", arizona: "AZ", arkansas: "AR", california: "CA", colorado: "CO", connecticut: "CT",
+    delaware: "DE", florida: "FL", georgia: "GA", hawaii: "HI", idaho: "ID", illinois: "IL", indiana: "IN",
+    iowa: "IA", kansas: "KS", kentucky: "KY", louisiana: "LA", maine: "ME", maryland: "MD", massachusetts: "MA",
+    michigan: "MI", minnesota: "MN", mississippi: "MS", missouri: "MO", montana: "MT", nebraska: "NE", nevada: "NV",
+    "new hampshire": "NH", "new jersey": "NJ", "new mexico": "NM", "new york": "NY", "north carolina": "NC",
+    "north dakota": "ND", ohio: "OH", oklahoma: "OK", oregon: "OR", pennsylvania: "PA", "rhode island": "RI",
+    "south carolina": "SC", "south dakota": "SD", tennessee: "TN", texas: "TX", utah: "UT", vermont: "VT",
+    virginia: "VA", washington: "WA", "west virginia": "WV", wisconsin: "WI", wyoming: "WY", "district of columbia": "DC",
+  };
+
+  const [cityPart, statePart] = text.split(",").map((s) => safeStr(s));
+  if (!cityPart || !statePart) return null;
+
+  const normalizedState = statePart.toLowerCase();
+  const stateAbbr = /^[A-Za-z]{2}$/.test(statePart)
+    ? statePart.toUpperCase()
+    : states[normalizedState] || "";
+
+  if (!stateAbbr) return null;
+  return { city: cityPart, state: stateAbbr };
+}
+
+
+async function handleLocationSuggest(query) {
+  const q = safeStr(query);
+  if (q.length < 2) return jsonResponse({ query: q, suggestions: [] });
+
+  const url = new URL("https://nominatim.openstreetmap.org/search");
+  url.searchParams.set("q", q);
+  url.searchParams.set("format", "jsonv2");
+  url.searchParams.set("addressdetails", "1");
+  url.searchParams.set("countrycodes", "us");
+  url.searchParams.set("limit", "8");
+
+  const res = await fetchWithTimeout(url.toString(), {
+    headers: {
+      "Accept": "application/json",
+      "User-Agent": "AlmanacWeather/1.0 (location suggestions)",
+    },
+  }, 3500);
+
+  if (!res.ok) {
+    return jsonResponse({ query: q, suggestions: [] }, 200);
   }
 
-  const url = `https://api.zippopotam.us/us/${encodeURIComponent(z)}`;
+  let rows = [];
+  try {
+    rows = await res.json();
+  } catch {
+    rows = [];
+  }
+
+  const dedupe = new Set();
+  const suggestions = [];
+
+  for (const row of Array.isArray(rows) ? rows : []) {
+    const addr = row?.address || {};
+    const city = safeStr(addr.city || addr.town || addr.village || addr.hamlet || addr.municipality || "");
+    const stateRaw = safeStr(addr.state || "");
+    const stateCode = safeStr(addr.state_code || "").toUpperCase();
+    const state = /^[A-Z]{2}$/.test(stateCode) ? stateCode : parseCityStateQuery(`x, ${stateRaw}`)?.state || "";
+    const postcode = safeStr(addr.postcode || "").match(/\d{5}/)?.[0] || "";
+    if (!city || !state) continue;
+
+    const key = `${city}|${state}|${postcode}`.toLowerCase();
+    if (dedupe.has(key)) continue;
+    dedupe.add(key);
+
+    suggestions.push({
+      city,
+      state,
+      zip: postcode || null,
+      query: `${city}, ${state}`,
+      label: postcode ? `${city}, ${state} ${postcode}` : `${city}, ${state}`,
+      lat: Number(row?.lat),
+      lon: Number(row?.lon),
+    });
+
+    if (suggestions.length >= 6) break;
+  }
+
+  return jsonResponse({ query: q, suggestions });
+}
+
+async function handleLocation(query) {
+  const q = safeStr(query);
+  if (!q) return jsonResponse({ error: "Missing location query" }, 400);
+
+  let url = "";
+  let lookupType = "zip";
+  let zip = "";
+  const cityState = parseCityStateQuery(q);
+
+  if (/^\d{5}$/.test(q)) {
+    zip = q;
+    url = `https://api.zippopotam.us/us/${encodeURIComponent(q)}`;
+  } else if (cityState) {
+    lookupType = "city";
+    url = `https://api.zippopotam.us/us/${encodeURIComponent(cityState.state)}/${encodeURIComponent(cityState.city)}`;
+  } else {
+    return jsonResponse({ error: "Enter a 5-digit ZIP or City, ST" }, 400);
+  }
+
   const res = await fetchWithTimeout(url, {}, 3500);
-  if (!res.ok) return jsonResponse({ error: "ZIP not found" }, 404);
+  if (!res.ok) return jsonResponse({ error: "Location not found" }, 404);
 
   const j = await res.json();
   const place = j?.places?.[0];
@@ -217,16 +319,21 @@ async function handleLocation(zip) {
   const lon = Number(place?.longitude);
   const city = safeStr(place?.["place name"]);
   const state = safeStr(place?.["state abbreviation"]);
+  const foundZip = safeStr(place?.["post code"] || j?.["post code"]);
 
   if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
-    return jsonResponse({ error: "ZIP returned no coordinates" }, 502);
+    return jsonResponse({ error: "Location returned no coordinates" }, 502);
   }
 
   return jsonResponse({
-    zip: z,
+    query: q,
+    type: lookupType,
+    zip: /^\d{5}$/.test(foundZip) ? foundZip : zip,
     lat,
     lon,
-    label: city && state ? `${city}, ${state}` : z,
+    city,
+    state,
+    label: city && state ? `${city}, ${state}` : q,
   });
 }
 
@@ -795,9 +902,14 @@ export default {
         return jsonResponse({ ok: true, worker: "noaa-friendly-weather", source: "github" });
       }
 
+      if (url.pathname === "/api/location/suggest") {
+        const query = url.searchParams.get("q");
+        return await handleLocationSuggest(query);
+      }
+
       if (url.pathname === "/api/location") {
-        const zip = url.searchParams.get("zip");
-        return await handleLocation(zip);
+        const query = url.searchParams.get("q") || url.searchParams.get("zip");
+        return await handleLocation(query);
       }
 
       if (url.pathname === "/api/weather") {

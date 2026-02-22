@@ -26,13 +26,12 @@
         <input
           id="zipInput"
           class="zip-input"
-          inputmode="numeric"
-          pattern="[0-9]*"
-          maxlength="5"
-          placeholder="Enter ZIP"
-          aria-label="Enter ZIP code"
+          inputmode="text"
+          placeholder="ZIP or City, ST"
+          aria-label="Enter ZIP code or City, State"
         />
         <button id="zipBtn" class="zip-btn" type="submit">Go</button>
+        <ul id="locationSuggestions" class="location-suggestions" role="listbox" hidden></ul>
       </form>
       </div>
     </header>
