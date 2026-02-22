@@ -148,6 +148,10 @@ function getPeriodMetrics(metrics, periodNumber) {
   return metrics[String(periodNumber)] || metrics[periodNumber] || null;
 }
 
+function isNativeInteractiveTarget(target) {
+  return !!target?.closest?.("button, a, input, select, textarea, summary, [contenteditable='true']");
+}
+
 function setExpandedTile(nextTile) {
   if (expandedTile && expandedTile !== nextTile) {
     expandedTile.classList.remove("is-expanded");
@@ -169,6 +173,7 @@ function setupExpandableTiles() {
   document.addEventListener("click", (e) => {
     const tile = e.target.closest("[data-expandable='true']");
     if (!tile) return;
+    if (isNativeInteractiveTarget(e.target)) return;
     if (e.target.closest(".tile-details")) return;
     if (e.target.closest(".shoe-info-btn") || e.target.closest(".shoe-popover")) return;
     setExpandedTile(tile);
@@ -178,6 +183,7 @@ function setupExpandableTiles() {
     if (e.key !== "Enter" && e.key !== " ") return;
     const tile = e.target.closest("[data-expandable='true']");
     if (!tile) return;
+    if (isNativeInteractiveTarget(e.target)) return;
     e.preventDefault();
     setExpandedTile(tile);
   });
