@@ -832,7 +832,8 @@ function renderAstroUv(data) {
           <div class="moon-disc" aria-hidden="true"></div>
           <div class="moon-label">
             <div class="moon-phase">${phaseLabel || "—"}</div>
-            <div class="moon-sub">↑ ${moonrise || "—"} • ↓ ${moonset || "—"}${moonIllumPct !== null ? ` • 💡 ${moonIllumPct}%` : ""}</div>
+            <div class="moon-sub moon-times">↑ ${moonrise || "—"} • ↓ ${moonset || "—"}</div>
+            ${moonIllumPct !== null ? `<div class="moon-sub moon-illum">💡 ${moonIllumPct}%</div>` : ""}
           </div>
         </div>
       </div>
