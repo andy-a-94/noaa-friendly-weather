@@ -787,7 +787,7 @@ function renderAstroUv(data) {
   els.astroUvContent.innerHTML = `
     <div class="astro-tiles">
       <div class="astro-tile sun-tile">
-        <div class="sun-arc" style="--sun-x:${sunX}%; --sun-y-px:${sunYPx}px;">
+        <div class="sun-arc" style="--sun-x:${sunX}; --sun-y-px:${sunYPx}px;">
           <div class="astro-tile-head sun-arc-head">
             <div class="astro-tile-title">Sun</div>
             ${showUv ? `<button type="button" class="astro-tile-pill" data-open-uv-graph="true">${uvLabel}</button>` : ``}
@@ -987,7 +987,7 @@ function renderLineGraphSvg(points) {
   const padB = 30;
 
   const values = points.map((p) => p.value);
-  const minV = Math.min(...values);
+  const minV = 0;
   const maxV = Math.max(...values);
   const span = Math.max(maxV - minV, 1);
 
@@ -1011,32 +1011,63 @@ function renderLineGraphSvg(points) {
       <line x1="${padL}" y1="${height - padB}" x2="${width - padR}" y2="${height - padB}" class="graph-axis"/>
       ${yTicks.map((tick) => `<text x="${padL - 8}" y="${tick.y + 4}" text-anchor="end" class="graph-label">${Math.round(tick.value)}</text>`).join("")}
       <path d="${path}" class="graph-line"/>
-      ${coords.map((p) => `<circle cx="${p.x}" cy="${p.y}" r="3.2" class="graph-dot"></circle>`).join("")}
-      <text x="${padL}" y="${height - 8}" text-anchor="start" class="graph-label">${coords[0]?.label || ""}</text>
-      <text x="${width - padR}" y="${height - 8}" text-anchor="end" class="graph-label">${coords[coords.length - 1]?.label || ""}</text>
+      ${coords.map((p, idx) => `<circle cx="${p.x}" cy="${p.y}" r="3.8" class="graph-dot" data-graph-point="${idx}" data-label="${p.label}" data-value="${Math.round(p.value)}" tabindex="0" role="button" aria-label="${p.label}: ${Math.round(p.value)}"></circle>`).join("")}
+      ${coords.map((p) => `<text x="${p.x}" y="${height - 8}" text-anchor="middle" class="graph-hour-label">${p.label}</text>`).join("")}
     </svg>
+    <div class="graph-readout" data-graph-readout="true">Tap or click a point for exact value.</div>
   `;
 }
 
 function renderGraphs(data) {
   const options = [
-    ["precipitation", "Precipitation %"],
-    ["temperature", "Temperature °F"],
-    ["humidity", "Humidity %"],
-    ["dewpoint", "Dew Point °F"],
-    ["cloudcover", "Cloud Cover %"],
-    ["feelslike", "Feels Like °F"],
-    ["uv", "UV Index"],
+    ["precipitation", "Precipitation %", "Precip %"],
+    ["temperature", "Temperature °F", "Temp °F"],
+    ["humidity", "Humidity %", "Humidity %"],
+    ["dewpoint", "Dew Point °F", "Dew Point °F"],
+    ["cloudcover", "Cloud Cover %", "Cloud Cover %"],
+    ["feelslike", "Feels Like °F", "Feels Like °F"],
+    ["uv", "UV Index", "UV Index"],
   ];
 
   const graphPoints = getHourlyGraphPoints(data, selectedGraphMetric);
 
   els.graphsContent.innerHTML = `
     <div class="graph-controls" role="tablist" aria-label="Graph metric options">
-      ${options.map(([v, label]) => `<button type="button" class="graph-option ${selectedGraphMetric === v ? "is-active" : ""}" data-graph-metric="${v}" role="tab" aria-selected="${selectedGraphMetric === v ? "true" : "false"}">${label}</button>`).join("")}
+      ${options.map(([v, label, mobileLabel]) => `<button type="button" class="graph-option ${selectedGraphMetric === v ? "is-active" : ""}" data-graph-metric="${v}" role="tab" aria-selected="${selectedGraphMetric === v ? "true" : "false"}"><span class="graph-label-desktop">${label}</span><span class="graph-label-mobile">${mobileLabel}</span></button>`).join("")}
     </div>
     <div class="graph-scroll">${renderLineGraphSvg(graphPoints)}</div>
   `;
+
+  const readout = els.graphsContent.querySelector("[data-graph-readout='true']");
+  const valueFormatter = (rawValue, rawLabel) => {
+    const value = safeText(rawValue);
+    const label = safeText(rawLabel);
+    if (!value) return "";
+    if (selectedGraphMetric === "precipitation") return `${value}% chance at ${label}`;
+    if (selectedGraphMetric === "temperature" || selectedGraphMetric === "dewpoint" || selectedGraphMetric === "feelslike") return `${value}°F at ${label}`;
+    if (selectedGraphMetric === "humidity" || selectedGraphMetric === "cloudcover") return `${value}% at ${label}`;
+    if (selectedGraphMetric === "uv") return `UV ${value} at ${label}`;
+    return `${value} at ${label}`;
+  };
+
+  const handlePointSelection = (pointEl) => {
+    if (!pointEl || !readout) return;
+    els.graphsContent.querySelectorAll("[data-graph-point]").forEach((dot) => dot.classList.remove("is-active"));
+    pointEl.classList.add("is-active");
+    readout.textContent = valueFormatter(pointEl.getAttribute("data-value"), pointEl.getAttribute("data-label"));
+  };
+
+  const allPoints = Array.from(els.graphsContent.querySelectorAll("[data-graph-point]"));
+  allPoints.forEach((point) => {
+    point.addEventListener("click", () => handlePointSelection(point));
+    point.addEventListener("keydown", (e) => {
+      if (e.key !== "Enter" && e.key !== " ") return;
+      e.preventDefault();
+      handlePointSelection(point);
+    });
+  });
+
+  if (allPoints.length) handlePointSelection(allPoints[0]);
 
   els.graphsContent.querySelectorAll("[data-graph-metric]").forEach((btn) => {
     btn.addEventListener("click", () => {
@@ -1133,17 +1164,22 @@ function renderDaily(data) {
     const dewNightF = (mNight && typeof mNight.dewpointF === "number") ? Math.round(mNight.dewpointF) : null;
     const rhNight = (mNight && typeof mNight.relativeHumidityPct === "number") ? Math.round(mNight.relativeHumidityPct) : null;
 
-    const buildTagsLine = ({ pop, windStr, dewF, rh }) => {
-      const parts = [];
-      if (typeof pop === "number") parts.push(`💧 ${pop}%`);
-      if (windStr) parts.push(`💨 ${windStr}`);
-      if (dewF !== null) parts.push(`Dew Point ${dewF}°F`);
-      if (rh !== null) parts.push(`Relative Humidity ${rh}%`);
-      return parts.length ? parts.join(" • ") : "";
+    const buildStatsRows = ({ pop, windStr, dewF, rh }) => {
+      return [
+        { label: "Precip", value: (typeof pop === "number") ? `${pop}%` : "" },
+        { label: "Wind", value: windStr || "" },
+        { label: "Dew Point", value: (dewF !== null) ? `${dewF}°F` : "" },
+        { label: "Humidity", value: (rh !== null) ? `${rh}%` : "" },
+      ].filter((row) => !!row.value);
     };
 
-    const dayTags = buildTagsLine({ pop: popDay, windStr: windDay, dewF: dewDayF, rh: rhDay });
-    const nightTags = night ? buildTagsLine({ pop: popNight, windStr: windNight, dewF: dewNightF, rh: rhNight }) : "";
+    const statsRowsHtml = (rows) => {
+      if (!rows.length) return "";
+      return `<div class="day-stats-rows">${rows.map((row) => `<div class="tile-detail-row"><span class="tile-detail-label">${row.label}</span><span class="tile-detail-value">${row.value}</span></div>`).join("")}</div>`;
+    };
+
+    const dayStats = buildStatsRows({ pop: popDay, windStr: windDay, dewF: dewDayF, rh: rhDay });
+    const nightStats = night ? buildStatsRows({ pop: popNight, windStr: windNight, dewF: dewNightF, rh: rhNight }) : [];
 
     const dayDetail = stripChanceOfPrecipSentence(day?.detailedForecast || short);
     const nightDetail = night ? stripChanceOfPrecipSentence(night?.detailedForecast || night?.shortForecast) : "";
@@ -1151,15 +1187,16 @@ function renderDaily(data) {
     const detailHtml = `
       <div class="day-detail-block">
         <div class="dn-title">Day</div>
-        ${dayTags ? `<div class="detail-meta">${(when ? `${when} • ` : "") + dayTags}</div>` : (when ? `<div class="detail-meta">${when}</div>` : "")}
+        ${when ? `<div class="detail-meta">${when}</div>` : ""}
         <div class="dn-text">${dayDetail || "—"}</div>
+        ${statsRowsHtml(dayStats)}
       </div>
       ${
         night
           ? `<div class="day-detail-block">
                <div class="dn-title">Night</div>
-               ${nightTags ? `<div class="detail-meta">${nightTags}</div>` : ``}
                <div class="dn-text">${nightDetail || "—"}</div>
+               ${statsRowsHtml(nightStats)}
              </div>`
           : ``
       }
