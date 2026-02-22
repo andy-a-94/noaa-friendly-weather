@@ -364,6 +364,7 @@ async function fetchEpaUv({ zip, city, state, timeZone }) {
     let max = null;
     let current = null;
     let currentBestMin = -1;
+    const hourlyMap = new Map();
 
     const monMap = {
       jan: "01", feb: "02", mar: "03", apr: "04", may: "05", jun: "06",
@@ -414,8 +415,12 @@ async function fetchEpaUv({ zip, city, state, timeZone }) {
       const rowYmd = `${y}-${m}-${d}`;
       if (rowYmd !== todayYmd) continue;
 
-      const rowMin = Number(hh) * 60 + Number(mm);
+      const rowHour = Number(hh);
+      const rowMin = rowHour * 60 + Number(mm);
       if (max === null || uv > max) max = uv;
+
+      const prevForHour = hourlyMap.get(rowHour);
+      if (!Number.isFinite(prevForHour) || uv > prevForHour) hourlyMap.set(rowHour, uv);
 
       if (rowMin <= nowMin && rowMin > currentBestMin) {
         current = uv;
@@ -423,10 +428,15 @@ async function fetchEpaUv({ zip, city, state, timeZone }) {
       }
     }
 
+    const hourly = [...hourlyMap.entries()]
+      .sort((a, b) => a[0] - b[0])
+      .map(([hour, value]) => ({ hour, value }));
+
     return {
       ok: true,
       current: current === null ? null : current,
       max: max === null ? null : max,
+      hourly,
       source: { ...source, ok: true },
     };
   } catch (e) {

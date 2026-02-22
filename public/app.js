@@ -14,6 +14,8 @@ const els = {
 
   currentCard: document.getElementById("currentCard"),
   currentContent: document.getElementById("currentContent"),
+  alertsCard: document.getElementById("alertsCard"),
+  alertsContent: document.getElementById("alertsContent"),
 
   todayCard: document.getElementById("todayCard"),
   todayContent: document.getElementById("todayContent"),
@@ -27,6 +29,8 @@ const els = {
 
   hourlyCard: document.getElementById("hourlyCard"),
   hourlyContent: document.getElementById("hourlyContent"),
+  graphsCard: document.getElementById("graphsCard"),
+  graphsContent: document.getElementById("graphsContent"),
 
   dailyCard: document.getElementById("dailyCard"),
   dailyContent: document.getElementById("dailyContent"),
@@ -45,9 +49,11 @@ let suggestionItems = [];
 let suggestionActiveIndex = -1;
 let suggestionFetchTimer = null;
 let suggestionAbortController = null;
-let hourlyVisibleCount = 18;
+let hourlyVisibleCount = 24;
+let selectedGraphMetric = "precipitation";
 
-const HOURLY_INITIAL_COUNT = 18;
+const HOURLY_INITIAL_COUNT = 24;
+const HOURLY_LOAD_STEP = 24;
 
 function getWorkerBaseUrl() {
   const meta = document.querySelector('meta[name="worker-base-url"]');
@@ -400,14 +406,18 @@ function resetVisibleSections() {
   els.shoeCard.hidden = true;
   els.astroUvCard.hidden = true;
   els.hourlyCard.hidden = true;
+  els.graphsCard.hidden = true;
   els.dailyCard.hidden = true;
+  els.alertsCard.hidden = true;
 
   els.currentContent.innerHTML = "";
   els.todayContent.innerHTML = "";
   els.shoeContent.innerHTML = "";
   els.astroUvContent.innerHTML = "";
   els.hourlyContent.innerHTML = "";
+  els.graphsContent.innerHTML = "";
   els.dailyContent.innerHTML = "";
+  els.alertsContent.innerHTML = "";
 }
 
 function iconFromForecastIconUrl(url, shortForecast) {
@@ -473,25 +483,29 @@ function renderCurrent(data) {
     ${nowDetails ? `<div class="tile-details">${nowDetails}</div>` : ""}
   `;
 
-  if (Array.isArray(data.alerts) && data.alerts.length) {
-    const pills = data.alerts
-      .slice(0, 6)
-      .map((a, idx) => {
-        const eventName = safeText(a.event || "Alert");
-        const detail = safeText(a.description || a.instruction || a.headline || "No additional details provided.");
-        const detailId = `alert-detail-${idx}`;
-        return `
-          <div class="alert-item">
-            <button class="alert-pill" type="button" data-alert-toggle="true" aria-expanded="false" aria-controls="${detailId}">⚠️ ${eventName}</button>
-            <div id="${detailId}" class="alert-detail" hidden>${detail}</div>
-          </div>
-        `;
-      })
-      .join("");
-    els.currentContent.insertAdjacentHTML("beforeend", `<div class="alerts">${pills}</div>`);
-  }
-
   els.currentCard.hidden = false;
+}
+
+function renderAlerts(data) {
+  if (!Array.isArray(data?.alerts) || !data.alerts.length) return;
+
+  const pills = data.alerts
+    .slice(0, 6)
+    .map((a, idx) => {
+      const eventName = safeText(a.event || "Alert");
+      const detail = safeText(a.description || a.instruction || a.headline || "No additional details provided.");
+      const detailId = `alert-detail-${idx}`;
+      return `
+        <div class="alert-item">
+          <button class="alert-pill" type="button" data-alert-toggle="true" aria-expanded="false" aria-controls="${detailId}">⚠️ ${eventName}</button>
+          <div id="${detailId}" class="alert-detail" hidden>${detail}</div>
+        </div>
+      `;
+    })
+    .join("");
+
+  els.alertsContent.innerHTML = `<div class="alerts">${pills}</div>`;
+  els.alertsCard.hidden = false;
 }
 
 function renderToday(data) {
@@ -757,7 +771,7 @@ function renderAstroUv(data) {
         <div class="sun-arc" style="--sun-x:${sunX}%; --sun-y-px:${sunYPx}px;">
           <div class="astro-tile-head sun-arc-head">
             <div class="astro-tile-title">Sun</div>
-            ${showUv ? `<div class="astro-tile-pill">${uvLabel}</div>` : ``}
+            ${showUv ? `<button type="button" class="astro-tile-pill" data-open-uv-graph="true">${uvLabel}</button>` : ``}
           </div>
 
           <svg class="sun-arc-svg" viewBox="0 0 100 55" preserveAspectRatio="none" aria-hidden="true">
@@ -798,6 +812,13 @@ function renderAstroUv(data) {
   `;
 
   els.astroUvCard.hidden = false;
+
+  const uvBtn = els.astroUvContent.querySelector("[data-open-uv-graph='true']");
+  uvBtn?.addEventListener("click", () => {
+    selectedGraphMetric = "uv";
+    renderGraphs(data);
+    els.graphsCard.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
 }
 
 
@@ -865,18 +886,126 @@ function renderHourly(data) {
   }).join("");
 
   const remaining = allPeriods.length - visible;
+  const nextStep = Math.min(HOURLY_LOAD_STEP, remaining);
   const loadMoreCard = remaining > 0
-    ? `<button class="hour-load-more" type="button" data-hour-load-more="true" aria-label="Load more hourly forecast"><span class="hour-load-arrow">&gt;</span><span class="hour-load-text">Load Next ${remaining} Hours</span></button>`
+    ? `<button class="hour-load-more" type="button" data-hour-load-more="true" aria-label="Load more hourly forecast"><span class="hour-load-arrow">&gt;</span><span class="hour-load-text">Load Next ${nextStep} Hours</span></button>`
     : "";
 
   els.hourlyContent.innerHTML = `<div class="row-scroll">${cards}${loadMoreCard}</div>`;
   const loadBtn = els.hourlyContent.querySelector("[data-hour-load-more='true']");
   loadBtn?.addEventListener("click", () => {
-    hourlyVisibleCount = allPeriods.length;
+    hourlyVisibleCount = Math.min(hourlyVisibleCount + HOURLY_LOAD_STEP, allPeriods.length);
     renderHourly(data);
+    renderGraphs(data);
   });
   els.hourlyCard.hidden = false;
 }
+
+
+function getHourlyGraphPoints(data, metric) {
+  const periods = Array.isArray(data?.hourly?.periods) ? data.hourly.periods.slice(0, hourlyVisibleCount) : [];
+  const timeZone = data?.timeZone || undefined;
+  const metrics = data?.hourlyMetrics || {};
+  const uvHourly = Array.isArray(data?.uv?.hourly) ? data.uv.hourly : [];
+
+  return periods
+    .map((p, idx) => {
+      const m = getPeriodMetrics(metrics, p?.number);
+      const hourOfDay = (() => {
+        try {
+          const parts = new Intl.DateTimeFormat("en-US", { timeZone, hour: "numeric", hour12: false }).formatToParts(new Date(p.startTime));
+          return Number(parts.find((part) => part.type === "hour")?.value);
+        } catch {
+          return null;
+        }
+      })();
+
+      const label = (() => {
+        try {
+          return new Intl.DateTimeFormat("en-US", { timeZone, hour: "numeric" }).format(new Date(p.startTime));
+        } catch {
+          return safeText(p?.name || `${idx + 1}`);
+        }
+      })();
+
+      let value = null;
+      if (metric === "precipitation") value = extractPopPercent(p);
+      if (metric === "temperature") value = Number.isFinite(p?.temperature) ? p.temperature : null;
+      if (metric === "humidity") value = Number.isFinite(m?.relativeHumidityPct) ? Math.round(m.relativeHumidityPct) : null;
+      if (metric === "dewpoint") value = Number.isFinite(m?.dewpointF) ? Math.round(m.dewpointF) : null;
+      if (metric === "cloudcover") value = Number.isFinite(m?.skyCoverPct) ? Math.round(m.skyCoverPct) : null;
+      if (metric === "feelslike") value = Number.isFinite(m?.apparentTempF) ? Math.round(m.apparentTempF) : null;
+      if (metric === "uv") {
+        const uvPoint = uvHourly.find((u) => Number(u?.hour) === hourOfDay);
+        value = Number.isFinite(uvPoint?.value) ? uvPoint.value : null;
+      }
+
+      return { label, value };
+    })
+    .filter((pt, idx) => idx % 12 === 0 && Number.isFinite(pt.value));
+}
+
+function renderLineGraphSvg(points) {
+  if (!points.length) return `<div class="graph-empty">No hourly data available for this factor yet.</div>`;
+
+  const width = 700;
+  const height = 220;
+  const pad = 26;
+  const values = points.map((p) => p.value);
+  const minV = Math.min(...values);
+  const maxV = Math.max(...values);
+  const span = Math.max(maxV - minV, 1);
+
+  const coords = points.map((p, idx) => {
+    const x = pad + (idx * (width - pad * 2) / Math.max(points.length - 1, 1));
+    const y = height - pad - ((p.value - minV) / span) * (height - pad * 2);
+    return { ...p, x, y };
+  });
+
+  const path = coords.map((p, idx) => `${idx === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ");
+
+  return `
+    <svg class="metric-graph" viewBox="0 0 ${width} ${height}" role="img" aria-label="Hourly trend graph">
+      <line x1="${pad}" y1="${height - pad}" x2="${width - pad}" y2="${height - pad}" class="graph-axis"/>
+      <path d="${path}" class="graph-line"/>
+      ${coords.map((p) => `<circle cx="${p.x}" cy="${p.y}" r="4" class="graph-dot"></circle>`).join("")}
+      ${coords.map((p) => `<text x="${p.x}" y="${height - 8}" text-anchor="middle" class="graph-label">${p.label}</text>`).join("")}
+    </svg>
+  `;
+}
+
+function renderGraphs(data) {
+  const options = [
+    ["precipitation", "Precipitation %"],
+    ["temperature", "Temperature °F"],
+    ["humidity", "Humidity %"],
+    ["dewpoint", "Dew Point °F"],
+    ["cloudcover", "Cloud Cover %"],
+    ["feelslike", "Feels Like °F"],
+    ["uv", "UV Index"],
+  ];
+
+  const graphPoints = getHourlyGraphPoints(data, selectedGraphMetric);
+
+  els.graphsContent.innerHTML = `
+    <div class="graph-controls">
+      <label for="metricSelect" class="graph-label-title">Metric</label>
+      <select id="metricSelect" class="graph-select">
+        ${options.map(([v, label]) => `<option value="${v}" ${selectedGraphMetric === v ? "selected" : ""}>${label}</option>`).join("")}
+      </select>
+    </div>
+    <div class="graph-scroll">${renderLineGraphSvg(graphPoints)}</div>
+  `;
+
+  const metricSelect = els.graphsContent.querySelector("#metricSelect");
+  metricSelect?.addEventListener("change", (e) => {
+    selectedGraphMetric = safeText(e.target.value) || "precipitation";
+    renderGraphs(data);
+  });
+
+  els.graphsCard.hidden = false;
+}
+
 
 /* ---------- Daily ---------- */
 
@@ -1027,6 +1156,7 @@ async function loadAndRender({ lat, lon, labelOverride = null, zipForUv = null }
 
   const data = await fetchWeather(lat, lon, zipForUv);
   hourlyVisibleCount = HOURLY_INITIAL_COUNT;
+  selectedGraphMetric = "precipitation";
 
   localStorage.setItem(STORAGE_KEYS.lastLat, String(lat));
   localStorage.setItem(STORAGE_KEYS.lastLon, String(lon));
@@ -1037,10 +1167,12 @@ async function loadAndRender({ lat, lon, labelOverride = null, zipForUv = null }
   setStatus("");
 
   renderCurrent(data);
+  renderAlerts(data);
   renderToday(data);
   renderShoe(data);      // between Outlook and Sun/Moon
   renderAstroUv(data);
   renderHourly(data);
+  renderGraphs(data);
   renderDaily(data);
 }
 
