@@ -139,6 +139,15 @@ function formatPercent(value) {
   return `${Math.round(value)}%`;
 }
 
+function extractWindMph(windSpeed) {
+  const raw = safeText(windSpeed);
+  if (!raw) return null;
+  const m = raw.match(/(\d+(?:\.\d+)?)(?!.*\d)/);
+  if (!m) return null;
+  const mph = Number(m[1]);
+  return Number.isFinite(mph) ? Math.round(mph) : null;
+}
+
 
 function getDayKey(iso, timeZone) {
   try {
@@ -881,7 +890,9 @@ function renderHourly(data) {
     const pop = extractPopPercent(p);
 
     const m = getPeriodMetrics(hourlyMetrics, p?.number);
+    const windDetail = parseWind(p?.windDirection, p?.windSpeed);
     const detailRows = [
+      { label: "Wind", value: windDetail || "", formatter: (v) => v },
       { label: "Feels Like", value: m?.apparentTempF, formatter: (v) => `${Math.round(v)}°F` },
       { label: "Dew Point", value: m?.dewpointF, formatter: (v) => `${Math.round(v)}°F` },
       { label: "Humidity", value: m?.relativeHumidityPct, formatter: formatPercent },
@@ -892,8 +903,7 @@ function renderHourly(data) {
       <div class="hour-card" data-flippable="true" tabindex="0" role="button" aria-pressed="false">
         <div class="hour-flip">
           <div class="hour-face hour-front">
-            <div class="hour-time">${time}</div>
-            ${dayLabel ? `<div class="hour-day">${dayLabel}</div>` : ""}
+            <div class="hour-time">${time}${dayLabel ? `<span class="hour-day">${dayLabel}</span>` : ""}</div>
             <div class="hour-temp">${temp}</div>
             <div class="hour-desc">${desc || "—"}</div>
             <div class="hour-meta">
@@ -966,6 +976,7 @@ function getHourlyGraphPoints(data, metric) {
       if (metric === "dewpoint") value = Number.isFinite(m?.dewpointF) ? Math.round(m.dewpointF) : null;
       if (metric === "cloudcover") value = Number.isFinite(m?.skyCoverPct) ? Math.round(m.skyCoverPct) : null;
       if (metric === "feelslike") value = Number.isFinite(m?.apparentTempF) ? Math.round(m.apparentTempF) : null;
+      if (metric === "wind") value = extractWindMph(p?.windSpeed);
       if (metric === "uv") {
         const uvPoint = uvHourly.find((u) => Number(u?.hour) === hourOfDay);
         value = Number.isFinite(uvPoint?.value) ? uvPoint.value : null;
@@ -1005,16 +1016,19 @@ function renderLineGraphSvg(points) {
   });
 
   return `
-    <svg class="metric-graph" viewBox="0 0 ${width} ${height}" role="img" aria-label="Hourly trend graph">
-      ${yTicks.map((tick) => `<line x1="${padL}" y1="${tick.y}" x2="${width - padR}" y2="${tick.y}" class="graph-grid"/>`).join("")}
-      <line x1="${padL}" y1="${padT}" x2="${padL}" y2="${height - padB}" class="graph-axis"/>
-      <line x1="${padL}" y1="${height - padB}" x2="${width - padR}" y2="${height - padB}" class="graph-axis"/>
-      ${yTicks.map((tick) => `<text x="${padL - 8}" y="${tick.y + 4}" text-anchor="end" class="graph-label">${Math.round(tick.value)}</text>`).join("")}
-      <path d="${path}" class="graph-line"/>
-      ${coords.map((p, idx) => `<circle cx="${p.x}" cy="${p.y}" r="3.8" class="graph-dot" data-graph-point="${idx}" data-label="${p.label}" data-value="${Math.round(p.value)}" tabindex="0" role="button" aria-label="${p.label}: ${Math.round(p.value)}"></circle>`).join("")}
-      ${coords.map((p) => `<text x="${p.x}" y="${height - 8}" text-anchor="middle" class="graph-hour-label">${p.label}</text>`).join("")}
-    </svg>
-    <div class="graph-readout" data-graph-readout="true">Tap or click a point for exact value.</div>
+    <div class="graph-plot" data-graph-plot="true">
+      <svg class="metric-graph" viewBox="0 0 ${width} ${height}" role="img" aria-label="Hourly trend graph">
+        ${yTicks.map((tick) => `<line x1="${padL}" y1="${tick.y}" x2="${width - padR}" y2="${tick.y}" class="graph-grid"/>`).join("")}
+        <line x1="${padL}" y1="${padT}" x2="${padL}" y2="${height - padB}" class="graph-axis"/>
+        <line x1="${padL}" y1="${height - padB}" x2="${width - padR}" y2="${height - padB}" class="graph-axis"/>
+        ${yTicks.map((tick) => `<text x="${padL - 8}" y="${tick.y + 4}" text-anchor="end" class="graph-label">${Math.round(tick.value)}</text>`).join("")}
+        <path d="${path}" class="graph-line"/>
+        ${coords.map((p, idx) => `<circle cx="${p.x}" cy="${p.y}" r="3.8" class="graph-dot" data-graph-point="${idx}" data-label="${p.label}" data-value="${Math.round(p.value)}" data-x="${p.x}" data-y="${p.y}"></circle>`).join("")}
+        ${coords.map((p, idx) => `<circle cx="${p.x}" cy="${p.y}" r="15" class="graph-hit" data-graph-hit="${idx}" data-label="${p.label}" data-value="${Math.round(p.value)}" data-x="${p.x}" data-y="${p.y}" tabindex="0" role="button" aria-label="${p.label}: ${Math.round(p.value)}"></circle>`).join("")}
+        ${coords.map((p) => `<text x="${p.x}" y="${height - 8}" text-anchor="middle" class="graph-hour-label">${p.label}</text>`).join("")}
+      </svg>
+      <div class="graph-callout" data-graph-callout="true" hidden></div>
+    </div>
   `;
 }
 
@@ -1026,6 +1040,7 @@ function renderGraphs(data) {
     ["dewpoint", "Dew Point °F", "Dew Point °F"],
     ["cloudcover", "Cloud Cover %", "Cloud Cover %"],
     ["feelslike", "Feels Like °F", "Feels Like °F"],
+    ["wind", "Wind mph", "Wind mph"],
     ["uv", "UV Index", "UV Index"],
   ];
 
@@ -1038,7 +1053,9 @@ function renderGraphs(data) {
     <div class="graph-scroll">${renderLineGraphSvg(graphPoints)}</div>
   `;
 
-  const readout = els.graphsContent.querySelector("[data-graph-readout='true']");
+  const callout = els.graphsContent.querySelector("[data-graph-callout='true']");
+  const graphPlot = els.graphsContent.querySelector("[data-graph-plot='true']");
+  const graphSvg = els.graphsContent.querySelector(".metric-graph");
   const valueFormatter = (rawValue, rawLabel) => {
     const value = safeText(rawValue);
     const label = safeText(rawLabel);
@@ -1046,18 +1063,33 @@ function renderGraphs(data) {
     if (selectedGraphMetric === "precipitation") return `${value}% chance at ${label}`;
     if (selectedGraphMetric === "temperature" || selectedGraphMetric === "dewpoint" || selectedGraphMetric === "feelslike") return `${value}°F at ${label}`;
     if (selectedGraphMetric === "humidity" || selectedGraphMetric === "cloudcover") return `${value}% at ${label}`;
+    if (selectedGraphMetric === "wind") return `${value} mph at ${label}`;
     if (selectedGraphMetric === "uv") return `UV ${value} at ${label}`;
     return `${value} at ${label}`;
   };
 
   const handlePointSelection = (pointEl) => {
-    if (!pointEl || !readout) return;
+    if (!pointEl || !callout || !graphSvg || !graphPlot) return;
     els.graphsContent.querySelectorAll("[data-graph-point]").forEach((dot) => dot.classList.remove("is-active"));
-    pointEl.classList.add("is-active");
-    readout.textContent = valueFormatter(pointEl.getAttribute("data-value"), pointEl.getAttribute("data-label"));
+    const idx = pointEl.getAttribute("data-graph-hit");
+    const selectedDot = idx !== null
+      ? els.graphsContent.querySelector(`[data-graph-point='${idx}']`)
+      : pointEl;
+    selectedDot?.classList.add("is-active");
+
+    callout.hidden = false;
+    callout.textContent = valueFormatter(pointEl.getAttribute("data-value"), pointEl.getAttribute("data-label"));
+
+    const x = Number(pointEl.getAttribute("data-x"));
+    const y = Number(pointEl.getAttribute("data-y"));
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+    const scaleX = graphSvg.clientWidth / graphSvg.viewBox.baseVal.width;
+    const scaleY = graphSvg.clientHeight / graphSvg.viewBox.baseVal.height;
+    callout.style.left = `${x * scaleX}px`;
+    callout.style.top = `${Math.max((y * scaleY) - 14, 8)}px`;
   };
 
-  const allPoints = Array.from(els.graphsContent.querySelectorAll("[data-graph-point]"));
+  const allPoints = Array.from(els.graphsContent.querySelectorAll("[data-graph-hit]"));
   allPoints.forEach((point) => {
     point.addEventListener("click", () => handlePointSelection(point));
     point.addEventListener("keydown", (e) => {
