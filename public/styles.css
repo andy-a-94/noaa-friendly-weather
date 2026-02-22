@@ -384,18 +384,18 @@ header{
   background: rgba(255,255,255,0.05);
   border: 1px solid rgba(255,255,255,0.10);
   border-radius: 16px;
-  padding: 10px;
+  padding: 10px 9px;
   backface-visibility: hidden;
 }
 .hour-back{
   transform: rotateY(180deg);
-  overflow-y: auto;
+  overflow: hidden;
 }
 .tile-details-back{
   display: grid;
-  grid-template-columns: max-content 1fr;
-  column-gap: 10px;
-  row-gap: 6px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: 6px;
+  row-gap: 5px;
   align-items: baseline;
   margin-top: 0;
   border-top: 0;
@@ -413,6 +413,19 @@ header{
 }
 .tile-details-back .tile-detail-value{
   text-align: right;
+  white-space: nowrap;
+}
+
+.tile-details-back .tile-detail-label{
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tile-details-back .tile-detail-label,
+.tile-details-back .tile-detail-value{
+  font-size: 11px;
 }
 .hour-time{
   font-weight: 900;
@@ -903,8 +916,8 @@ header{
   height: 132px;
   overflow:hidden;
   padding: 0;
-  --sun-arc-left: 46px;
-  --sun-arc-right: 46px;
+  --sun-arc-left: 34px;
+  --sun-arc-right: 34px;
 }
 
 .sun-arc-head{
@@ -918,7 +931,7 @@ header{
   position:absolute;
   left: var(--sun-arc-left);
   right: var(--sun-arc-right);
-  bottom: 30px;
+  bottom: 28px;
 
   width: calc(100% - var(--sun-arc-left) - var(--sun-arc-right));
   height: 60px;
@@ -950,7 +963,7 @@ header{
 /* Half-circle sunrise/sunset glow */
 .sun-endglow{
   position:absolute;
-  bottom: 30px; /* align with arc baseline */
+  bottom: 28px; /* align with arc baseline */
   width: 58px;
   height: 34px;
   border-radius: 999px 999px 0 0;
@@ -981,7 +994,7 @@ header{
   position:absolute;
   left:0;
   right:0;
-  bottom: 16px;
+  bottom: 14px;
   color: rgba(255,255,255,0.80);
   font-weight: 800;
   font-size: 12px;
@@ -1050,6 +1063,19 @@ header{
   color: rgba(255,255,255,0.82);
   font-weight: 500;
   font-size: 12px;
+}
+
+.moon-times,
+.moon-illum{
+  white-space: nowrap;
+}
+
+.moon-sub.moon-times{
+  margin-top: 6px;
+}
+
+.moon-sub.moon-illum{
+  margin-top: 2px;
 }
 
 .shoe-popover-note{
