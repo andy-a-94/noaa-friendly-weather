@@ -48,7 +48,6 @@ let suggestionAbortController = null;
 let hourlyVisibleCount = 18;
 
 const HOURLY_INITIAL_COUNT = 18;
-const HOURLY_LOAD_STEP = 24;
 
 function getWorkerBaseUrl() {
   const meta = document.querySelector('meta[name="worker-base-url"]');
@@ -861,13 +860,13 @@ function renderHourly(data) {
 
   const remaining = allPeriods.length - visible;
   const loadMoreCard = remaining > 0
-    ? `<button class="hour-load-more" type="button" data-hour-load-more="true" aria-label="Load more hourly forecast"><span class="hour-load-arrow">&gt;</span><span class="hour-load-text">Load Next ${Math.min(HOURLY_LOAD_STEP, remaining)} Hours</span></button>`
+    ? `<button class="hour-load-more" type="button" data-hour-load-more="true" aria-label="Load more hourly forecast"><span class="hour-load-arrow">&gt;</span><span class="hour-load-text">Load Next ${remaining} Hours</span></button>`
     : "";
 
   els.hourlyContent.innerHTML = `<div class="row-scroll">${cards}${loadMoreCard}</div>`;
   const loadBtn = els.hourlyContent.querySelector("[data-hour-load-more='true']");
   loadBtn?.addEventListener("click", () => {
-    hourlyVisibleCount = Math.min(allPeriods.length, visible + HOURLY_LOAD_STEP);
+    hourlyVisibleCount = allPeriods.length;
     renderHourly(data);
   });
   els.hourlyCard.hidden = false;
