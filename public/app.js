@@ -10,6 +10,7 @@ const els = {
   zipForm: document.getElementById("zipForm"),
   zipInput: document.getElementById("zipInput"),
   zipBtn: document.getElementById("zipBtn"),
+  locationSuggestions: document.getElementById("locationSuggestions"),
 
   currentCard: document.getElementById("currentCard"),
   currentContent: document.getElementById("currentContent"),
@@ -32,7 +33,7 @@ const els = {
 };
 
 const STORAGE_KEYS = {
-  zip: "aw_zip",
+  search: "aw_search",
   lastLat: "aw_lat",
   lastLon: "aw_lon",
   label: "aw_label",
@@ -40,6 +41,10 @@ const STORAGE_KEYS = {
 
 let expandedTile = null;
 let scrollCollapseTimer = null;
+let suggestionItems = [];
+let suggestionActiveIndex = -1;
+let suggestionFetchTimer = null;
+let suggestionAbortController = null;
 
 function getWorkerBaseUrl() {
   const meta = document.querySelector('meta[name="worker-base-url"]');
@@ -268,10 +273,86 @@ function moonIllumFromPhaseLabel(phaseLabel) {
   return { illum, waxing, label };
 }
 
-async function fetchLocationByZip(zip) {
-  const res = await fetch(apiUrl("/api/location", { zip }), { cache: "no-store" });
+async function fetchLocation(query) {
+  const res = await fetch(apiUrl("/api/location", { q: query }), { cache: "no-store" });
   if (!res.ok) throw new Error(`Location lookup failed (${res.status})`);
   return await res.json();
+}
+
+async function fetchLocationSuggestions(query) {
+  const res = await fetch(apiUrl("/api/location/suggest", { q: query }), {
+    cache: "no-store",
+    signal: suggestionAbortController?.signal,
+  });
+  if (!res.ok) return [];
+  const data = await res.json();
+  return Array.isArray(data?.suggestions) ? data.suggestions : [];
+}
+
+function clearSuggestions() {
+  suggestionItems = [];
+  suggestionActiveIndex = -1;
+  if (!els.locationSuggestions) return;
+  els.locationSuggestions.innerHTML = "";
+  els.locationSuggestions.hidden = true;
+}
+
+function renderSuggestions(items) {
+  suggestionItems = Array.isArray(items) ? items : [];
+  suggestionActiveIndex = -1;
+
+  if (!els.locationSuggestions || !suggestionItems.length) {
+    clearSuggestions();
+    return;
+  }
+
+  els.locationSuggestions.innerHTML = suggestionItems.map((item, idx) => (
+    `<li class="location-suggestion-item" data-index="${idx}" role="option" aria-selected="false">${safeText(item.label || item.query)}</li>`
+  )).join("");
+  els.locationSuggestions.hidden = false;
+}
+
+function setActiveSuggestion(nextIndex) {
+  if (!els.locationSuggestions || !suggestionItems.length) return;
+  suggestionActiveIndex = clamp(nextIndex, 0, suggestionItems.length - 1);
+
+  els.locationSuggestions.querySelectorAll(".location-suggestion-item").forEach((el, idx) => {
+    const active = idx === suggestionActiveIndex;
+    el.classList.toggle("is-active", active);
+    el.setAttribute("aria-selected", active ? "true" : "false");
+    if (active) el.scrollIntoView({ block: "nearest" });
+  });
+}
+
+async function queueLocationSuggestions(query) {
+  const q = safeText(query);
+  if (suggestionFetchTimer) clearTimeout(suggestionFetchTimer);
+
+  if (q.length < 3) {
+    clearSuggestions();
+    return;
+  }
+
+  suggestionFetchTimer = setTimeout(async () => {
+    if (suggestionAbortController) suggestionAbortController.abort();
+    suggestionAbortController = new AbortController();
+
+    try {
+      const items = await fetchLocationSuggestions(q);
+      renderSuggestions(items);
+    } catch (err) {
+      if (err?.name !== "AbortError") console.warn("suggestions failed", err);
+      clearSuggestions();
+    }
+  }, 220);
+}
+
+function pickSuggestion(index) {
+  const picked = suggestionItems[index];
+  if (!picked) return;
+  els.zipInput.value = picked.query || picked.label || "";
+  clearSuggestions();
+  runSearch(els.zipInput.value);
 }
 
 async function fetchWeather(lat, lon, zip) {
@@ -914,37 +995,37 @@ async function loadAndRender({ lat, lon, labelOverride = null, zipForUv = null }
   renderDaily(data);
 }
 
-function getStoredZip() {
-  const z = safeText(localStorage.getItem(STORAGE_KEYS.zip));
-  return /^\d{5}$/.test(z) ? z : "";
+function getStoredSearch() {
+  return safeText(localStorage.getItem(STORAGE_KEYS.search));
 }
 
-async function runZip(zip) {
-  const z = safeText(zip);
-  if (!/^\d{5}$/.test(z)) return;
+async function runSearch(query) {
+  const q = safeText(query);
+  if (!q) return;
 
+  clearSuggestions();
   els.zipBtn.disabled = true;
-  setStatus("Finding ZIP location…");
+  setStatus("Finding location…");
 
   try {
-    const loc = await fetchLocationByZip(z);
-    localStorage.setItem(STORAGE_KEYS.zip, z);
-    els.zipInput.value = z;
+    const loc = await fetchLocation(q);
+    localStorage.setItem(STORAGE_KEYS.search, q);
+    els.zipInput.value = q;
 
     try {
       await loadAndRender({
         lat: loc.lat,
         lon: loc.lon,
         labelOverride: loc.label,
-        zipForUv: z,
+        zipForUv: loc.zip || null,
       });
     } catch (err) {
       console.error(err);
-      setStatus("Unable to load weather for that ZIP right now.");
+      setStatus("Unable to load weather for that location right now.");
     }
   } catch (err) {
     console.error(err);
-    setStatus("Could not find that ZIP. Try another.");
+    setStatus("Could not find that location. Try ZIP or City, ST.");
   } finally {
     els.zipBtn.disabled = false;
   }
@@ -961,20 +1042,64 @@ async function init() {
     card.setAttribute("aria-expanded", "false");
   });
 
-  els.zipForm.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const zip = safeText(els.zipInput.value);
-    if (!/^\d{5}$/.test(zip)) {
-      setStatus("Please enter a valid 5-digit ZIP code.");
+  els.zipInput.addEventListener("input", async (e) => {
+    const q = safeText(e.target.value);
+    await queueLocationSuggestions(q);
+  });
+
+  els.zipInput.addEventListener("keydown", (e) => {
+    if (e.key === "ArrowDown") {
+      if (!suggestionItems.length) return;
+      e.preventDefault();
+      setActiveSuggestion((suggestionActiveIndex < 0 ? -1 : suggestionActiveIndex) + 1);
       return;
     }
 
-   await runZip(zip);
+    if (e.key === "ArrowUp") {
+      if (!suggestionItems.length) return;
+      e.preventDefault();
+      setActiveSuggestion((suggestionActiveIndex < 0 ? 1 : suggestionActiveIndex) - 1);
+      return;
+    }
+
+    if (e.key === "Escape") {
+      clearSuggestions();
+      return;
+    }
+
+    if (e.key === "Enter" && suggestionActiveIndex >= 0 && suggestionItems.length) {
+      e.preventDefault();
+      pickSuggestion(suggestionActiveIndex);
+    }
   });
 
-  const storedZip = getStoredZip();
+  els.locationSuggestions?.addEventListener("mousedown", (e) => {
+    const item = e.target.closest(".location-suggestion-item");
+    if (!item) return;
+    e.preventDefault();
+    const index = Number(item.dataset.index);
+    if (Number.isFinite(index)) pickSuggestion(index);
+  });
 
-if (!storedZip) {
+  document.addEventListener("click", (e) => {
+    if (e.target === els.zipInput || e.target.closest("#locationSuggestions")) return;
+    clearSuggestions();
+  });
+
+  els.zipForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const query = safeText(els.zipInput.value);
+    if (!query) {
+      setStatus("Please enter a ZIP or City, ST.");
+      return;
+    }
+
+   await runSearch(query);
+  });
+
+  const storedSearch = getStoredSearch();
+
+if (!storedSearch) {
   // --- Codex/GitHub preview convenience: auto-load a default ZIP ---
   const params = new URLSearchParams(window.location.search);
   const zipFromUrl = safeText(params.get("zip"));
@@ -991,7 +1116,7 @@ if (!storedZip) {
 
   if (previewZip) {
     els.zipInput.value = previewZip;
-    await runZip(previewZip);
+    await runSearch(previewZip);
     return;
   }
 }
@@ -1021,12 +1146,12 @@ if (!storedZip) {
             console.error(e2);
           }
         }
-        setStatus("Location permission denied. Enter a ZIP to continue.");
+        setStatus("Location permission denied. Enter a ZIP or City, ST to continue.");
       },
       { enableHighAccuracy: false, timeout: 7000, maximumAge: 300000 }
     );
   } else {
-    setStatus("Geolocation not supported. Enter a ZIP to continue.");
+    setStatus("Geolocation not supported. Enter a ZIP or City, ST to continue.");
   }
 }
 
