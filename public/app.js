@@ -51,6 +51,8 @@ let suggestionFetchTimer = null;
 let suggestionAbortController = null;
 let hourlyVisibleCount = 24;
 let selectedGraphMetric = "precipitation";
+const GRAPH_DEFAULT_VISIBLE_HOURS = 8;
+let graphOutsideClickHandler = null;
 
 const HOURLY_INITIAL_COUNT = 24;
 const HOURLY_LOAD_STEP = 24;
@@ -970,6 +972,15 @@ function getHourlyGraphPoints(data, metric) {
         }
       })();
 
+      const dayKey = getDayKey(p?.startTime, timeZone);
+      const dayLabel = (() => {
+        try {
+          return new Intl.DateTimeFormat("en-US", { timeZone, weekday: "short" }).format(new Date(p.startTime));
+        } catch {
+          return "";
+        }
+      })();
+
       let value = null;
       if (metric === "precipitation") value = extractPopPercent(p);
       if (metric === "temperature") value = Number.isFinite(p?.temperature) ? p.temperature : null;
@@ -983,24 +994,43 @@ function getHourlyGraphPoints(data, metric) {
         value = Number.isFinite(uvPoint?.value) ? uvPoint.value : null;
       }
 
-      return { label, value };
+      return { label, value, dayKey, dayLabel };
     })
     .filter((pt) => Number.isFinite(pt.value));
 }
 
-function renderLineGraphSvg(points) {
+function getGraphRange(points, metric) {
+  const values = points.map((p) => p.value).filter(Number.isFinite);
+  if (!values.length) return { min: 0, max: 100 };
+
+  const needsDefaultBand = ["precipitation", "temperature", "humidity", "dewpoint", "cloudcover", "feelslike"].includes(metric);
+  if (needsDefaultBand) {
+    const dataMin = Math.min(...values);
+    const dataMax = Math.max(...values);
+    const min = dataMin < 0 ? Math.floor(dataMin / 5) * 5 : 0;
+    const max = dataMax > 100 ? Math.ceil(dataMax / 5) * 5 : 100;
+    return { min, max: Math.max(max, min + 1) };
+  }
+
+  const min = Math.min(0, Math.floor(Math.min(...values) / 5) * 5);
+  const max = Math.max(5, Math.ceil(Math.max(...values) / 5) * 5);
+  return { min, max: Math.max(max, min + 1) };
+}
+
+function renderLineGraphSvg(points, metric) {
   if (!points.length) return `<div class="graph-empty">No hourly data available for this factor yet.</div>`;
 
-  const width = 700;
   const height = 220;
-  const padL = 42;
-  const padR = 16;
+  const padL = 16;
+  const padR = 24;
   const padT = 14;
-  const padB = 30;
+  const padB = 38;
+  const visibleHours = Math.max(GRAPH_DEFAULT_VISIBLE_HOURS, 2);
+  const stepX = 74;
+  const innerWidth = Math.max((visibleHours - 1) * stepX, (points.length - 1) * stepX);
+  const width = padL + innerWidth + padR;
 
-  const values = points.map((p) => p.value);
-  const minV = 0;
-  const maxV = Math.max(...values);
+  const { min: minV, max: maxV } = getGraphRange(points, metric);
   const span = Math.max(maxV - minV, 1);
 
   const coords = points.map((p, idx) => {
@@ -1016,19 +1046,40 @@ function renderLineGraphSvg(points) {
     return { value, y };
   });
 
+  const dayMarkers = [];
+  let previousDay = "";
+  coords.forEach((p) => {
+    if (p.dayKey && p.dayKey !== previousDay) {
+      dayMarkers.push(p);
+      previousDay = p.dayKey;
+    }
+  });
+
   return `
-    <div class="graph-plot" data-graph-plot="true">
-      <svg class="metric-graph" viewBox="0 0 ${width} ${height}" role="img" aria-label="Hourly trend graph">
-        ${yTicks.map((tick) => `<line x1="${padL}" y1="${tick.y}" x2="${width - padR}" y2="${tick.y}" class="graph-grid"/>`).join("")}
-        <line x1="${padL}" y1="${padT}" x2="${padL}" y2="${height - padB}" class="graph-axis"/>
-        <line x1="${padL}" y1="${height - padB}" x2="${width - padR}" y2="${height - padB}" class="graph-axis"/>
-        ${yTicks.map((tick) => `<text x="${padL - 8}" y="${tick.y + 4}" text-anchor="end" class="graph-label">${Math.round(tick.value)}</text>`).join("")}
-        <path d="${path}" class="graph-line"/>
-        ${coords.map((p, idx) => `<circle cx="${p.x}" cy="${p.y}" r="3.8" class="graph-dot" data-graph-point="${idx}" data-label="${p.label}" data-value="${Math.round(p.value)}" data-x="${p.x}" data-y="${p.y}"></circle>`).join("")}
-        ${coords.map((p, idx) => `<circle cx="${p.x}" cy="${p.y}" r="15" class="graph-hit" data-graph-hit="${idx}" data-label="${p.label}" data-value="${Math.round(p.value)}" data-x="${p.x}" data-y="${p.y}" tabindex="0" role="button" aria-label="${p.label}: ${Math.round(p.value)}"></circle>`).join("")}
-        ${coords.map((p) => `<text x="${p.x}" y="${height - 8}" text-anchor="middle" class="graph-hour-label">${p.label}</text>`).join("")}
-      </svg>
-      <div class="graph-callout" data-graph-callout="true" hidden></div>
+    <div class="graph-layout">
+      <div class="graph-yaxis" aria-hidden="true">
+        <svg class="graph-yaxis-svg" viewBox="0 0 48 ${height}" role="presentation">
+          ${yTicks.map((tick) => `<text x="40" y="${tick.y + 4}" text-anchor="end" class="graph-label">${Math.round(tick.value)}</text>`).join("")}
+          <line x1="46" y1="${padT}" x2="46" y2="${height - padB}" class="graph-axis"/>
+        </svg>
+      </div>
+      <div class="graph-scroll" data-graph-scroll="true">
+        <div class="graph-plot" data-graph-plot="true">
+          <svg class="metric-graph" viewBox="0 0 ${width} ${height}" role="img" aria-label="Hourly trend graph">
+            ${yTicks.map((tick) => `<line x1="${padL}" y1="${tick.y}" x2="${width - padR}" y2="${tick.y}" class="graph-grid"/>`).join("")}
+            <line x1="${padL}" y1="${height - padB}" x2="${width - padR}" y2="${height - padB}" class="graph-axis"/>
+            ${dayMarkers.map((day) => `
+              <line x1="${day.x}" y1="${padT}" x2="${day.x}" y2="${height - padB}" class="graph-day-marker"/>
+              <text x="${day.x + 3}" y="${padT + 10}" class="graph-day-label">${day.dayLabel}</text>
+            `).join("")}
+            <path d="${path}" class="graph-line"/>
+            ${coords.map((p, idx) => `<circle cx="${p.x}" cy="${p.y}" r="4" class="graph-dot" data-graph-point="${idx}" data-label="${p.label}" data-value="${Math.round(p.value)}" data-x="${p.x}" data-y="${p.y}"></circle>`).join("")}
+            ${coords.map((p, idx) => `<circle cx="${p.x}" cy="${p.y}" r="16" class="graph-hit" data-graph-hit="${idx}" data-label="${p.label}" data-value="${Math.round(p.value)}" data-x="${p.x}" data-y="${p.y}" aria-label="${p.label}: ${Math.round(p.value)}"></circle>`).join("")}
+            ${coords.map((p) => `<text x="${p.x}" y="${height - 8}" text-anchor="middle" class="graph-hour-label">${p.label}</text>`).join("")}
+          </svg>
+          <div class="graph-callout" data-graph-callout="true" hidden></div>
+        </div>
+      </div>
     </div>
   `;
 }
@@ -1041,8 +1092,8 @@ function renderGraphs(data) {
     ["dewpoint", "Dew Point °F", "Dew Point °F"],
     ["cloudcover", "Cloud Cover %", "Cloud Cover %"],
     ["feelslike", "Feels Like °F", "Feels Like °F"],
-    ["wind", "Wind mph", "Wind mph"],
-    ["uv", "UV Index", "UV Index"],
+    ["wind", "Wind", "Wind"],
+    ["uv", "UV", "UV"],
   ];
 
   const graphPoints = getHourlyGraphPoints(data, selectedGraphMetric);
@@ -1051,12 +1102,13 @@ function renderGraphs(data) {
     <div class="graph-controls" role="tablist" aria-label="Graph metric options">
       ${options.map(([v, label, mobileLabel]) => `<button type="button" class="graph-option ${selectedGraphMetric === v ? "is-active" : ""}" data-graph-metric="${v}" role="tab" aria-selected="${selectedGraphMetric === v ? "true" : "false"}"><span class="graph-label-desktop">${label}</span><span class="graph-label-mobile">${mobileLabel}</span></button>`).join("")}
     </div>
-    <div class="graph-scroll">${renderLineGraphSvg(graphPoints)}</div>
+    ${renderLineGraphSvg(graphPoints, selectedGraphMetric)}
   `;
 
   const callout = els.graphsContent.querySelector("[data-graph-callout='true']");
   const graphPlot = els.graphsContent.querySelector("[data-graph-plot='true']");
   const graphSvg = els.graphsContent.querySelector(".metric-graph");
+  const graphScroll = els.graphsContent.querySelector("[data-graph-scroll='true']");
   const valueFormatter = (rawValue, rawLabel) => {
     const value = safeText(rawValue);
     const label = safeText(rawLabel);
@@ -1069,9 +1121,14 @@ function renderGraphs(data) {
     return `${value} at ${label}`;
   };
 
+  const clearSelection = () => {
+    els.graphsContent.querySelectorAll("[data-graph-point]").forEach((dot) => dot.classList.remove("is-active"));
+    if (callout) callout.hidden = true;
+  };
+
   const handlePointSelection = (pointEl) => {
     if (!pointEl || !callout || !graphSvg || !graphPlot) return;
-    els.graphsContent.querySelectorAll("[data-graph-point]").forEach((dot) => dot.classList.remove("is-active"));
+    clearSelection();
     const idx = pointEl.getAttribute("data-graph-hit");
     const selectedDot = idx !== null
       ? els.graphsContent.querySelector(`[data-graph-point='${idx}']`)
@@ -1086,21 +1143,40 @@ function renderGraphs(data) {
     if (!Number.isFinite(x) || !Number.isFinite(y)) return;
     const scaleX = graphSvg.clientWidth / graphSvg.viewBox.baseVal.width;
     const scaleY = graphSvg.clientHeight / graphSvg.viewBox.baseVal.height;
-    callout.style.left = `${x * scaleX}px`;
-    callout.style.top = `${Math.max((y * scaleY) - 14, 8)}px`;
+    let leftPx = x * scaleX;
+    let topPx = (y * scaleY) - 18;
+
+    const pad = 8;
+    const bubbleW = callout.offsetWidth;
+    const bubbleH = callout.offsetHeight;
+    const maxLeft = graphPlot.clientWidth - bubbleW - pad;
+    const maxTop = graphPlot.clientHeight - bubbleH - pad;
+
+    leftPx = clamp(leftPx - (bubbleW / 2), pad, Math.max(maxLeft, pad));
+    topPx = clamp(topPx - bubbleH, pad, Math.max(maxTop, pad));
+
+    const tailLeft = clamp((x * scaleX) - leftPx, 12, Math.max(bubbleW - 12, 12));
+
+    callout.style.left = `${leftPx}px`;
+    callout.style.top = `${topPx}px`;
+    callout.style.setProperty("--callout-tail-left", `${tailLeft}px`);
   };
 
   const allPoints = Array.from(els.graphsContent.querySelectorAll("[data-graph-hit]"));
   allPoints.forEach((point) => {
     point.addEventListener("click", () => handlePointSelection(point));
-    point.addEventListener("keydown", (e) => {
-      if (e.key !== "Enter" && e.key !== " ") return;
-      e.preventDefault();
-      handlePointSelection(point);
-    });
   });
 
-  if (allPoints.length) handlePointSelection(allPoints[0]);
+  graphScroll?.addEventListener("scroll", clearSelection, { passive: true });
+  graphScroll?.addEventListener("wheel", clearSelection, { passive: true });
+  graphScroll?.addEventListener("touchmove", clearSelection, { passive: true });
+  if (graphOutsideClickHandler) {
+    document.removeEventListener("click", graphOutsideClickHandler);
+  }
+  graphOutsideClickHandler = (e) => {
+    if (!graphPlot?.contains(e.target)) clearSelection();
+  };
+  document.addEventListener("click", graphOutsideClickHandler);
 
   els.graphsContent.querySelectorAll("[data-graph-metric]").forEach((btn) => {
     btn.addEventListener("click", () => {
