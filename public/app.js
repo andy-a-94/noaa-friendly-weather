@@ -1074,7 +1074,7 @@ function renderLineGraphSvg(points, metric) {
             `).join("")}
             <path d="${path}" class="graph-line"/>
             ${coords.map((p, idx) => `<circle cx="${p.x}" cy="${p.y}" r="4" class="graph-dot" data-graph-point="${idx}" data-label="${p.label}" data-value="${Math.round(p.value)}" data-x="${p.x}" data-y="${p.y}"></circle>`).join("")}
-            ${coords.map((p, idx) => `<circle cx="${p.x}" cy="${p.y}" r="16" class="graph-hit" data-graph-hit="${idx}" data-label="${p.label}" data-value="${Math.round(p.value)}" data-x="${p.x}" data-y="${p.y}" tabindex="0" role="button" aria-label="${p.label}: ${Math.round(p.value)}"></circle>`).join("")}
+            ${coords.map((p, idx) => `<circle cx="${p.x}" cy="${p.y}" r="16" class="graph-hit" data-graph-hit="${idx}" data-label="${p.label}" data-value="${Math.round(p.value)}" data-x="${p.x}" data-y="${p.y}" aria-label="${p.label}: ${Math.round(p.value)}"></circle>`).join("")}
             ${coords.map((p) => `<text x="${p.x}" y="${height - 8}" text-anchor="middle" class="graph-hour-label">${p.label}</text>`).join("")}
           </svg>
           <div class="graph-callout" data-graph-callout="true" hidden></div>
@@ -1155,18 +1155,16 @@ function renderGraphs(data) {
     leftPx = clamp(leftPx - (bubbleW / 2), pad, Math.max(maxLeft, pad));
     topPx = clamp(topPx - bubbleH, pad, Math.max(maxTop, pad));
 
+    const tailLeft = clamp((x * scaleX) - leftPx, 12, Math.max(bubbleW - 12, 12));
+
     callout.style.left = `${leftPx}px`;
     callout.style.top = `${topPx}px`;
+    callout.style.setProperty("--callout-tail-left", `${tailLeft}px`);
   };
 
   const allPoints = Array.from(els.graphsContent.querySelectorAll("[data-graph-hit]"));
   allPoints.forEach((point) => {
     point.addEventListener("click", () => handlePointSelection(point));
-    point.addEventListener("keydown", (e) => {
-      if (e.key !== "Enter" && e.key !== " ") return;
-      e.preventDefault();
-      handlePointSelection(point);
-    });
   });
 
   graphScroll?.addEventListener("scroll", clearSelection, { passive: true });
