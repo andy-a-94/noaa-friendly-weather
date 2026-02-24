@@ -1084,13 +1084,14 @@ function renderLineGraphSvg(points, metric) {
         </svg>
       </div>
       <div class="graph-scroll" data-graph-scroll="true">
-        <div class="graph-sticky-day" data-graph-sticky-day="true" hidden></div>
         <div class="graph-plot" data-graph-plot="true">
+          <div class="graph-sticky-day" data-graph-sticky-day="true" hidden></div>
           <svg class="metric-graph" viewBox="0 0 ${width} ${height}" role="img" aria-label="Hourly trend graph">
             ${yTicks.map((tick) => `<line x1="${padL}" y1="${tick.y}" x2="${width - padR}" y2="${tick.y}" class="graph-grid"/>`).join("")}
             <line x1="${padL}" y1="${height - padB}" x2="${width - padR}" y2="${height - padB}" class="graph-axis"/>
             ${dayMarkers.map((day) => `
               <line x1="${day.x}" y1="${padT}" x2="${day.x}" y2="${height - padB}" class="graph-day-marker" data-day-marker="true" data-day-label="${day.dayLabel}" data-day-x="${day.x}"/>
+              <text x="${day.x + 3}" y="${padT + 10}" class="graph-day-label">${day.dayLabel}</text>
             `).join("")}
             <path d="${path}" class="graph-line"/>
             ${coords.map((p, idx) => `<circle cx="${p.x}" cy="${p.y}" r="4" class="graph-dot" data-graph-point="${idx}" data-label="${p.label}" data-value="${Math.round(p.value)}" data-x="${p.x}" data-y="${p.y}"></circle>`).join("")}
