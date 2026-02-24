@@ -1199,10 +1199,11 @@ function renderGraphs(data) {
       stickyDayLabel.hidden = true;
       return;
     }
+    const graphAxisX = 12;
     const leftEdge = graphScroll.scrollLeft;
     let activeMarker = dayMarkers[0];
     dayMarkers.forEach((marker) => {
-      if (marker.x - 12 <= leftEdge) activeMarker = marker;
+      if (marker.x - graphAxisX <= leftEdge) activeMarker = marker;
     });
     stickyDayLabel.textContent = activeMarker.label;
     stickyDayLabel.hidden = false;
