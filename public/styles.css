@@ -384,7 +384,7 @@ header{
   background: rgba(255,255,255,0.05);
   border: 1px solid rgba(255,255,255,0.10);
   border-radius: 16px;
-  padding: 10px 9px;
+  padding: 8px 7px;
   backface-visibility: hidden;
 }
 .hour-back{
@@ -394,7 +394,7 @@ header{
 .tile-details-back{
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
-  column-gap: 6px;
+  column-gap: 4px;
   row-gap: 5px;
   align-items: baseline;
   margin-top: 0;
@@ -418,8 +418,6 @@ header{
 
 .tile-details-back .tile-detail-label{
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
@@ -462,7 +460,7 @@ header{
   min-width: 120px;
   height: 150px;
   border-radius: 16px;
-  border: 1px dashed rgba(255,255,255,0.3);
+  border: 1px solid rgba(255,255,255,0.3);
   background: rgba(255,255,255,0.03);
   color: rgba(255,255,255,0.92);
   display:flex;
@@ -641,6 +639,8 @@ header{
 
 .dn-text{
   margin-top:6px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(255,255,255,0.14);
 }
 
 .detail-meta{
@@ -1072,10 +1072,26 @@ header{
 
 .moon-sub.moon-times{
   margin-top: 6px;
+  white-space: normal;
 }
 
 .moon-sub.moon-illum{
   margin-top: 2px;
+}
+
+@media (max-width: 740px){
+  .astro-tiles{
+    grid-template-columns: 1fr;
+  }
+
+  .astro-tile{
+    min-height: 180px;
+  }
+
+  .sun-arc,
+  .moon-wrap{
+    min-height: 132px;
+  }
 }
 
 .shoe-popover-note{
