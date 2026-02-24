@@ -1034,12 +1034,12 @@ function renderLineGraphSvg(points, metric) {
   if (!points.length) return `<div class="graph-empty">No hourly data available for this factor yet.</div>`;
 
   const height = 220;
-  const padL = 16;
-  const padR = 24;
+  const padL = 12;
+  const padR = 18;
   const padT = 14;
-  const padB = 38;
+  const padB = 30;
   const visibleHours = Math.max(GRAPH_DEFAULT_VISIBLE_HOURS, 2);
-  const stepX = 74;
+  const stepX = 56;
   const innerWidth = Math.max((visibleHours - 1) * stepX, (points.length - 1) * stepX);
   const width = padL + innerWidth + padR;
 
@@ -1068,21 +1068,29 @@ function renderLineGraphSvg(points, metric) {
     }
   });
 
+  const formatTickValue = (rawValue) => {
+    const rounded = Math.round(rawValue);
+    if (["temperature", "dewpoint", "feelslike"].includes(metric)) return `${rounded}°`;
+    if (["precipitation", "humidity", "cloudcover"].includes(metric)) return `${rounded}%`;
+    return `${rounded}`;
+  };
+
   return `
     <div class="graph-layout">
       <div class="graph-yaxis" aria-hidden="true">
-        <svg class="graph-yaxis-svg" viewBox="0 0 48 ${height}" role="presentation">
-          ${yTicks.map((tick) => `<text x="40" y="${tick.y + 4}" text-anchor="end" class="graph-label">${Math.round(tick.value)}</text>`).join("")}
-          <line x1="46" y1="${padT}" x2="46" y2="${height - padB}" class="graph-axis"/>
+        <svg class="graph-yaxis-svg" viewBox="0 0 40 ${height}" role="presentation">
+          ${yTicks.map((tick) => `<text x="34" y="${tick.y + 4}" text-anchor="end" class="graph-label">${formatTickValue(tick.value)}</text>`).join("")}
+          <line x1="38" y1="${padT}" x2="38" y2="${height - padB}" class="graph-axis"/>
         </svg>
       </div>
       <div class="graph-scroll" data-graph-scroll="true">
         <div class="graph-plot" data-graph-plot="true">
+          <div class="graph-sticky-day" data-graph-sticky-day="true" hidden></div>
           <svg class="metric-graph" viewBox="0 0 ${width} ${height}" role="img" aria-label="Hourly trend graph">
             ${yTicks.map((tick) => `<line x1="${padL}" y1="${tick.y}" x2="${width - padR}" y2="${tick.y}" class="graph-grid"/>`).join("")}
             <line x1="${padL}" y1="${height - padB}" x2="${width - padR}" y2="${height - padB}" class="graph-axis"/>
             ${dayMarkers.map((day) => `
-              <line x1="${day.x}" y1="${padT}" x2="${day.x}" y2="${height - padB}" class="graph-day-marker"/>
+              <line x1="${day.x}" y1="${padT}" x2="${day.x}" y2="${height - padB}" class="graph-day-marker" data-day-marker="true" data-day-label="${day.dayLabel}" data-day-x="${day.x}"/>
               <text x="${day.x + 3}" y="${padT + 10}" class="graph-day-label">${day.dayLabel}</text>
             `).join("")}
             <path d="${path}" class="graph-line"/>
@@ -1122,6 +1130,7 @@ function renderGraphs(data) {
   const graphPlot = els.graphsContent.querySelector("[data-graph-plot='true']");
   const graphSvg = els.graphsContent.querySelector(".metric-graph");
   const graphScroll = els.graphsContent.querySelector("[data-graph-scroll='true']");
+  const stickyDayLabel = els.graphsContent.querySelector("[data-graph-sticky-day='true']");
   const valueFormatter = (rawValue, rawLabel) => {
     const value = safeText(rawValue);
     const label = safeText(rawLabel);
@@ -1176,13 +1185,40 @@ function renderGraphs(data) {
   };
 
   const allPoints = Array.from(els.graphsContent.querySelectorAll("[data-graph-hit]"));
+  const dayMarkers = Array.from(els.graphsContent.querySelectorAll("[data-day-marker='true']"))
+    .map((el) => ({
+      x: Number(el.getAttribute("data-day-x")),
+      label: safeText(el.getAttribute("data-day-label")),
+    }))
+    .filter((marker) => Number.isFinite(marker.x) && marker.label)
+    .sort((a, b) => a.x - b.x);
+
+  const updateStickyDayLabel = () => {
+    if (!stickyDayLabel || !graphScroll) return;
+    if (!dayMarkers.length) {
+      stickyDayLabel.hidden = true;
+      return;
+    }
+    const leftEdge = graphScroll.scrollLeft;
+    let activeMarker = dayMarkers[0];
+    dayMarkers.forEach((marker) => {
+      if (marker.x - 12 <= leftEdge) activeMarker = marker;
+    });
+    stickyDayLabel.textContent = activeMarker.label;
+    stickyDayLabel.hidden = false;
+  };
+
   allPoints.forEach((point) => {
     point.addEventListener("click", () => handlePointSelection(point));
   });
 
-  graphScroll?.addEventListener("scroll", clearSelection, { passive: true });
+  graphScroll?.addEventListener("scroll", () => {
+    clearSelection();
+    updateStickyDayLabel();
+  }, { passive: true });
   graphScroll?.addEventListener("wheel", clearSelection, { passive: true });
   graphScroll?.addEventListener("touchmove", clearSelection, { passive: true });
+  updateStickyDayLabel();
   if (graphOutsideClickHandler) {
     document.removeEventListener("click", graphOutsideClickHandler);
   }
