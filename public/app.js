@@ -171,7 +171,11 @@ function getDayKey(iso, timeZone) {
 
 
 function detailRowsHtml(rows) {
-  const visible = rows.filter(r => Number.isFinite(r?.value));
+  const visible = rows.filter((row) => {
+    const value = row?.value;
+    if (typeof value === "number") return Number.isFinite(value);
+    return safeText(value).length > 0;
+  });
   if (!visible.length) return "";
 
   return `<div class="tile-details-rows">${visible
@@ -896,10 +900,10 @@ function renderHourly(data) {
     const windDetail = parseWind(p?.windDirection, p?.windSpeed);
     const detailRows = [
       { label: "Wind", value: windDetail || "", formatter: (v) => v },
-      { label: "Feels Like", value: m?.apparentTempF, formatter: (v) => `${Math.round(v)}°F` },
-      { label: "Dew Point", value: m?.dewpointF, formatter: (v) => `${Math.round(v)}°F` },
+      { label: "Feels", value: m?.apparentTempF, formatter: (v) => `${Math.round(v)}°F` },
+      { label: "Dewpoint", value: m?.dewpointF, formatter: (v) => `${Math.round(v)}°F` },
       { label: "Humidity", value: m?.relativeHumidityPct, formatter: formatPercent },
-      { label: "Cloud Cov", value: m?.skyCoverPct, formatter: formatPercent },
+      { label: "Clouds", value: m?.skyCoverPct, formatter: formatPercent },
     ];
 
     return `
@@ -938,9 +942,18 @@ function renderHourly(data) {
   els.hourlyContent.innerHTML = `<div class="row-scroll">${cards}${loadMoreCard}</div>`;
   const loadBtn = els.hourlyContent.querySelector("[data-hour-load-more='true']");
   loadBtn?.addEventListener("click", () => {
+    const row = els.hourlyContent.querySelector(".row-scroll");
+    const priorScrollLeft = row ? row.scrollLeft : 0;
     hourlyVisibleCount = Math.min(hourlyVisibleCount + HOURLY_LOAD_STEP, allPeriods.length);
     renderHourly(data);
     renderGraphs(data);
+
+    const nextRow = els.hourlyContent.querySelector(".row-scroll");
+    if (nextRow) {
+      requestAnimationFrame(() => {
+        nextRow.scrollLeft = priorScrollLeft;
+      });
+    }
   });
   els.hourlyCard.hidden = false;
 }
@@ -1295,8 +1308,8 @@ function renderDaily(data) {
 
     const detailHtml = `
       <div class="day-detail-block">
-        <div class="dn-title">Day</div>
         ${when ? `<div class="detail-meta">${when}</div>` : ""}
+        <div class="dn-title">Day</div>
         <div class="dn-text">${dayDetail || "—"}</div>
         ${statsRowsHtml(dayStats)}
       </div>
