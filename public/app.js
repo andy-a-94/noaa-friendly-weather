@@ -62,14 +62,56 @@ function getWorkerBaseUrl() {
   const v = meta?.getAttribute("content")?.trim();
   return v ? v.replace(/\/+$/, "") : "";
 }
-const WORKER_BASE = getWorkerBaseUrl();
 
-function apiUrl(path, params = {}) {
-  const u = new URL(`${WORKER_BASE}${path}`, window.location.origin);
+function getApiBaseCandidates() {
+  const workerBase = getWorkerBaseUrl();
+  if (workerBase) return [workerBase];
+
+  const host = window.location.hostname || "";
+  const isPreviewHost =
+    host.includes("pages.dev") ||
+    host.includes("localhost") ||
+    host.includes("127.0.0.1") ||
+    host.includes("codex") ||
+    host.includes("github");
+
+  const bases = [""];
+  if (isPreviewHost) bases.push("https://www.almanacweather.com");
+  return [...new Set(bases)];
+}
+
+const API_BASE_CANDIDATES = getApiBaseCandidates();
+
+function apiUrl(path, params = {}, base = API_BASE_CANDIDATES[0] || "") {
+  const u = new URL(`${base}${path}`, window.location.origin);
   for (const [k, v] of Object.entries(params)) {
     if (v !== undefined && v !== null && String(v).length) u.searchParams.set(k, v);
   }
   return u.toString();
+}
+
+function shouldTryNextApiBase(statusCode) {
+  return statusCode === 404 || statusCode === 405;
+}
+
+async function apiFetch(path, params = {}, init = {}) {
+  let lastError = null;
+  for (let i = 0; i < API_BASE_CANDIDATES.length; i += 1) {
+    const base = API_BASE_CANDIDATES[i];
+    try {
+      const res = await fetch(apiUrl(path, params, base), init);
+      if (res.ok) return res;
+      const hasMoreBases = i < API_BASE_CANDIDATES.length - 1;
+      if (hasMoreBases && shouldTryNextApiBase(res.status)) continue;
+      return res;
+    } catch (err) {
+      lastError = err;
+      const hasMoreBases = i < API_BASE_CANDIDATES.length - 1;
+      if (hasMoreBases) continue;
+    }
+  }
+
+  throw lastError || new Error(`Request failed for ${path}`);
 }
 
 function setStatus(msg) {
@@ -338,13 +380,13 @@ function moonIllumFromPhaseLabel(phaseLabel) {
 }
 
 async function fetchLocation(query) {
-  const res = await fetch(apiUrl("/api/location", { q: query }), { cache: "no-store" });
+  const res = await apiFetch("/api/location", { q: query }, { cache: "no-store" });
   if (!res.ok) throw new Error(`Location lookup failed (${res.status})`);
   return await res.json();
 }
 
 async function fetchLocationSuggestions(query) {
-  const res = await fetch(apiUrl("/api/location/suggest", { q: query }), {
+  const res = await apiFetch("/api/location/suggest", { q: query }, {
     cache: "no-store",
     signal: suggestionAbortController?.signal,
   });
@@ -420,7 +462,7 @@ function pickSuggestion(index) {
 }
 
 async function fetchWeather(lat, lon, zip) {
-  const res = await fetch(apiUrl("/api/weather", { lat, lon, zip }), { cache: "no-store" });
+  const res = await apiFetch("/api/weather", { lat, lon, zip }, { cache: "no-store" });
   if (!res.ok) {
     const t = await res.text().catch(() => "");
     throw new Error(`Weather fetch failed (${res.status}) ${t}`);
