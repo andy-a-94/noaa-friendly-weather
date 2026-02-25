@@ -1160,22 +1160,17 @@ header{
 .graph-hour-label{ fill: rgba(255,255,255,0.72); font-size: 9px; font-weight: 600; }
 .graph-day-marker{ stroke: rgba(255,255,255,0.22); stroke-dasharray: 3 3; }
 .graph-day-label{ fill: rgba(208,232,255,0.86); font-size: 9px; font-weight: 700; }
-.graph-sticky-day{
-  position: sticky;
-  top: 0;
-  left: 15px;
-  z-index: 3;
-  display: inline-block;
-  margin: 6px 0 0 12px;
-  padding: 1px 6px;
-  border-radius: 999px;
-  color: rgba(208,232,255,0.9);
+.graph-sticky-day-svg{ pointer-events:none; }
+.graph-sticky-day-text{
+  fill: rgba(208,232,255,0.92);
   font-size: 9px;
   font-weight: 700;
   letter-spacing: 0.03em;
-  background: rgba(8, 22, 44, 0.72);
-  border: 1px solid rgba(160,205,255,0.28);
-  pointer-events: none;
+  paint-order: stroke;
+  stroke: rgba(5, 14, 30, 0.65);
+  stroke-width: 1.4px;
+  stroke-linejoin: round;
+  transition: opacity 140ms ease;
 }
 .graph-callout{
   position: absolute;
