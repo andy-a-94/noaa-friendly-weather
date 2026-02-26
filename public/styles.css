@@ -1035,21 +1035,17 @@ header{
   overflow:hidden;
 }
 
-/* Soft phase shadow (less "eclipse" look): wider oval mask with gentle falloff */
+/* Phase mask: use a true circular occluder so gibbous phases stay circular (no concave edge artifact). */
 .moon-disc::after{
   content:"";
   position:absolute;
-  top: -4px;
-  bottom: -4px;
-  width: 66px;
-  border-radius: 999px;
-  left: calc(-10px + var(--moon-offset, 0px));
-  transform: scaleX(var(--moon-shadow-scale-x, 1));
-  transform-origin: center;
-  background: radial-gradient(ellipse at center,
-    rgba(9,13,24,0.70) 58%,
-    rgba(9,13,24,0.42) 72%,
-    rgba(9,13,24,0.0) 100%);
+  top: 0;
+  left: var(--moon-offset, 0px);
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background: rgba(9,13,24,0.76);
+  box-shadow: 0 0 5px rgba(0,0,0,0.18);
 }
 
 .moon-label{
