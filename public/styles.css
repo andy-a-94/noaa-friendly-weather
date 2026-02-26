@@ -1135,6 +1135,7 @@ header{
   padding: 0 0 8px;
 }
 .graph-option{
+  position: relative;
   border: 0;
   border-right: 1px solid rgba(255,255,255,0.16);
   background: rgba(255,255,255,0.04);
@@ -1154,36 +1155,40 @@ header{
   color: #fff;
 }
 
-.graph-more-wrap{
+.graph-more-option{
   display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 8px;
-  border: 1px solid rgba(255,255,255,0.16);
-  border-radius: 10px;
-  background: rgba(255,255,255,0.04);
-}
-
-.graph-more-label{
-  font-size: 12px;
-  font-weight: 700;
-  color: rgba(255,255,255,0.82);
+  align-items: stretch;
+  min-width: 110px;
 }
 
 .graph-more-select{
-  border: 1px solid rgba(255,255,255,0.2);
-  border-radius: 8px;
-  background: rgba(13, 29, 59, 0.9);
-  color: rgba(255,255,255,0.95);
+  appearance: none;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: inherit;
   font-size: 12px;
-  font-weight: 650;
-  padding: 6px 8px;
+  font-weight: 750;
+  padding: 8px 30px 8px 12px;
+  width: 100%;
+  cursor: pointer;
+}
+
+.graph-more-option::after{
+  content: "▾";
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: rgba(255,255,255,0.85);
+  font-size: 12px;
+  pointer-events: none;
 }
 
 .graph-more-select:focus,
 .graph-more-select:focus-visible{
   outline: 2px solid rgba(120,180,255,0.45);
-  outline-offset: 1px;
+  outline-offset: -2px;
 }
 .graph-label-desktop{ display:inline; }
 .graph-label-mobile{ display:none; }
@@ -1235,6 +1240,4 @@ header{
   .graph-label-desktop{ display:none; }
   .graph-label-mobile{ display:inline; }
   .graph-controls{ align-items: stretch; }
-  .graph-more-wrap{ width: 100%; justify-content: space-between; }
-  .graph-more-select{ flex: 1; }
 }
