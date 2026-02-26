@@ -1101,15 +1101,6 @@ function renderLineGraphSvg(points, metric) {
     return { value, y };
   });
 
-  const dayMarkers = [];
-  let previousDay = "";
-  coords.forEach((p) => {
-    if (p.dayKey && p.dayKey !== previousDay) {
-      dayMarkers.push(p);
-      previousDay = p.dayKey;
-    }
-  });
-
   const formatTickValue = (rawValue) => {
     const rounded = Math.round(rawValue);
     if (["temperature", "dewpoint", "feelslike"].includes(metric)) return `${rounded}°`;
@@ -1130,15 +1121,6 @@ function renderLineGraphSvg(points, metric) {
           <svg class="metric-graph" viewBox="0 0 ${width} ${height}" role="img" aria-label="Hourly trend graph">
             ${yTicks.map((tick) => `<line x1="${padL}" y1="${tick.y}" x2="${width - padR}" y2="${tick.y}" class="graph-grid"/>`).join("")}
             <line x1="${padL}" y1="${height - padB}" x2="${width - padR}" y2="${height - padB}" class="graph-axis"/>
-            <g class="graph-sticky-day-svg" data-graph-sticky-day="true" aria-hidden="true">
-              <rect class="graph-sticky-day-bg" data-graph-sticky-bg="true" x="${padL + 4}" y="${padT - 2}" width="26" height="14" rx="7" ry="7"></rect>
-              <text class="graph-sticky-day-text" data-graph-sticky-current="true" x="${padL + 9}" y="${padT + 8}"></text>
-              <text class="graph-sticky-day-text" data-graph-sticky-next="true" x="${padL + 9}" y="${padT + 8}" opacity="0"></text>
-            </g>
-            ${dayMarkers.map((day) => `
-              <line x1="${day.x}" y1="${padT}" x2="${day.x}" y2="${height - padB}" class="graph-day-marker" data-day-marker="true" data-day-label="${day.dayLabel}" data-day-x="${day.x}"/>
-              <text x="${day.x + 3}" y="${padT + 10}" class="graph-day-label">${day.dayLabel}</text>
-            `).join("")}
             <path d="${path}" class="graph-line"/>
             ${coords.map((p, idx) => `<circle cx="${p.x}" cy="${p.y}" r="4" class="graph-dot" data-graph-point="${idx}" data-label="${p.label}" data-value="${Math.round(p.value)}" data-x="${p.x}" data-y="${p.y}"></circle>`).join("")}
             ${coords.map((p, idx) => `<circle cx="${p.x}" cy="${p.y}" r="16" class="graph-hit" data-graph-hit="${idx}" data-label="${p.label}" data-value="${Math.round(p.value)}" data-x="${p.x}" data-y="${p.y}" aria-label="${p.label}: ${Math.round(p.value)}"></circle>`).join("")}
@@ -1176,10 +1158,6 @@ function renderGraphs(data) {
   const graphPlot = els.graphsContent.querySelector("[data-graph-plot='true']");
   const graphSvg = els.graphsContent.querySelector(".metric-graph");
   const graphScroll = els.graphsContent.querySelector("[data-graph-scroll='true']");
-  const stickyDayGroup = graphSvg?.querySelector("[data-graph-sticky-day='true']");
-  const stickyDayBg = graphSvg?.querySelector("[data-graph-sticky-bg='true']");
-  const stickyDayCurrent = graphSvg?.querySelector("[data-graph-sticky-current='true']");
-  const stickyDayNext = graphSvg?.querySelector("[data-graph-sticky-next='true']");
   const valueFormatter = (rawValue, rawLabel) => {
     const value = safeText(rawValue);
     const label = safeText(rawLabel);
@@ -1234,68 +1212,14 @@ function renderGraphs(data) {
   };
 
   const allPoints = Array.from(els.graphsContent.querySelectorAll("[data-graph-hit]"));
-  const dayMarkers = Array.from(els.graphsContent.querySelectorAll("[data-day-marker='true']"))
-    .map((el) => ({
-      x: Number(el.getAttribute("data-day-x")),
-      label: safeText(el.getAttribute("data-day-label")),
-    }))
-    .filter((marker) => Number.isFinite(marker.x) && marker.label)
-    .sort((a, b) => a.x - b.x);
-
-  const updateStickyDayLabel = () => {
-    if (!stickyDayGroup || !stickyDayBg || !stickyDayCurrent || !stickyDayNext || !graphScroll) return;
-    if (!dayMarkers.length) {
-      stickyDayGroup.style.display = "none";
-      return;
-    }
-    stickyDayGroup.style.display = "inline";
-
-    const graphAxisX = 12;
-    const leftEdge = graphScroll.scrollLeft;
-    let activeIndex = 0;
-    dayMarkers.forEach((marker, idx) => {
-      if (marker.x - graphAxisX <= leftEdge) activeIndex = idx;
-    });
-
-    const activeMarker = dayMarkers[activeIndex];
-    const nextMarker = dayMarkers[activeIndex + 1] || null;
-    const transitionStart = activeMarker.x - graphAxisX;
-    const transitionEnd = nextMarker ? (nextMarker.x - graphAxisX) : transitionStart;
-    const transitionSpan = Math.max(transitionEnd - transitionStart, 1);
-    const t = nextMarker ? clamp((leftEdge - transitionStart) / transitionSpan, 0, 1) : 0;
-
-    stickyDayCurrent.textContent = activeMarker.label;
-    stickyDayCurrent.setAttribute("opacity", `${1 - t}`);
-    stickyDayCurrent.setAttribute("x", `${21 - (t * 2)}`);
-
-    if (nextMarker) {
-      stickyDayNext.textContent = nextMarker.label;
-      stickyDayNext.setAttribute("opacity", `${t}`);
-      stickyDayNext.setAttribute("x", `${21 + ((1 - t) * 2)}`);
-    } else {
-      stickyDayNext.textContent = "";
-      stickyDayNext.setAttribute("opacity", "0");
-      stickyDayNext.setAttribute("x", "21");
-    }
-
-    const currentWidth = stickyDayCurrent.getComputedTextLength?.() || 0;
-    const nextWidth = stickyDayNext.getComputedTextLength?.() || 0;
-    const labelWidth = Math.max(currentWidth, nextWidth, 12);
-    const bgWidth = Math.ceil(labelWidth + 10);
-    stickyDayBg.setAttribute("width", `${bgWidth}`);
-  };
 
   allPoints.forEach((point) => {
     point.addEventListener("click", () => handlePointSelection(point));
   });
 
-  graphScroll?.addEventListener("scroll", () => {
-    clearSelection();
-    updateStickyDayLabel();
-  }, { passive: true });
+  graphScroll?.addEventListener("scroll", clearSelection, { passive: true });
   graphScroll?.addEventListener("wheel", clearSelection, { passive: true });
   graphScroll?.addEventListener("touchmove", clearSelection, { passive: true });
-  updateStickyDayLabel();
   if (graphOutsideClickHandler) {
     document.removeEventListener("click", graphOutsideClickHandler);
   }
