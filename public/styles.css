@@ -1044,6 +1044,8 @@ header{
   width: 66px;
   border-radius: 999px;
   left: calc(-10px + var(--moon-offset, 0px));
+  transform: scaleX(var(--moon-shadow-scale-x, 1));
+  transform-origin: center;
   background: radial-gradient(ellipse at center,
     rgba(9,13,24,0.70) 58%,
     rgba(9,13,24,0.42) 72%,
