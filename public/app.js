@@ -822,22 +822,25 @@ function renderAstroUv(data) {
   const sunPlotBottomPx = 84;
   const sunYPx = sunPlotTopPx + clamp(ySvg / 55, 0, 1) * (sunPlotBottomPx - sunPlotTopPx);
 
-  // --- Moon phase visual: compute shadow offset in px ---
-  // We shift a same-sized dark circle:
-  // - illum 0 => offset 0 (fully dark)
-  // - illum 0.5 => offset radius (half lit)
-  // - illum 1 => offset diameter (fully lit)
+  // --- Moon phase visual: compute light-mask offset in px ---
+  // We render a dark base disc and slide a same-sized light disc across it.
+  // This keeps gibbous phases from looking "scooped out" while preserving
+  // left/right orientation for waxing vs waning.
+  // - illum 0   => offset diameter (light fully off-disc)
+  // - illum 0.5 => offset radius   (half lit)
+  // - illum 1   => offset 0        (fully lit)
   const moonIllumPct = (typeof illum === "number") ? Math.round(illum * 100) : null;
 
   const diameter = 46; // must match .moon-disc size in CSS
-  const shift = (typeof illum === "number") ? (illum * diameter) : (0.5 * diameter);
+  const normalizedIllum = (typeof illum === "number") ? clamp(illum, 0, 1) : 0.5;
+  const shift = (1 - normalizedIllum) * diameter;
 
-  // Waxing = light on right => move shadow left (negative)
-  // Waning = light on left  => move shadow right (positive)
+  // Waxing and waning both use the same base light-mask geometry.
+  // For waning phases we mirror the disc in CSS so the same silhouette
+  // becomes left-lit without introducing asymmetric clipping artifacts.
   let moonOffsetPx = 0;
-  if (waxing === true) moonOffsetPx = -shift;
-  else if (waxing === false) moonOffsetPx = shift;
-  else moonOffsetPx = 0;
+  if (waxing === true || waxing === false) moonOffsetPx = shift;
+  const moonWaningClass = waxing === false ? " is-waning" : "";
 
   const showSunDot = !!(typeof sunT === "number") && !beforeSunrise && !afterSunset;
 
@@ -877,7 +880,7 @@ function renderAstroUv(data) {
         </div>
 
         <div class="moon-wrap">
-          <div class="moon-disc" aria-hidden="true"></div>
+          <div class="moon-disc${moonWaningClass}" aria-hidden="true"></div>
           <div class="moon-label">
             <div class="moon-phase">${phaseLabel || "—"}</div>
             <div class="moon-sub moon-times">↑ ${moonrise || "—"} • ↓ ${moonset || "—"}</div>
