@@ -834,9 +834,6 @@ function renderAstroUv(data) {
 
   // Waxing = light on right => move shadow left (negative)
   // Waning = light on left  => move shadow right (positive)
-  // Gibbous phases need the opposite curve orientation from crescent phases
-  // so the dark edge keeps the expected convex shape.
-  const moonShadowScaleX = (typeof illum === "number" && illum > 0.5) ? -1 : 1;
   let moonOffsetPx = 0;
   if (waxing === true) moonOffsetPx = -shift;
   else if (waxing === false) moonOffsetPx = shift;
@@ -874,7 +871,7 @@ function renderAstroUv(data) {
         </div>
       </div>
 
-      <div class="astro-tile moon-tile" style="--moon-offset:${moonOffsetPx}px; --moon-shadow-scale-x:${moonShadowScaleX};">
+      <div class="astro-tile moon-tile" style="--moon-offset:${moonOffsetPx}px;">
         <div class="astro-tile-head">
           <div class="astro-tile-title">Moon</div>
         </div>
