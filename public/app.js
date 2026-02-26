@@ -1135,9 +1135,9 @@ function renderLineGraphSvg(points, metric) {
               <text class="graph-sticky-day-text" data-graph-sticky-current="true" x="${padL + 9}" y="${padT + 8}"></text>
               <text class="graph-sticky-day-text" data-graph-sticky-next="true" x="${padL + 9}" y="${padT + 8}" opacity="0"></text>
             </g>
-            ${dayMarkers.map((day) => `
+            ${dayMarkers.map((day, idx) => `
               <line x1="${day.x}" y1="${padT}" x2="${day.x}" y2="${height - padB}" class="graph-day-marker" data-day-marker="true" data-day-label="${day.dayLabel}" data-day-x="${day.x}"/>
-              <text x="${day.x + 3}" y="${padT + 10}" class="graph-day-label">${day.dayLabel}</text>
+              ${idx === 0 ? "" : `<text x="${day.x + 3}" y="${padT + 10}" class="graph-day-label">${day.dayLabel}</text>`}
             `).join("")}
             <path d="${path}" class="graph-line"/>
             ${coords.map((p, idx) => `<circle cx="${p.x}" cy="${p.y}" r="4" class="graph-dot" data-graph-point="${idx}" data-label="${p.label}" data-value="${Math.round(p.value)}" data-x="${p.x}" data-y="${p.y}"></circle>`).join("")}
