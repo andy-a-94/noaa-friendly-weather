@@ -1111,11 +1111,17 @@ header{
 }
 
 .graph-controls{
+  display:flex;
+  flex-wrap: wrap;
+  align-items:center;
+  gap:8px;
+  margin-bottom: 10px;
+}
+
+.graph-primary-options{
   display:inline-flex;
   flex-wrap: wrap;
   align-items:stretch;
-  gap:0;
-  margin-bottom: 10px;
   border: 1px solid rgba(255,255,255,0.16);
   border-radius: 10px;
   overflow: hidden;
@@ -1146,6 +1152,38 @@ header{
 .graph-option.is-active{
   background: rgba(120,180,255,0.24);
   color: #fff;
+}
+
+.graph-more-wrap{
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
+  border: 1px solid rgba(255,255,255,0.16);
+  border-radius: 10px;
+  background: rgba(255,255,255,0.04);
+}
+
+.graph-more-label{
+  font-size: 12px;
+  font-weight: 700;
+  color: rgba(255,255,255,0.82);
+}
+
+.graph-more-select{
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 8px;
+  background: rgba(13, 29, 59, 0.9);
+  color: rgba(255,255,255,0.95);
+  font-size: 12px;
+  font-weight: 650;
+  padding: 6px 8px;
+}
+
+.graph-more-select:focus,
+.graph-more-select:focus-visible{
+  outline: 2px solid rgba(120,180,255,0.45);
+  outline-offset: 1px;
 }
 .graph-label-desktop{ display:inline; }
 .graph-label-mobile{ display:none; }
@@ -1196,4 +1234,7 @@ header{
 @media (max-width: 700px){
   .graph-label-desktop{ display:none; }
   .graph-label-mobile{ display:inline; }
+  .graph-controls{ align-items: stretch; }
+  .graph-more-wrap{ width: 100%; justify-content: space-between; }
+  .graph-more-select{ flex: 1; }
 }
