@@ -1170,14 +1170,13 @@ function renderGraphs(data) {
     <div class="graph-controls" aria-label="Graph metric options">
       <div class="graph-primary-options" role="tablist" aria-label="Primary graph metric options">
         ${primaryOptions.map(([v, label, mobileLabel]) => `<button type="button" class="graph-option ${selectedGraphMetric === v ? "is-active" : ""}" data-graph-metric="${v}" role="tab" aria-selected="${selectedGraphMetric === v ? "true" : "false"}"><span class="graph-label-desktop">${label}</span><span class="graph-label-mobile">${mobileLabel}</span></button>`).join("")}
+        <div class="graph-option graph-more-option ${isExtraMetric ? "is-active" : ""}">
+          <select id="graphMetricMore" class="graph-more-select" data-graph-metric-select="true" aria-label="Additional graph metrics">
+            <option value="" ${isExtraMetric ? "" : "selected"}>More</option>
+            ${extraOptions.map(([v, label]) => `<option value="${v}" ${selectedGraphMetric === v ? "selected" : ""}>${label}</option>`).join("")}
+          </select>
+        </div>
       </div>
-      <label class="graph-more-wrap" for="graphMetricMore">
-        <span class="graph-more-label">More</span>
-        <select id="graphMetricMore" class="graph-more-select" data-graph-metric-select="true" aria-label="Additional graph metrics">
-          <option value="" ${isExtraMetric ? "" : "selected"}>Choose…</option>
-          ${extraOptions.map(([v, label]) => `<option value="${v}" ${selectedGraphMetric === v ? "selected" : ""}>${label}</option>`).join("")}
-        </select>
-      </label>
     </div>
     ${renderLineGraphSvg(graphPoints, selectedGraphMetric)}
   `;
