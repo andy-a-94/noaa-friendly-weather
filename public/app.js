@@ -1133,9 +1133,9 @@ function renderLineGraphSvg(points, metric) {
           <svg class="metric-graph" viewBox="0 0 ${width} ${height}" role="img" aria-label="Hourly trend graph">
             ${yTicks.map((tick) => `<line x1="${padL}" y1="${tick.y}" x2="${width - padR}" y2="${tick.y}" class="graph-grid"/>`).join("")}
             <line x1="${padL}" y1="${height - padB}" x2="${width - padR}" y2="${height - padB}" class="graph-axis"/>
-            ${dayMarkers.map((day, idx) => `
+            ${dayMarkers.map((day) => `
               <line x1="${day.x}" y1="${padT}" x2="${day.x}" y2="${height - padB}" class="graph-day-marker" data-day-marker="true" data-day-label="${day.dayLabel}" data-day-x="${day.x}"/>
-              ${idx === 0 ? "" : `<text x="${day.x + 3}" y="${padT + 10}" class="graph-day-label">${day.dayLabel}</text>`}
+              <text x="${day.x + 3}" y="${padT + 10}" class="graph-day-label">${day.dayLabel}</text>
             `).join("")}
             <path d="${path}" class="graph-line"/>
             ${coords.map((p, idx) => `<circle cx="${p.x}" cy="${p.y}" r="4" class="graph-dot" data-graph-point="${idx}" data-label="${p.label}" data-value="${Math.round(p.value)}" data-x="${p.x}" data-y="${p.y}"></circle>`).join("")}
@@ -1150,22 +1150,34 @@ function renderLineGraphSvg(points, metric) {
 }
 
 function renderGraphs(data) {
-  const options = [
+  const primaryOptions = [
     ["precipitation", "Precipitation %", "Precip %"],
     ["temperature", "Temperature °F", "Temp °F"],
+    ["wind", "Wind", "Wind"],
+    ["uv", "UV", "UV"],
+  ];
+  const extraOptions = [
     ["humidity", "Humidity %", "Humidity %"],
     ["dewpoint", "Dew Point °F", "Dew Point °F"],
     ["cloudcover", "Cloud Cover %", "Cloud Cover %"],
     ["feelslike", "Feels Like °F", "Feels Like °F"],
-    ["wind", "Wind", "Wind"],
-    ["uv", "UV", "UV"],
   ];
+  const isExtraMetric = extraOptions.some(([value]) => value === selectedGraphMetric);
 
   const graphPoints = getHourlyGraphPoints(data, selectedGraphMetric);
 
   els.graphsContent.innerHTML = `
-    <div class="graph-controls" role="tablist" aria-label="Graph metric options">
-      ${options.map(([v, label, mobileLabel]) => `<button type="button" class="graph-option ${selectedGraphMetric === v ? "is-active" : ""}" data-graph-metric="${v}" role="tab" aria-selected="${selectedGraphMetric === v ? "true" : "false"}"><span class="graph-label-desktop">${label}</span><span class="graph-label-mobile">${mobileLabel}</span></button>`).join("")}
+    <div class="graph-controls" aria-label="Graph metric options">
+      <div class="graph-primary-options" role="tablist" aria-label="Primary graph metric options">
+        ${primaryOptions.map(([v, label, mobileLabel]) => `<button type="button" class="graph-option ${selectedGraphMetric === v ? "is-active" : ""}" data-graph-metric="${v}" role="tab" aria-selected="${selectedGraphMetric === v ? "true" : "false"}"><span class="graph-label-desktop">${label}</span><span class="graph-label-mobile">${mobileLabel}</span></button>`).join("")}
+      </div>
+      <label class="graph-more-wrap" for="graphMetricMore">
+        <span class="graph-more-label">More</span>
+        <select id="graphMetricMore" class="graph-more-select" data-graph-metric-select="true" aria-label="Additional graph metrics">
+          <option value="" ${isExtraMetric ? "" : "selected"}>Choose…</option>
+          ${extraOptions.map(([v, label]) => `<option value="${v}" ${selectedGraphMetric === v ? "selected" : ""}>${label}</option>`).join("")}
+        </select>
+      </label>
     </div>
     ${renderLineGraphSvg(graphPoints, selectedGraphMetric)}
   `;
@@ -1250,6 +1262,14 @@ function renderGraphs(data) {
       selectedGraphMetric = safeText(btn.getAttribute("data-graph-metric")) || "precipitation";
       renderGraphs(data);
     });
+  });
+
+  const metricSelect = els.graphsContent.querySelector("[data-graph-metric-select='true']");
+  metricSelect?.addEventListener("change", () => {
+    const selectedValue = safeText(metricSelect.value);
+    if (!selectedValue) return;
+    selectedGraphMetric = selectedValue;
+    renderGraphs(data);
   });
 
   els.graphsCard.hidden = false;
