@@ -1151,16 +1151,16 @@ function renderLineGraphSvg(points, metric) {
 
 function renderGraphs(data) {
   const primaryOptions = [
-    ["precipitation", "Precipitation %", "Precip %"],
-    ["temperature", "Temperature °F", "Temp °F"],
+    ["precipitation", "Precipitation", "Precip"],
+    ["temperature", "Temperature", "Temp"],
     ["wind", "Wind", "Wind"],
-    ["uv", "UV", "UV"],
   ];
   const extraOptions = [
-    ["humidity", "Humidity %", "Humidity %"],
-    ["dewpoint", "Dew Point °F", "Dew Point °F"],
-    ["cloudcover", "Cloud Cover %", "Cloud Cover %"],
-    ["feelslike", "Feels Like °F", "Feels Like °F"],
+    ["humidity", "Humidity"],
+    ["dewpoint", "Dew Point"],
+    ["cloudcover", "Cloud C.."],
+    ["feelslike", "Feels Like"],
+    ["uv", "UV"],
   ];
   const isExtraMetric = extraOptions.some(([value]) => value === selectedGraphMetric);
 
