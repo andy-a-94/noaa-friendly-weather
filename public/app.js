@@ -531,6 +531,7 @@ function renderCurrent(data) {
   const apparent = Number.isFinite(currentMetrics?.apparentTempF) ? currentMetrics.apparentTempF : current?.temperature;
 
   const nowRows = [
+    { label: "Precipitation Chance", value: pop, formatter: formatPercent },
     { label: "Dew Point", value: currentMetrics?.dewpointF, formatter: (v) => `${Math.round(v)}°F` },
     { label: "Relative Humidity", value: currentMetrics?.relativeHumidityPct, formatter: formatPercent },
     { label: "Cloud Cover", value: currentMetrics?.skyCoverPct, formatter: formatPercent },
@@ -603,6 +604,7 @@ function renderToday(data) {
 
     const m = getPeriodMetrics(periodMetrics, p?.number);
     const detailsRows = [
+      { label: "Precipitation Chance", value: pop, formatter: formatPercent },
       { label: "Feels Like", value: m?.apparentTempF, formatter: (v) => `${Math.round(v)}°F` },
       { label: "Dew Point", value: m?.dewpointF, formatter: (v) => `${Math.round(v)}°F` },
       { label: "Humidity", value: m?.relativeHumidityPct, formatter: formatPercent },
@@ -816,11 +818,11 @@ function renderAstroUv(data) {
     ? (55 * (1 - 2 * sunT + 2 * sunT * sunT))
     : 55;
 
-  // Map SVG y (0..55) into an explicit pixel plotting band inside the 120px arc area.
-  // This keeps the sun marker below the in-arc header while following the same curve.
-  const sunPlotTopPx = 34;
-  const sunPlotBottomPx = 84;
-  const sunYPx = sunPlotTopPx + clamp(ySvg / 55, 0, 1) * (sunPlotBottomPx - sunPlotTopPx);
+  // Map SVG y (0..55) directly onto the rendered SVG arc box (60px tall, bottom anchored at 28px).
+  // This keeps the sun marker on the path instead of floating above it.
+  const sunArcSvgTopPx = 44;
+  const sunArcSvgHeightPx = 60;
+  const sunYPx = sunArcSvgTopPx + clamp(ySvg / 55, 0, 1) * sunArcSvgHeightPx;
 
   // --- Moon phase visual: compute light-mask offset in px ---
   // We render a dark base disc and slide a same-sized light disc across it.
@@ -831,7 +833,7 @@ function renderAstroUv(data) {
   // - illum 1   => offset 0        (fully lit)
   const moonIllumPct = (typeof illum === "number") ? Math.round(illum * 100) : null;
 
-  const diameter = 46; // must match .moon-disc size in CSS
+  const diameter = 58; // must match .moon-disc size in CSS
   const normalizedIllum = (typeof illum === "number") ? clamp(illum, 0, 1) : 0.5;
   const shift = (1 - normalizedIllum) * diameter;
 
@@ -1129,9 +1131,9 @@ function renderLineGraphSvg(points, metric) {
   return `
     <div class="graph-layout">
       <div class="graph-yaxis" aria-hidden="true">
-        <svg class="graph-yaxis-svg" viewBox="0 0 40 ${height}" role="presentation">
-          ${yTicks.map((tick) => `<text x="34" y="${tick.y + 4}" text-anchor="end" class="graph-label">${formatTickValue(tick.value)}</text>`).join("")}
-          <line x1="38" y1="${padT}" x2="38" y2="${height - padB}" class="graph-axis"/>
+        <svg class="graph-yaxis-svg" viewBox="0 0 32 ${height}" role="presentation">
+          ${yTicks.map((tick) => `<text x="28" y="${tick.y + 4}" text-anchor="end" class="graph-label">${formatTickValue(tick.value)}</text>`).join("")}
+          <line x1="30" y1="${padT}" x2="30" y2="${height - padB}" class="graph-axis"/>
         </svg>
       </div>
       <div class="graph-scroll" data-graph-scroll="true">
@@ -1164,7 +1166,7 @@ function renderGraphs(data) {
   const extraOptions = [
     ["humidity", "Humidity"],
     ["dewpoint", "Dew Point"],
-    ["cloudcover", "Cloud C.."],
+    ["cloudcover", "Cloud Cover"],
     ["feelslike", "Feels Like"],
     ["uv", "UV"],
   ];
@@ -1376,7 +1378,7 @@ function renderDaily(data) {
 
     const statsRowsHtml = (rows) => {
       if (!rows.length) return "";
-      return `<div class="day-stats-rows">${rows.map((row) => `<div class="tile-detail-row"><span class="tile-detail-label">${row.label}</span><span class="tile-detail-value">${row.value}</span></div>`).join("")}</div>`;
+      return `<div class="day-stats-rows">${rows.map((row) => `<div class="tile-detail-row"><span class="tile-detail-label">${row.label}</span><span class="tile-detail-value">${row.value}</span></div>`).join("")}</div><div class="day-stats-separator" aria-hidden="true"></div>`;
     };
 
     const dayStats = buildStatsRows({ pop: popDay, windStr: windDay, dewF: dewDayF, rh: rhDay });
