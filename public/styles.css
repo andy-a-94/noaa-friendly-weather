@@ -1158,7 +1158,7 @@ header{
 .graph-more-option{
   display: inline-flex;
   align-items: stretch;
-  min-width: 110px;
+  min-width: 0;
 }
 
 .graph-more-select{
@@ -1169,8 +1169,9 @@ header{
   color: inherit;
   font-size: 12px;
   font-weight: 750;
-  padding: 8px 30px 8px 12px;
-  width: 100%;
+  padding: 8px 10px;
+  padding-right: 22px;
+  width: auto;
   cursor: pointer;
 }
 
