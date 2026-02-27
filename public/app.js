@@ -1048,7 +1048,13 @@ function getHourlyGraphPoints(data, metric) {
       if (metric === "feelslike") value = Number.isFinite(m?.apparentTempF) ? Math.round(m.apparentTempF) : null;
       if (metric === "wind") value = extractWindMph(p?.windSpeed);
       if (metric === "uv") {
-        const uvPoint = uvHourly.find((u) => Number(u?.hour) === hourOfDay);
+        const uvPoint = uvHourly.find((u) => {
+          const uvHour = Number(u?.hour);
+          const uvDay = safeText(u?.day);
+          if (!Number.isFinite(uvHour) || uvHour !== hourOfDay) return false;
+          if (!uvDay) return true;
+          return uvDay === dayKey;
+        });
         value = Number.isFinite(uvPoint?.value) ? uvPoint.value : null;
       }
 

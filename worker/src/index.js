@@ -430,7 +430,7 @@ async function fetchEpaUv({ zip, city, state, timeZone }) {
 
     const hourly = [...hourlyMap.entries()]
       .sort((a, b) => a[0] - b[0])
-      .map(([hour, value]) => ({ hour, value }));
+      .map(([hour, value]) => ({ day: todayYmd, hour, value }));
 
     return {
       ok: true,
@@ -453,6 +453,101 @@ async function fetchEpaUv({ zip, city, state, timeZone }) {
       },
     };
   }
+}
+
+async function fetchOpenMeteoUv({ lat, lon, timeZone }) {
+  const source = { provider: "open-meteo-uv" };
+  const la = Number(lat);
+  const lo = Number(lon);
+  if (!Number.isFinite(la) || !Number.isFinite(lo)) {
+    return { ok: false, current: null, max: null, hourly: [], source: { ...source, ok: false, reason: "missing coordinates" } };
+  }
+
+  const tz = safeStr(timeZone) || "auto";
+  const url = `https://api.open-meteo.com/v1/forecast?latitude=${encodeURIComponent(la)}&longitude=${encodeURIComponent(lo)}&hourly=uv_index&forecast_days=3&timezone=${encodeURIComponent(tz)}`;
+
+  try {
+    const json = await fetchJson(url, {}, 3500);
+    const times = Array.isArray(json?.hourly?.time) ? json.hourly.time : [];
+    const values = Array.isArray(json?.hourly?.uv_index) ? json.hourly.uv_index : [];
+
+    if (!times.length || !values.length) {
+      return { ok: false, current: null, max: null, hourly: [], source: { ...source, ok: true, reason: "no data" } };
+    }
+
+    const todayYmd = ymdInTimeZone(timeZone, new Date());
+    const nowMin = localNowMinutes(timeZone);
+
+    let max = null;
+    let current = null;
+    let currentBestMin = -1;
+    const hourly = [];
+
+    for (let i = 0; i < Math.min(times.length, values.length); i += 1) {
+      const time = safeStr(times[i]);
+      const uv = Number(values[i]);
+      if (!Number.isFinite(uv)) continue;
+
+      const match = time.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})/);
+      if (!match) continue;
+
+      const day = match[1];
+      const hour = Number(match[2]);
+      const minute = Number(match[3]);
+      if (!Number.isFinite(hour) || !Number.isFinite(minute)) continue;
+
+      hourly.push({ day, hour, value: uv });
+
+      if (day === todayYmd) {
+        if (max === null || uv > max) max = uv;
+
+        const rowMin = hour * 60 + minute;
+        if (rowMin <= nowMin && rowMin > currentBestMin) {
+          current = uv;
+          currentBestMin = rowMin;
+        }
+      }
+    }
+
+    return {
+      ok: true,
+      current: current === null ? null : current,
+      max: max === null ? null : max,
+      hourly,
+      source: { ...source, ok: true },
+    };
+  } catch (e) {
+    return {
+      ok: false,
+      current: null,
+      max: null,
+      hourly: [],
+      source: {
+        ...source,
+        ok: false,
+        status: e.status || 502,
+        reason: e.message || "fetch failed",
+        bodySnippet: e.bodySnippet,
+      },
+    };
+  }
+}
+
+async function fetchUvCombined({ zip, city, state, timeZone, lat, lon }) {
+  const epa = await fetchEpaUv({ zip, city, state, timeZone });
+  if (epa.ok && Array.isArray(epa.hourly) && epa.hourly.length) return epa;
+
+  const om = await fetchOpenMeteoUv({ lat, lon, timeZone });
+  if (!om.ok) return epa;
+
+  return {
+    ...om,
+    source: {
+      ...om.source,
+      fallbackFrom: epa?.source?.provider || "epa-uv",
+      fallbackReason: epa?.source?.reason || (epa?.source?.status ? `status ${epa.source.status}` : "no data"),
+    },
+  };
 }
 
 /* ---------------- Open-Meteo Soil Moisture (Archive; cached) ---------------- */
@@ -730,7 +825,7 @@ async function handleWeather(lat, lon, zip) {
     gridUrl ? fetchJson(gridUrl, { headers: NWS_HEADERS }, 4500) : Promise.resolve(null),
     alertsUrl ? fetchJson(alertsUrl, { headers: NWS_HEADERS }, 4500) : Promise.resolve(null),
     fetchUsnoAstro({ lat: la, lon: lo, timeZone }),
-    fetchEpaUv({ zip: safeStr(zip), city, state, timeZone }),
+    fetchUvCombined({ zip: safeStr(zip), city, state, timeZone, lat: la, lon: lo }),
     fetchOpenMeteoSoilArchive({ lat: la, lon: lo }), // ✅ Archive soil moisture + max 6h (cached)
   ]);
 
