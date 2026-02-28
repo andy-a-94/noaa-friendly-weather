@@ -690,6 +690,16 @@ header{
   color: inherit;
 }
 
+.daypart-card-static{
+  cursor: default;
+  perspective: none;
+}
+
+.daypart-card-static .daypart-face{
+  position: relative;
+  min-height: 170px;
+}
+
 .daypart-flip{
   position: relative;
   width: 100%;
