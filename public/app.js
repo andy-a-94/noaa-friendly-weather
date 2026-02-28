@@ -287,7 +287,9 @@ function buildWindTile(data) {
 
   const directionLabel = windDirection || "—";
   const speedLabel = Number.isFinite(windSpeedMph) ? `${windSpeedMph} mph` : "—";
-  const gustLabel = Number.isFinite(gustMph) ? `${gustMph} mph` : "Not reported";
+  const gustLine = Number.isFinite(gustMph)
+    ? `<div class="wind-tile-gust">Gusts ${gustMph} mph</div>`
+    : "";
   const directionDegAttr = Number.isFinite(windDirectionDeg) ? String(windDirectionDeg) : "";
   const arrowStyle = Number.isFinite(windDirectionDeg)
     ? `style="transform:translateX(-50%) rotate(${windDirectionDeg}deg);"`
@@ -307,7 +309,7 @@ function buildWindTile(data) {
         </div>
         <div class="wind-tile-values">
           <div class="wind-tile-speed">${speedLabel}</div>
-          <div class="wind-tile-gust">Gusts ${gustLabel}</div>
+          ${gustLine}
         </div>
       </div>
       <div class="wind-tile-head">Tap for live compass</div>
@@ -338,7 +340,12 @@ function startCompassTracking(compassEl, statusEl, windDirectionDeg = null) {
   const updateHeading = (heading) => {
     if (!Number.isFinite(heading)) return;
     const normalized = ((heading % 360) + 360) % 360;
-    headingArrow.style.transform = `translateX(-50%) rotate(${normalized}deg)`;
+    compassDial.style.transform = `rotate(${-normalized}deg)`;
+    headingArrow.style.transform = "translateX(-50%) rotate(0deg)";
+    if (Number.isFinite(windDirectionDeg)) {
+      const windRelativeDeg = ((windDirectionDeg - normalized) % 360 + 360) % 360;
+      windArrow.style.transform = `translateX(-50%) rotate(${windRelativeDeg}deg)`;
+    }
     if (statusEl) statusEl.textContent = `Top of compass is your heading: ${Math.round(normalized)}°`;
   };
 
@@ -959,7 +966,6 @@ function renderShoe(data) {
           <button class="shoe-info-btn" type="button" aria-label="About Shoe Index">i</button>
         </div>
         <div class="shoe-text">
-          <div class="shoe-title">${label}</div>
           <div class="shoe-sub">${sub}</div>
         </div>
       </div>
