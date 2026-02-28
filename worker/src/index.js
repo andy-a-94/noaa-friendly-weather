@@ -632,6 +632,17 @@ function weatherCodeToShortForecast(code) {
   return "Forecast";
 }
 
+function formatWeekdayName(isoDay, timeZone) {
+  try {
+    return new Intl.DateTimeFormat("en-US", {
+      timeZone: safeStr(timeZone) || "UTC",
+      weekday: "long",
+    }).format(new Date(`${isoDay}T12:00:00Z`));
+  } catch {
+    return "Forecast";
+  }
+}
+
 async function fetchOpenMeteoExtendedDaily({ lat, lon, timeZone }) {
   const source = { provider: "open-meteo-daily" };
   const la = Number(lat);
@@ -651,6 +662,7 @@ async function fetchOpenMeteoExtendedDaily({ lat, lon, timeZone }) {
     const daily = json?.daily || {};
     const dates = Array.isArray(daily.time) ? daily.time : [];
     const maxTemps = Array.isArray(daily.temperature_2m_max) ? daily.temperature_2m_max : [];
+    const minTemps = Array.isArray(daily.temperature_2m_min) ? daily.temperature_2m_min : [];
     const pops = Array.isArray(daily.precipitation_probability_max) ? daily.precipitation_probability_max : [];
     const winds = Array.isArray(daily.wind_speed_10m_max) ? daily.wind_speed_10m_max : [];
     const codes = Array.isArray(daily.weather_code) ? daily.weather_code : [];
@@ -660,22 +672,24 @@ async function fetchOpenMeteoExtendedDaily({ lat, lon, timeZone }) {
       const day = safeStr(dates[i]);
       if (!day) continue;
       const temp = Number(maxTemps[i]);
+      const lowTemp = Number(minTemps[i]);
       const pop = Number(pops[i]);
       const wind = Number(winds[i]);
       const code = Number(codes[i]);
 
       out.push({
         number: 1000 + i,
-        name: i === 7 ? "Next Week" : `Day ${i + 1}`,
+        name: formatWeekdayName(day, tz),
         startTime: `${day}T12:00:00Z`,
         endTime: `${day}T23:59:59Z`,
         isDaytime: true,
         temperature: Number.isFinite(temp) ? Math.round(temp) : null,
+        overnightLow: Number.isFinite(lowTemp) ? Math.round(lowTemp) : null,
         temperatureUnit: "F",
         windSpeed: Number.isFinite(wind) ? `${Math.round(wind)} mph` : "",
         windDirection: "",
         shortForecast: weatherCodeToShortForecast(code),
-        detailedForecast: "Extended forecast powered by Open-Meteo.",
+        detailedForecast: "Extended forecast.",
         probabilityOfPrecipitation: {
           unitCode: "wmoUnit:percent",
           value: Number.isFinite(pop) ? clamp(Math.round(pop), 0, 100) : null,
