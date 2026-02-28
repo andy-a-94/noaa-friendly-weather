@@ -619,6 +619,77 @@ function computeRainBoost(currentPeriod, nextHourPeriod) {
   return { boost: 0, reason: "", from: "" };
 }
 
+function weatherCodeToShortForecast(code) {
+  const c = Number(code);
+  if (c === 0) return "Clear";
+  if ([1, 2].includes(c)) return "Partly Cloudy";
+  if (c === 3) return "Cloudy";
+  if ([45, 48].includes(c)) return "Fog";
+  if ([51, 53, 55, 56, 57].includes(c)) return "Drizzle";
+  if ([61, 63, 65, 66, 67, 80, 81, 82].includes(c)) return "Rain";
+  if ([71, 73, 75, 77, 85, 86].includes(c)) return "Snow";
+  if ([95, 96, 99].includes(c)) return "Thunderstorms";
+  return "Forecast";
+}
+
+async function fetchOpenMeteoExtendedDaily({ lat, lon, timeZone }) {
+  const source = { provider: "open-meteo-daily" };
+  const la = Number(lat);
+  const lo = Number(lon);
+  if (!Number.isFinite(la) || !Number.isFinite(lo)) return [];
+
+  const tz = safeStr(timeZone) || "auto";
+  const url =
+    `https://api.open-meteo.com/v1/forecast?latitude=${encodeURIComponent(la)}` +
+    `&longitude=${encodeURIComponent(lo)}` +
+    `&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,wind_speed_10m_max` +
+    `&forecast_days=14&temperature_unit=fahrenheit&wind_speed_unit=mph&precipitation_unit=inch` +
+    `&timezone=${encodeURIComponent(tz)}`;
+
+  try {
+    const json = await fetchJson(url, {}, 3500);
+    const daily = json?.daily || {};
+    const dates = Array.isArray(daily.time) ? daily.time : [];
+    const maxTemps = Array.isArray(daily.temperature_2m_max) ? daily.temperature_2m_max : [];
+    const pops = Array.isArray(daily.precipitation_probability_max) ? daily.precipitation_probability_max : [];
+    const winds = Array.isArray(daily.wind_speed_10m_max) ? daily.wind_speed_10m_max : [];
+    const codes = Array.isArray(daily.weather_code) ? daily.weather_code : [];
+
+    const out = [];
+    for (let i = 7; i < Math.min(dates.length, 14); i += 1) {
+      const day = safeStr(dates[i]);
+      if (!day) continue;
+      const temp = Number(maxTemps[i]);
+      const pop = Number(pops[i]);
+      const wind = Number(winds[i]);
+      const code = Number(codes[i]);
+
+      out.push({
+        number: 1000 + i,
+        name: i === 7 ? "Next Week" : `Day ${i + 1}`,
+        startTime: `${day}T12:00:00Z`,
+        endTime: `${day}T23:59:59Z`,
+        isDaytime: true,
+        temperature: Number.isFinite(temp) ? Math.round(temp) : null,
+        temperatureUnit: "F",
+        windSpeed: Number.isFinite(wind) ? `${Math.round(wind)} mph` : "",
+        windDirection: "",
+        shortForecast: weatherCodeToShortForecast(code),
+        detailedForecast: "Extended forecast powered by Open-Meteo.",
+        probabilityOfPrecipitation: {
+          unitCode: "wmoUnit:percent",
+          value: Number.isFinite(pop) ? clamp(Math.round(pop), 0, 100) : null,
+        },
+        _source: source.provider,
+      });
+    }
+
+    return out;
+  } catch {
+    return [];
+  }
+}
+
 async function fetchOpenMeteoSoilArchive({ lat, lon }) {
   const source = { provider: "open-meteo-archive" };
 
@@ -827,9 +898,10 @@ async function handleWeather(lat, lon, zip) {
     fetchUsnoAstro({ lat: la, lon: lo, timeZone }),
     fetchUvCombined({ zip: safeStr(zip), city, state, timeZone, lat: la, lon: lo }),
     fetchOpenMeteoSoilArchive({ lat: la, lon: lo }), // ✅ Archive soil moisture + max 6h (cached)
+    fetchOpenMeteoExtendedDaily({ lat: la, lon: lo, timeZone }),
   ]);
 
-  const [dailyRes, hourlyRes, gridRes, alertsRes, astroRes, uvRes, soilRes] = fetches;
+  const [dailyRes, hourlyRes, gridRes, alertsRes, astroRes, uvRes, soilRes, extendedDailyRes] = fetches;
 
   if (dailyRes.status !== "fulfilled" || hourlyRes.status !== "fulfilled") {
     return jsonResponse({ error: "Failed to fetch forecast data" }, 502);
@@ -839,7 +911,13 @@ async function handleWeather(lat, lon, zip) {
   const hourlyJson = hourlyRes.value;
 
   const hourlyPeriods = Array.isArray(hourlyJson?.properties?.periods) ? hourlyJson.properties.periods : [];
-  const dailyPeriods = Array.isArray(dailyJson?.properties?.periods) ? dailyJson.properties.periods : [];
+  const dailyPeriods = Array.isArray(dailyJson?.properties?.periods) ? [...dailyJson.properties.periods] : [];
+  const extendedDailyPeriods = (extendedDailyRes.status === "fulfilled" && Array.isArray(extendedDailyRes.value))
+    ? extendedDailyRes.value
+    : [];
+  if (extendedDailyPeriods.length) {
+    dailyPeriods.push(...extendedDailyPeriods);
+  }
 
   const current = hourlyPeriods.length ? hourlyPeriods[0] : null;
   const nextHour = hourlyPeriods.length > 1 ? hourlyPeriods[1] : null;
