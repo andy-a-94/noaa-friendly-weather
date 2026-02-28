@@ -66,6 +66,23 @@ a{ color: inherit; }
   }
 }
 
+
+.grid{
+  display:grid;
+  grid-template-columns:repeat(2, minmax(0, 1fr));
+  gap:12px;
+}
+
+.grid > section{
+  grid-column:1 / -1;
+}
+
+#windCard,
+#shoeCard{
+  grid-column:auto;
+  margin-top:0;
+}
+
 header{
   display:flex;
   align-items:flex-end;
@@ -915,6 +932,91 @@ header{
   background:rgba(255,255,255,0.05);
 }
 
+.wind-tile-main{
+  display:flex;
+  align-items:center;
+  gap:12px;
+}
+
+.wind-tile-preview{
+  position:relative;
+  width:74px;
+  height:74px;
+  flex:0 0 auto;
+  border-radius:999px;
+  background: radial-gradient(circle at 45% 35%, rgba(255,255,255,0.18), rgba(255,255,255,0.03));
+}
+
+.wind-tile-ring{
+  position:absolute;
+  inset:0;
+  border-radius:999px;
+  border:2px solid rgba(160,205,255,0.55);
+}
+
+.wind-tile-mark{
+  position:absolute;
+  font-size:10px;
+  font-weight:800;
+  color:rgba(220,236,255,0.9);
+}
+
+.wind-tile-mark-n{ top:4px; left:50%; transform:translateX(-50%); }
+.wind-tile-mark-e{ right:6px; top:50%; transform:translateY(-50%); }
+.wind-tile-mark-s{ bottom:4px; left:50%; transform:translateX(-50%); }
+.wind-tile-mark-w{ left:6px; top:50%; transform:translateY(-50%); }
+
+.wind-tile-arrow{
+  position:absolute;
+  left:50%;
+  bottom:50%;
+  width:3px;
+  height:24px;
+  transform-origin:50% 100%;
+  background:linear-gradient(to top, rgba(255,147,86,0.15), #ff9356);
+  border-radius:8px;
+}
+
+.wind-tile-arrow::before{
+  content:"";
+  position:absolute;
+  left:50%;
+  top:-8px;
+  transform:translateX(-50%);
+  border-left:5px solid transparent;
+  border-right:5px solid transparent;
+  border-bottom:10px solid #ff9356;
+}
+
+.wind-tile-core{
+  position:absolute;
+  left:50%;
+  top:50%;
+  width:8px;
+  height:8px;
+  border-radius:999px;
+  transform:translate(-50%, -50%);
+  background:#d7ebff;
+  box-shadow:0 0 0 2px rgba(11,16,32,0.7);
+}
+
+.wind-tile-values{
+  min-width:0;
+}
+
+.wind-tile-speed{
+  font-size:18px;
+  font-weight:900;
+  line-height:1.1;
+}
+
+
+.wind-tile-gust{
+  margin-top:2px;
+  font-size:12px;
+  color:rgba(255,255,255,0.75);
+}
+
 .wind-compass-modal{
   position:fixed;
   inset:0;
@@ -966,15 +1068,15 @@ header{
   height:220px;
   margin:16px auto 12px;
   border-radius:999px;
-  border:2px solid rgba(255,255,255,0.24);
-  background: radial-gradient(circle at center, rgba(255,255,255,0.07), rgba(255,255,255,0.01));
+  border:2px solid rgba(255,255,255,0.30);
+  background: radial-gradient(circle at 45% 35%, rgba(255,255,255,0.18), rgba(255,255,255,0.02));
+  box-shadow: inset 0 0 30px rgba(0,0,0,0.32);
 }
 
 .wind-compass-dial{
   position:relative;
   width:100%;
   height:100%;
-  transition:transform 160ms linear;
 }
 
 .wind-compass-north,
@@ -1005,6 +1107,31 @@ header{
   background:linear-gradient(to top, rgba(255,147,86,0.16), #ff9356);
 }
 
+.wind-compass-heading-arrow{
+  width:3px;
+  height:68px;
+  background:linear-gradient(to top, rgba(180,220,255,0.28), #d5ecff);
+}
+
+.wind-compass-heading-arrow::before,
+.wind-arrow::before{
+  content:"";
+  position:absolute;
+  left:50%;
+  top:-10px;
+  transform:translateX(-50%);
+  border-left:6px solid transparent;
+  border-right:6px solid transparent;
+}
+
+.wind-arrow::before{
+  border-bottom:12px solid #ff9356;
+}
+
+.wind-compass-heading-arrow::before{
+  border-bottom:12px solid #d5ecff;
+}
+
 .wind-compass-legend{
   display:flex;
   justify-content:space-between;
@@ -1022,6 +1149,7 @@ header{
 }
 
 .legend-dot-wind{ background:#ff9356; }
+.legend-dot-heading{ background:#d5ecff; }
 
 .wind-compass-status{
   margin-top:10px;
@@ -1034,16 +1162,10 @@ body.is-modal-open{
 }
 
 .wind-tile-head{
-  font-size:16px;
-  font-weight:850;
-  margin-bottom:6px;
-}
-
-.wind-tile-metrics{
-  display:grid;
-  gap:6px;
-  font-size:14px;
-  color:rgba(255,255,255,0.9);
+  margin-top:8px;
+  font-size:12px;
+  font-weight:750;
+  color:rgba(255,255,255,0.76);
 }
 
 /* Small emoji helper used elsewhere (Hourly, etc.) */
@@ -1066,9 +1188,16 @@ body.is-modal-open{
   gap:12px;
   align-items:center;
 }
+.shoe-icon-stack{
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:6px;
+  flex:0 0 auto;
+}
 .shoe-icon{
-  width:44px;
-  height:44px;
+  width:50px;
+  height:50px;
   border-radius: 14px;
   display:grid;
   place-items:center;
@@ -1076,8 +1205,8 @@ body.is-modal-open{
   border: 1px solid rgba(255,255,255,0.10);
 }
 .shoe-icon-img{
-  width: 34px;
-  height: 34px;
+  width: 70%;
+  height: 70%;
   object-fit: contain;
 }
 .shoe-text{
@@ -1096,9 +1225,8 @@ body.is-modal-open{
 }
 
 .shoe-info-btn{
-  position:absolute;
-  top: 10px;
-  right: 10px;
+  position: static;
+  align-self: flex-end;
   width: 26px;
   height: 26px;
   border-radius: 999px;
@@ -1375,6 +1503,11 @@ body.is-modal-open{
 @media (max-width: 740px){
   .astro-tiles{
     grid-template-columns: 1fr;
+  }
+
+  #windCard,
+  #shoeCard{
+    min-width:0;
   }
 
   .astro-tile{

@@ -289,15 +289,28 @@ function buildWindTile(data) {
   const speedLabel = Number.isFinite(windSpeedMph) ? `${windSpeedMph} mph` : "—";
   const gustLabel = Number.isFinite(gustMph) ? `${gustMph} mph` : "Not reported";
   const directionDegAttr = Number.isFinite(windDirectionDeg) ? String(windDirectionDeg) : "";
+  const arrowStyle = Number.isFinite(windDirectionDeg)
+    ? `style="transform:translateX(-50%) rotate(${windDirectionDeg}deg);"`
+    : "";
 
   return `
     <button class="wind-tile" type="button" data-open-wind-compass="true" data-wind-direction="${directionLabel}" data-wind-direction-deg="${directionDegAttr}">
-      <div class="wind-tile-head">Open Wind Compass</div>
-      <div class="wind-tile-metrics">
-        <span><strong>Speed:</strong> ${speedLabel}</span>
-        <span><strong>Gusts:</strong> ${gustLabel}</span>
-        <span><strong>Direction:</strong> ${directionLabel}</span>
+      <div class="wind-tile-main">
+        <div class="wind-tile-preview" aria-hidden="true">
+          <span class="wind-tile-ring"></span>
+          <span class="wind-tile-mark wind-tile-mark-n">N</span>
+          <span class="wind-tile-mark wind-tile-mark-e">E</span>
+          <span class="wind-tile-mark wind-tile-mark-s">S</span>
+          <span class="wind-tile-mark wind-tile-mark-w">W</span>
+          <span class="wind-tile-arrow" ${arrowStyle}></span>
+          <span class="wind-tile-core"></span>
+        </div>
+        <div class="wind-tile-values">
+          <div class="wind-tile-speed">${speedLabel}</div>
+          <div class="wind-tile-gust">Gusts ${gustLabel}</div>
+        </div>
       </div>
+      <div class="wind-tile-head">Tap for live compass</div>
     </button>
   `;
 }
@@ -314,7 +327,8 @@ function startCompassTracking(compassEl, statusEl, windDirectionDeg = null) {
 
   const compassDial = compassEl?.querySelector("[data-compass-dial='true']");
   const windArrow = compassEl?.querySelector("[data-compass-wind-arrow='true']");
-  if (!compassDial || !windArrow) return;
+  const headingArrow = compassEl?.querySelector("[data-compass-heading-arrow='true']");
+  if (!compassDial || !windArrow || !headingArrow) return;
 
   windArrow.style.transform = Number.isFinite(windDirectionDeg)
     ? `translateX(-50%) rotate(${windDirectionDeg}deg)`
@@ -324,7 +338,7 @@ function startCompassTracking(compassEl, statusEl, windDirectionDeg = null) {
   const updateHeading = (heading) => {
     if (!Number.isFinite(heading)) return;
     const normalized = ((heading % 360) + 360) % 360;
-    compassDial.style.transform = `rotate(${-normalized}deg)`;
+    headingArrow.style.transform = `translateX(-50%) rotate(${normalized}deg)`;
     if (statusEl) statusEl.textContent = `Top of compass is your heading: ${Math.round(normalized)}°`;
   };
 
@@ -868,10 +882,12 @@ function renderWind(data) {
             <span class="wind-compass-east">E</span>
             <span class="wind-compass-south">S</span>
             <span class="wind-compass-west">W</span>
-            <span class="wind-compass-arrow wind-arrow" data-compass-wind-arrow="true" aria-hidden="true"></span>
           </div>
+          <span class="wind-compass-arrow wind-arrow" data-compass-wind-arrow="true" aria-hidden="true"></span>
+          <span class="wind-compass-arrow wind-compass-heading-arrow" data-compass-heading-arrow="true" aria-hidden="true"></span>
         </div>
         <div class="wind-compass-legend">
+          <span><span class="legend-dot legend-dot-heading"></span>Your heading</span>
           <span><span class="legend-dot legend-dot-wind"></span>Wind from</span>
         </div>
         <div class="wind-compass-status" data-compass-status="true">Move your phone to calibrate compass…</div>
@@ -936,16 +952,17 @@ function renderShoe(data) {
   els.shoeContent.innerHTML = `
     <div class="shoe-wrap">
       <div class="shoe-row">
-        <div class="shoe-icon" aria-hidden="true">
-          <img class="shoe-icon-img" src="${iconSrc}" alt="" />
+        <div class="shoe-icon-stack">
+          <div class="shoe-icon" aria-hidden="true">
+            <img class="shoe-icon-img" src="${iconSrc}" alt="" />
+          </div>
+          <button class="shoe-info-btn" type="button" aria-label="About Shoe Index">i</button>
         </div>
         <div class="shoe-text">
           <div class="shoe-title">${label}</div>
           <div class="shoe-sub">${sub}</div>
         </div>
       </div>
-
-      <button class="shoe-info-btn" type="button" aria-label="About Shoe Index">i</button>
 
       <div class="shoe-popover" hidden>
         <div class="shoe-popover-title">About Shoe Index</div>
