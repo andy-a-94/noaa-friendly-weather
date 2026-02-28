@@ -284,9 +284,9 @@ function setupExpandableTiles() {
 }
 
 
-function setupHourlyFlip() {
+function setupFlippableCards() {
   document.addEventListener("click", (e) => {
-    const card = e.target.closest(".hour-card[data-flippable='true']");
+    const card = e.target.closest("[data-flippable='true']");
     if (!card) return;
     const next = !card.classList.contains("is-flipped");
     card.classList.toggle("is-flipped", next);
@@ -295,7 +295,7 @@ function setupHourlyFlip() {
 
   document.addEventListener("keydown", (e) => {
     if (e.key !== "Enter" && e.key !== " ") return;
-    const card = e.target.closest(".hour-card[data-flippable='true']");
+    const card = e.target.closest("[data-flippable='true']");
     if (!card) return;
     e.preventDefault();
     const next = !card.classList.contains("is-flipped");
@@ -1384,7 +1384,7 @@ function renderDaily(data) {
 
     const statsRowsHtml = (rows) => {
       if (!rows.length) return "";
-      return `<div class="day-stats-rows">${rows.map((row) => `<div class="tile-detail-row"><span class="tile-detail-label">${row.label}</span><span class="tile-detail-value">${row.value}</span></div>`).join("")}</div><div class="day-stats-separator" aria-hidden="true"></div>`;
+      return `<div class="daypart-stats">${rows.map((row) => `<div class="tile-detail-row"><span class="tile-detail-label">${row.label}</span><span class="tile-detail-value">${row.value}</span></div>`).join("")}</div>`;
     };
 
     const dayStats = buildStatsRows({ pop: popDay, windStr: windDay, dewF: dewDayF, rh: rhDay });
@@ -1393,21 +1393,36 @@ function renderDaily(data) {
     const dayDetail = stripChanceOfPrecipSentence(day?.detailedForecast || short);
     const nightDetail = night ? stripChanceOfPrecipSentence(night?.detailedForecast || night?.shortForecast) : "";
 
+    const buildDayPartCard = ({ title, period, detailText, pop, statsRows }) => {
+      if (!period) return "";
+      const partShort = safeText(period?.shortForecast || "");
+      const partIcon = iconFromForecastIconUrl(period?.icon, partShort);
+      const precipLabel = typeof pop === "number" ? `${pop}%` : "—";
+      return `
+        <button class="daypart-card" type="button" data-flippable="true" aria-pressed="false" aria-label="Flip ${title.toLowerCase()} forecast card for details">
+          <div class="daypart-flip">
+            <div class="daypart-face daypart-front">
+              <div class="daypart-head">
+                <span class="dn-title">${title}</span>
+                <span class="daypart-icon" aria-hidden="true">${partIcon}</span>
+                <span class="daypart-precip">💧 ${precipLabel}</span>
+              </div>
+              <div class="dn-text">${detailText || "—"}</div>
+            </div>
+            <div class="daypart-face daypart-back">
+              <div class="daypart-back-title">${title} Stats</div>
+              ${statsRowsHtml(statsRows) || `<div class="daypart-empty">No additional stats.</div>`}
+            </div>
+          </div>
+        </button>
+      `;
+    };
+
     const detailHtml = `
-      <div class="day-detail-block">
-        <div class="dn-title">Day</div>
-        <div class="dn-text">${dayDetail || "—"}</div>
-        ${statsRowsHtml(dayStats)}
+      <div class="daypart-grid">
+        ${buildDayPartCard({ title: "Day", period: day, detailText: dayDetail, pop: popDay, statsRows: dayStats })}
+        ${night ? buildDayPartCard({ title: "Night", period: night, detailText: nightDetail, pop: popNight, statsRows: nightStats }) : ""}
       </div>
-      ${
-        night
-          ? `<div class="day-detail-block">
-               <div class="dn-title">Night</div>
-               <div class="dn-text">${nightDetail || "—"}</div>
-               ${statsRowsHtml(nightStats)}
-             </div>`
-          : ``
-      }
     `;
 
     return `
@@ -1513,7 +1528,7 @@ async function runSearch(query) {
 
 async function init() {
   setupExpandableTiles();
-  setupHourlyFlip();
+  setupFlippableCards();
   setupAlertDisclosure();
 
   [els.currentCard].forEach((card) => {
