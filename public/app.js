@@ -1377,7 +1377,7 @@ function renderDaily(data) {
   const shouldShowToggle = grouped.length > DAILY_INITIAL_VISIBLE;
   const visibleDays = dailyExpanded ? grouped : grouped.slice(0, DAILY_INITIAL_VISIBLE);
 
-  const list = visibleDays.map(({ day, night }) => {
+  const list = visibleDays.map(({ day, night }, dayIndex) => {
     const name = safeText(day?.name || "");
     const short = safeText(day?.shortForecast || "");
     const icon = iconFromForecastIconUrl(day?.icon, short);
@@ -1422,11 +1422,29 @@ function renderDaily(data) {
       ? stripWindFromForecastText(stripChanceOfPrecipSentence(night?.detailedForecast || night?.shortForecast))
       : "";
 
+    const isExtendedDay = dailyExpanded && dayIndex >= DAILY_INITIAL_VISIBLE;
+
     const buildDayPartCard = ({ title, period, detailText, pop, statsRows }) => {
       if (!period) return "";
       const partShort = safeText(period?.shortForecast || "");
       const partIcon = iconFromForecastIconUrl(period?.icon, partShort);
       const precipLabel = typeof pop === "number" ? `${pop}%` : "—";
+
+      if (isExtendedDay) {
+        return `
+          <div class="daypart-card daypart-card-static" role="group" aria-label="${title} forecast stats">
+            <div class="daypart-face daypart-front">
+              <div class="daypart-head">
+                <span class="dn-title">${title}</span>
+                <span class="daypart-icon" aria-hidden="true">${partIcon}</span>
+                <span class="daypart-precip">💧 ${precipLabel}</span>
+              </div>
+              ${statsRowsHtml(statsRows) || `<div class="daypart-empty">No additional stats.</div>`}
+            </div>
+          </div>
+        `;
+      }
+
       return `
         <button class="daypart-card" type="button" data-flippable="true" aria-pressed="false" aria-label="Flip ${title.toLowerCase()} forecast card for details">
           <div class="daypart-flip">
