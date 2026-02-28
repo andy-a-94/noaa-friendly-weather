@@ -157,6 +157,33 @@ function stripChanceOfPrecipSentence(text) {
   return t;
 }
 
+function stripWindFromForecastText(text) {
+  const sentences = safeText(text)
+    .split(/(?<=[.!?])\s+/)
+    .map((sentence) => sentence.trim())
+    .filter(Boolean)
+    .map((sentence) => {
+      if (!/\bwind\b/i.test(sentence)) return sentence;
+      if (!/\bgusts?\b/i.test(sentence)) return "";
+
+      let updated = sentence
+        .replace(/(?:,\s*)?with\s+(?:an?\s+)?(?:[a-z-]+\s+)*wind\s+\d+(?:\s*to\s*\d+)?\s*mph\b/gi, "")
+        .replace(/\b(?:[a-z-]+\s+)*wind\s+\d+(?:\s*to\s*\d+)?\s*mph\b/gi, "")
+        .replace(/\s+,/g, ",")
+        .replace(/,\s*,/g, ",")
+        .replace(/\s{2,}/g, " ")
+        .replace(/^,\s*/, "")
+        .trim();
+
+      if (!updated) return "";
+      if (!/[.!?]$/.test(updated)) updated = `${updated}.`;
+      return updated;
+    })
+    .filter(Boolean);
+
+  return sentences.join(" ").replace(/\s{2,}/g, " ").trim();
+}
+
 function extractPopPercent(period) {
   const v = period?.probabilityOfPrecipitation?.value;
   if (typeof v === "number") return clamp(Math.round(v), 0, 100);
@@ -1390,8 +1417,10 @@ function renderDaily(data) {
     const dayStats = buildStatsRows({ pop: popDay, windStr: windDay, dewF: dewDayF, rh: rhDay });
     const nightStats = night ? buildStatsRows({ pop: popNight, windStr: windNight, dewF: dewNightF, rh: rhNight }) : [];
 
-    const dayDetail = stripChanceOfPrecipSentence(day?.detailedForecast || short);
-    const nightDetail = night ? stripChanceOfPrecipSentence(night?.detailedForecast || night?.shortForecast) : "";
+    const dayDetail = stripWindFromForecastText(stripChanceOfPrecipSentence(day?.detailedForecast || short));
+    const nightDetail = night
+      ? stripWindFromForecastText(stripChanceOfPrecipSentence(night?.detailedForecast || night?.shortForecast))
+      : "";
 
     const buildDayPartCard = ({ title, period, detailText, pop, statsRows }) => {
       if (!period) return "";
