@@ -495,17 +495,15 @@ header{
   /* ✅ named areas prevent any “slide left” when .precip isn't rendered */
   grid-template-areas:
     "left precip icon temps"
+    "left precip icon temps"
     "left precip icon temps";
 
-  grid-template-rows:auto auto;
+  grid-template-rows:auto auto auto;
 
   column-gap:10px;
   row-gap:4px;
 
-  /* ✅ every day row same height */
-  height:76px;
-
-  /* center the 2-line left block inside the fixed height */
+  min-height:92px;
   align-content:center;
 }
 
@@ -543,9 +541,18 @@ header{
 }
 
 
-.day-short{
+.day-date{
   grid-area:left;
   grid-row:2;
+  color:rgba(255,255,255,0.72);
+  font-size:12px;
+  font-weight:700;
+  min-width:0;
+}
+
+.day-short{
+  grid-area:left;
+  grid-row:3;
   color:var(--muted);
   min-width:0;
 
@@ -559,7 +566,7 @@ header{
 /* Precip column (reserved lane; stack droplet over percent if split into elements by JS) */
 .day-summary .precip{
   grid-area:precip;
-  grid-row:1 / span 2;
+  grid-row:1 / span 3;
   justify-self:center;
   align-self:center;
   width:56px;
@@ -590,7 +597,7 @@ header{
 /* ✅ Primary daily icon selector */
 .day-summary .wx-icon{
   grid-area:icon;
-  grid-row:1 / span 2;
+  grid-row:1 / span 3;
   justify-self:center;
   align-self:center;
   width:28px;
@@ -604,7 +611,7 @@ header{
 /* Temps column */
 .day-temp{
   grid-area:temps;
-  grid-row:1 / span 2;
+  grid-row:1 / span 3;
   justify-self:start;
   padding-left:10px;
   text-align:left;
@@ -624,6 +631,25 @@ header{
   padding:2px 12px 14px;
   color:var(--muted);
   font-size:14px;
+}
+
+.day-details[open] .day-date{
+  display:none;
+}
+
+.daily-toggle-wrap{
+  padding: 10px 12px 4px;
+}
+
+.daily-toggle{
+  border: 1px solid rgba(255,255,255,0.26);
+  background: rgba(255,255,255,0.06);
+  color: rgba(255,255,255,0.92);
+  border-radius: 999px;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
 }
 
 .day-detail-block{

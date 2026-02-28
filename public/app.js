@@ -57,6 +57,8 @@ let graphOutsideClickHandler = null;
 const HOURLY_INITIAL_COUNT = 24;
 const HOURLY_LOAD_STEP = 24;
 const DAILY_DAYS_VISIBLE = 14;
+const DAILY_INITIAL_VISIBLE = 7;
+let dailyExpanded = false;
 
 function getWorkerBaseUrl() {
   const meta = document.querySelector('meta[name="worker-base-url"]');
@@ -1345,14 +1347,17 @@ function renderDaily(data) {
   const metrics = data?.periodMetrics || {};
 
   const grouped = groupDailyIntoDays(daily.periods, timeZone);
+  const shouldShowToggle = grouped.length > DAILY_INITIAL_VISIBLE;
+  const visibleDays = dailyExpanded ? grouped : grouped.slice(0, DAILY_INITIAL_VISIBLE);
 
-  const list = grouped.map(({ day, night }) => {
+  const list = visibleDays.map(({ day, night }) => {
     const name = safeText(day?.name || "");
     const short = safeText(day?.shortForecast || "");
     const icon = iconFromForecastIconUrl(day?.icon, short);
 
     const hi = formatTempF(day?.temperature);
-    const lo = night ? formatTempF(night?.temperature) : "—";
+    const overnightLow = Number.isFinite(day?.overnightLow) ? day.overnightLow : null;
+    const lo = night ? formatTempF(night?.temperature) : (overnightLow !== null ? formatTempF(overnightLow) : "—");
     const popDay = extractPopPercent(day);
     const popNight = night ? extractPopPercent(night) : null;
 
@@ -1390,7 +1395,6 @@ function renderDaily(data) {
 
     const detailHtml = `
       <div class="day-detail-block">
-        ${when ? `<div class="detail-meta">${when}</div>` : ""}
         <div class="dn-title">Day</div>
         <div class="dn-text">${dayDetail || "—"}</div>
         ${statsRowsHtml(dayStats)}
@@ -1411,6 +1415,7 @@ function renderDaily(data) {
         <summary class="day-summary">
           <div class="day-left">
             <div class="day-name">${name}</div>
+            ${when ? `<div class="day-date">${when.replace(/^\w+,\s*/, "")}</div>` : ""}
             <div class="day-short">${short || "—"}</div>
           </div>
           <div class="day-right">
@@ -1429,8 +1434,18 @@ function renderDaily(data) {
     `;
   }).join("");
 
-  els.dailyContent.innerHTML = `<div class="daily-list">${list}</div>`;
+  const toggleLabel = dailyExpanded ? "Show First 7 Days" : "Next 7 Days";
+  const toggleHtml = shouldShowToggle
+    ? `<div class="daily-toggle-wrap"><button class="daily-toggle" type="button" data-daily-toggle="true">${toggleLabel}</button></div>`
+    : "";
+
+  els.dailyContent.innerHTML = `<div class="daily-list">${list}</div>${toggleHtml}`;
   els.dailyCard.hidden = false;
+
+  els.dailyContent.querySelector("[data-daily-toggle='true']")?.addEventListener("click", () => {
+    dailyExpanded = !dailyExpanded;
+    renderDaily(data);
+  });
 }
 
 async function loadAndRender({ lat, lon, labelOverride = null, zipForUv = null }) {
@@ -1440,6 +1455,7 @@ async function loadAndRender({ lat, lon, labelOverride = null, zipForUv = null }
   const data = await fetchWeather(lat, lon, zipForUv);
   hourlyVisibleCount = HOURLY_INITIAL_COUNT;
   selectedGraphMetric = "precipitation";
+  dailyExpanded = false;
 
   localStorage.setItem(STORAGE_KEYS.lastLat, String(lat));
   localStorage.setItem(STORAGE_KEYS.lastLon, String(lon));
