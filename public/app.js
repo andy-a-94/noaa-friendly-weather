@@ -20,6 +20,9 @@ const els = {
   todayCard: document.getElementById("todayCard"),
   todayContent: document.getElementById("todayContent"),
 
+  windCard: document.getElementById("windCard"),
+  windContent: document.getElementById("windContent"),
+
   // ✅ Shoe
   shoeCard: document.getElementById("shoeCard"),
   shoeContent: document.getElementById("shoeContent"),
@@ -271,7 +274,7 @@ function parseFiniteNumberAttr(value) {
   return Number.isFinite(n) ? n : null;
 }
 
-function buildMobileWindTile(data) {
+function buildWindTile(data) {
   const current = data?.current || null;
   const fallback = Array.isArray(data?.outlook?.periods) ? data.outlook.periods[0] : null;
 
@@ -288,9 +291,9 @@ function buildMobileWindTile(data) {
   const directionDegAttr = Number.isFinite(windDirectionDeg) ? String(windDirectionDeg) : "";
 
   return `
-    <button class="mobile-wind-tile" type="button" data-open-wind-compass="true" data-wind-direction="${directionLabel}" data-wind-direction-deg="${directionDegAttr}">
-      <div class="mobile-wind-head">Wind</div>
-      <div class="mobile-wind-metrics">
+    <button class="wind-tile" type="button" data-open-wind-compass="true" data-wind-direction="${directionLabel}" data-wind-direction-deg="${directionDegAttr}">
+      <div class="wind-tile-head">Open Wind Compass</div>
+      <div class="wind-tile-metrics">
         <span><strong>Speed:</strong> ${speedLabel}</span>
         <span><strong>Gusts:</strong> ${gustLabel}</span>
         <span><strong>Direction:</strong> ${directionLabel}</span>
@@ -309,9 +312,9 @@ function stopCompassTracking() {
 function startCompassTracking(compassEl, statusEl, windDirectionDeg = null) {
   stopCompassTracking();
 
-  const headingArrow = compassEl?.querySelector("[data-compass-heading-arrow='true']");
+  const compassDial = compassEl?.querySelector("[data-compass-dial='true']");
   const windArrow = compassEl?.querySelector("[data-compass-wind-arrow='true']");
-  if (!headingArrow || !windArrow) return;
+  if (!compassDial || !windArrow) return;
 
   windArrow.style.transform = Number.isFinite(windDirectionDeg)
     ? `translateX(-50%) rotate(${windDirectionDeg}deg)`
@@ -321,8 +324,8 @@ function startCompassTracking(compassEl, statusEl, windDirectionDeg = null) {
   const updateHeading = (heading) => {
     if (!Number.isFinite(heading)) return;
     const normalized = ((heading % 360) + 360) % 360;
-    headingArrow.style.transform = `translateX(-50%) rotate(${normalized}deg)`;
-    if (statusEl) statusEl.textContent = `Phone heading: ${Math.round(normalized)}°`;
+    compassDial.style.transform = `rotate(${-normalized}deg)`;
+    if (statusEl) statusEl.textContent = `Top of compass is your heading: ${Math.round(normalized)}°`;
   };
 
   const bindAbsoluteOrientation = () => {
@@ -689,6 +692,7 @@ function resetVisibleSections() {
 
   els.currentCard.hidden = true;
   els.todayCard.hidden = true;
+  els.windCard.hidden = true;
   els.shoeCard.hidden = true;
   els.astroUvCard.hidden = true;
   els.hourlyCard.hidden = true;
@@ -698,6 +702,7 @@ function resetVisibleSections() {
 
   els.currentContent.innerHTML = "";
   els.todayContent.innerHTML = "";
+  els.windContent.innerHTML = "";
   els.shoeContent.innerHTML = "";
   els.astroUvContent.innerHTML = "";
   els.hourlyContent.innerHTML = "";
@@ -820,8 +825,6 @@ function renderToday(data) {
       { label: "Humidity", value: m?.relativeHumidityPct, formatter: formatPercent },
       { label: "Cloud Cover", value: m?.skyCoverPct, formatter: formatPercent },
     ];
-    const windDetail = parseWind(p?.windDirection, p?.windSpeed);
-
     return `
       <section class="today-period" data-expandable="true" tabindex="0" role="button" aria-expanded="false">
         <div class="today-row">
@@ -839,39 +842,45 @@ function renderToday(data) {
           <div class="today-temp">${temp}</div>
         </div>
         <div class="tile-details">
-          ${windDetail ? `<div class="tile-detail-row"><span class="tile-detail-label">Wind</span><span class="tile-detail-value">${windDetail}</span></div>` : ""}
           ${detailRowsHtml(detailsRows)}
         </div>
       </section>
     `;
   }).join("");
 
-  const windTile = buildMobileWindTile(data);
-  const windCompassModal = windTile ? `
+  els.todayContent.innerHTML = `<div class="today-rows">${rows}</div>`;
+  els.todayCard.hidden = false;
+}
+
+function renderWind(data) {
+  const windTile = buildWindTile(data);
+  if (!windTile) return;
+
+  const windCompassModal = `
     <div class="wind-compass-modal" data-wind-compass-modal="true" hidden>
       <div class="wind-compass-dialog" role="dialog" aria-modal="true" aria-label="Wind compass">
         <button type="button" class="wind-compass-close" data-close-wind-compass="true" aria-label="Close wind compass">×</button>
         <div class="wind-compass-title">Wind Compass</div>
         <div class="wind-compass-subtitle">Wind coming from: <span data-wind-direction-label="true">—</span></div>
         <div class="wind-compass" data-compass="true">
-          <span class="wind-compass-north">N</span>
-          <span class="wind-compass-east">E</span>
-          <span class="wind-compass-south">S</span>
-          <span class="wind-compass-west">W</span>
-          <span class="wind-compass-arrow heading-arrow" data-compass-heading-arrow="true" aria-hidden="true"></span>
-          <span class="wind-compass-arrow wind-arrow" data-compass-wind-arrow="true" aria-hidden="true"></span>
+          <div class="wind-compass-dial" data-compass-dial="true">
+            <span class="wind-compass-north">N</span>
+            <span class="wind-compass-east">E</span>
+            <span class="wind-compass-south">S</span>
+            <span class="wind-compass-west">W</span>
+            <span class="wind-compass-arrow wind-arrow" data-compass-wind-arrow="true" aria-hidden="true"></span>
+          </div>
         </div>
         <div class="wind-compass-legend">
-          <span><span class="legend-dot legend-dot-phone"></span>Phone heading</span>
           <span><span class="legend-dot legend-dot-wind"></span>Wind from</span>
         </div>
         <div class="wind-compass-status" data-compass-status="true">Move your phone to calibrate compass…</div>
       </div>
     </div>
-  ` : "";
+  `;
 
-  els.todayContent.innerHTML = `<div class="today-rows">${rows}${windTile}</div>${windCompassModal}`;
-  els.todayCard.hidden = false;
+  els.windContent.innerHTML = `${windTile}${windCompassModal}`;
+  els.windCard.hidden = false;
 }
 
 /* ✅ Shoe tile (swap emojis -> images) */
@@ -1734,6 +1743,7 @@ async function loadAndRender({ lat, lon, labelOverride = null, zipForUv = null }
   renderCurrent(data);
   renderAlerts(data);
   renderToday(data);
+  renderWind(data);
   renderShoe(data);      // between Outlook and Sun/Moon
   renderAstroUv(data);
   renderHourly(data);
