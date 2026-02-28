@@ -56,6 +56,7 @@ let graphOutsideClickHandler = null;
 
 const HOURLY_INITIAL_COUNT = 24;
 const HOURLY_LOAD_STEP = 24;
+const DAILY_DAYS_VISIBLE = 14;
 
 function getWorkerBaseUrl() {
   const meta = document.querySelector('meta[name="worker-base-url"]');
@@ -1326,11 +1327,11 @@ function groupDailyIntoDays(periods, timeZone) {
     }
 
     out.push({ day: p, night });
-    if (out.length >= 7) break;
+    if (out.length >= DAILY_DAYS_VISIBLE) break;
   }
 
   if (out.length === 0) {
-    return periods.slice(0, 7).map(p => ({ day: p, night: null }));
+    return periods.slice(0, DAILY_DAYS_VISIBLE).map(p => ({ day: p, night: null }));
   }
 
   return out;
