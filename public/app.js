@@ -59,6 +59,26 @@ const HOURLY_LOAD_STEP = 24;
 const DAILY_DAYS_VISIBLE = 14;
 const DAILY_INITIAL_VISIBLE = 7;
 let dailyExpanded = false;
+let compassHeadingCleanup = null;
+
+const WIND_DIRECTION_TO_DEG = {
+  N: 0,
+  NNE: 22.5,
+  NE: 45,
+  ENE: 67.5,
+  E: 90,
+  ESE: 112.5,
+  SE: 135,
+  SSE: 157.5,
+  S: 180,
+  SSW: 202.5,
+  SW: 225,
+  WSW: 247.5,
+  W: 270,
+  WNW: 292.5,
+  NW: 315,
+  NNW: 337.5,
+};
 
 function getWorkerBaseUrl() {
   const meta = document.querySelector('meta[name="worker-base-url"]');
@@ -220,6 +240,159 @@ function extractWindMph(windSpeed) {
   if (!m) return null;
   const mph = Number(m[1]);
   return Number.isFinite(mph) ? Math.round(mph) : null;
+}
+
+function parseWindDirectionDegrees(value) {
+  const raw = safeText(value).toUpperCase();
+  if (!raw) return null;
+
+  if (Object.prototype.hasOwnProperty.call(WIND_DIRECTION_TO_DEG, raw)) {
+    return WIND_DIRECTION_TO_DEG[raw];
+  }
+
+  const deg = Number(raw.replace(/[^\d.-]/g, ""));
+  if (!Number.isFinite(deg)) return null;
+  return ((deg % 360) + 360) % 360;
+}
+
+function parseWindGustMph(gustValue) {
+  const raw = safeText(gustValue);
+  if (!raw) return null;
+  const m = raw.match(/\d+(?:\.\d+)?/);
+  if (!m) return null;
+  const mph = Number(m[0]);
+  return Number.isFinite(mph) ? Math.round(mph) : null;
+}
+
+function buildMobileWindTile(data) {
+  const current = data?.current || null;
+  const fallback = Array.isArray(data?.outlook?.periods) ? data.outlook.periods[0] : null;
+
+  const windSpeedMph = extractWindMph(current?.windSpeed) ?? extractWindMph(fallback?.windSpeed);
+  const windDirection = safeText(current?.windDirection || fallback?.windDirection);
+  const windDirectionDeg = parseWindDirectionDegrees(windDirection);
+  const gustMph = parseWindGustMph(current?.windGust || fallback?.windGust);
+
+  if (!Number.isFinite(windSpeedMph) && !windDirection) return "";
+
+  const directionLabel = windDirection || "—";
+  const speedLabel = Number.isFinite(windSpeedMph) ? `${windSpeedMph} mph` : "—";
+  const gustLabel = Number.isFinite(gustMph) ? `${gustMph} mph` : "Not reported";
+  const directionDegAttr = Number.isFinite(windDirectionDeg) ? String(windDirectionDeg) : "";
+
+  return `
+    <button class="mobile-wind-tile" type="button" data-open-wind-compass="true" data-wind-direction="${directionLabel}" data-wind-direction-deg="${directionDegAttr}">
+      <div class="mobile-wind-head">Wind</div>
+      <div class="mobile-wind-metrics">
+        <span><strong>Speed:</strong> ${speedLabel}</span>
+        <span><strong>Gusts:</strong> ${gustLabel}</span>
+        <span><strong>Direction:</strong> ${directionLabel}</span>
+      </div>
+    </button>
+  `;
+}
+
+function stopCompassTracking() {
+  if (typeof compassHeadingCleanup === "function") {
+    compassHeadingCleanup();
+    compassHeadingCleanup = null;
+  }
+}
+
+function startCompassTracking(compassEl, statusEl, windDirectionDeg = null) {
+  stopCompassTracking();
+
+  const headingArrow = compassEl?.querySelector("[data-compass-heading-arrow='true']");
+  const windArrow = compassEl?.querySelector("[data-compass-wind-arrow='true']");
+  if (!headingArrow || !windArrow) return;
+
+  windArrow.style.transform = Number.isFinite(windDirectionDeg)
+    ? `translateX(-50%) rotate(${windDirectionDeg}deg)`
+    : "translateX(-50%) rotate(0deg)";
+  windArrow.hidden = !Number.isFinite(windDirectionDeg);
+
+  const updateHeading = (heading) => {
+    if (!Number.isFinite(heading)) return;
+    const normalized = ((heading % 360) + 360) % 360;
+    headingArrow.style.transform = `translateX(-50%) rotate(${normalized}deg)`;
+    if (statusEl) statusEl.textContent = `Phone heading: ${Math.round(normalized)}°`;
+  };
+
+  const bindAbsoluteOrientation = () => {
+    const handler = (event) => {
+      const heading = Number.isFinite(event?.webkitCompassHeading)
+        ? event.webkitCompassHeading
+        : (Number.isFinite(event?.alpha) ? 360 - event.alpha : null);
+      updateHeading(heading);
+    };
+    window.addEventListener("deviceorientationabsolute", handler, true);
+    return () => window.removeEventListener("deviceorientationabsolute", handler, true);
+  };
+
+  const bindOrientation = () => {
+    const handler = (event) => {
+      const heading = Number.isFinite(event?.webkitCompassHeading)
+        ? event.webkitCompassHeading
+        : (Number.isFinite(event?.alpha) ? 360 - event.alpha : null);
+      updateHeading(heading);
+    };
+    window.addEventListener("deviceorientation", handler, true);
+    return () => window.removeEventListener("deviceorientation", handler, true);
+  };
+
+  const start = async () => {
+    if (typeof DeviceOrientationEvent !== "undefined" && typeof DeviceOrientationEvent.requestPermission === "function") {
+      try {
+        const permission = await DeviceOrientationEvent.requestPermission();
+        if (permission !== "granted") {
+          if (statusEl) statusEl.textContent = "Compass permission denied.";
+          return;
+        }
+      } catch {
+        if (statusEl) statusEl.textContent = "Compass permission unavailable.";
+        return;
+      }
+    }
+
+    const cleanupAbsolute = bindAbsoluteOrientation();
+    const cleanupFallback = bindOrientation();
+    compassHeadingCleanup = () => {
+      cleanupAbsolute();
+      cleanupFallback();
+    };
+  };
+
+  start();
+}
+
+function setupWindCompassModal() {
+  document.addEventListener("click", (event) => {
+    const trigger = event.target.closest("[data-open-wind-compass='true']");
+    const modal = document.querySelector("[data-wind-compass-modal='true']");
+    if (!modal) return;
+
+    if (trigger) {
+      const direction = safeText(trigger.getAttribute("data-wind-direction"));
+      const directionDeg = Number(trigger.getAttribute("data-wind-direction-deg"));
+      const directionLabelEl = modal.querySelector("[data-wind-direction-label='true']");
+      const statusEl = modal.querySelector("[data-compass-status='true']");
+      const compassEl = modal.querySelector("[data-compass='true']");
+
+      if (directionLabelEl) directionLabelEl.textContent = direction || "—";
+      if (statusEl) statusEl.textContent = "Move your phone to calibrate compass…";
+
+      modal.hidden = false;
+      document.body.classList.add("is-modal-open");
+      startCompassTracking(compassEl, statusEl, Number.isFinite(directionDeg) ? directionDeg : null);
+      return;
+    }
+
+    if (event.target.closest("[data-close-wind-compass='true']") || event.target === modal) {
+      modal.hidden = true;
+      document.body.classList.remove("is-modal-open");
+      stopCompassTracking();
+    }
+  });
 }
 
 
@@ -666,7 +839,31 @@ function renderToday(data) {
     `;
   }).join("");
 
-  els.todayContent.innerHTML = `<div class="today-rows">${rows}</div>`;
+  const windTile = buildMobileWindTile(data);
+  const windCompassModal = windTile ? `
+    <div class="wind-compass-modal" data-wind-compass-modal="true" hidden>
+      <div class="wind-compass-dialog" role="dialog" aria-modal="true" aria-label="Wind compass">
+        <button type="button" class="wind-compass-close" data-close-wind-compass="true" aria-label="Close wind compass">×</button>
+        <div class="wind-compass-title">Wind Compass</div>
+        <div class="wind-compass-subtitle">Wind coming from: <span data-wind-direction-label="true">—</span></div>
+        <div class="wind-compass" data-compass="true">
+          <span class="wind-compass-north">N</span>
+          <span class="wind-compass-east">E</span>
+          <span class="wind-compass-south">S</span>
+          <span class="wind-compass-west">W</span>
+          <span class="wind-compass-arrow heading-arrow" data-compass-heading-arrow="true" aria-hidden="true"></span>
+          <span class="wind-compass-arrow wind-arrow" data-compass-wind-arrow="true" aria-hidden="true"></span>
+        </div>
+        <div class="wind-compass-legend">
+          <span><span class="legend-dot legend-dot-phone"></span>Phone heading</span>
+          <span><span class="legend-dot legend-dot-wind"></span>Wind from</span>
+        </div>
+        <div class="wind-compass-status" data-compass-status="true">Move your phone to calibrate compass…</div>
+      </div>
+    </div>
+  ` : "";
+
+  els.todayContent.innerHTML = `<div class="today-rows">${rows}${windTile}</div>${windCompassModal}`;
   els.todayCard.hidden = false;
 }
 
@@ -1577,6 +1774,7 @@ async function init() {
   setupExpandableTiles();
   setupFlippableCards();
   setupAlertDisclosure();
+  setupWindCompassModal();
 
   [els.currentCard].forEach((card) => {
     card.setAttribute("data-expandable", "true");

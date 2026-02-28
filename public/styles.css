@@ -905,6 +905,153 @@ header{
   font-variant-numeric: tabular-nums;
 }
 
+.mobile-wind-tile{
+  display:none;
+}
+
+.wind-compass-modal{
+  position:fixed;
+  inset:0;
+  background:rgba(5,8,20,0.7);
+  backdrop-filter: blur(2px);
+  z-index:999;
+  padding:18px;
+}
+
+.wind-compass-dialog{
+  position:relative;
+  max-width:360px;
+  margin:8vh auto 0;
+  border-radius:20px;
+  padding:16px;
+  background:#0d1738;
+  border:1px solid rgba(255,255,255,0.16);
+  box-shadow:0 16px 32px rgba(0,0,0,0.35);
+}
+
+.wind-compass-close{
+  position:absolute;
+  top:8px;
+  right:10px;
+  border:0;
+  border-radius:999px;
+  width:32px;
+  height:32px;
+  font-size:24px;
+  line-height:1;
+  color:rgba(255,255,255,0.85);
+  background:transparent;
+}
+
+.wind-compass-title{
+  font-weight:850;
+  font-size:20px;
+}
+
+.wind-compass-subtitle{
+  margin-top:6px;
+  font-size:14px;
+  color:rgba(255,255,255,0.82);
+}
+
+.wind-compass{
+  position:relative;
+  width:220px;
+  height:220px;
+  margin:16px auto 12px;
+  border-radius:999px;
+  border:2px solid rgba(255,255,255,0.24);
+  background: radial-gradient(circle at center, rgba(255,255,255,0.07), rgba(255,255,255,0.01));
+}
+
+.wind-compass-north,
+.wind-compass-east,
+.wind-compass-south,
+.wind-compass-west{
+  position:absolute;
+  font-weight:800;
+  color:rgba(255,255,255,0.88);
+}
+
+.wind-compass-north{ top:8px; left:50%; transform:translateX(-50%); }
+.wind-compass-east{ right:10px; top:50%; transform:translateY(-50%); }
+.wind-compass-south{ bottom:8px; left:50%; transform:translateX(-50%); }
+.wind-compass-west{ left:10px; top:50%; transform:translateY(-50%); }
+
+.wind-compass-arrow{
+  position:absolute;
+  left:50%;
+  bottom:50%;
+  width:4px;
+  transform-origin:50% 100%;
+  border-radius:8px;
+}
+
+.heading-arrow{
+  height:84px;
+  background:linear-gradient(to top, rgba(120,180,255,0.15), #7ab7ff);
+}
+
+.wind-arrow{
+  height:74px;
+  background:linear-gradient(to top, rgba(255,147,86,0.16), #ff9356);
+}
+
+.wind-compass-legend{
+  display:flex;
+  justify-content:space-between;
+  gap:10px;
+  font-size:12px;
+  color:rgba(255,255,255,0.76);
+}
+
+.legend-dot{
+  display:inline-block;
+  width:9px;
+  height:9px;
+  border-radius:999px;
+  margin-right:5px;
+}
+
+.legend-dot-phone{ background:#7ab7ff; }
+.legend-dot-wind{ background:#ff9356; }
+
+.wind-compass-status{
+  margin-top:10px;
+  font-size:12px;
+  color:rgba(255,255,255,0.82);
+}
+
+body.is-modal-open{
+  overflow:hidden;
+}
+
+@media (max-width: 740px){
+  .mobile-wind-tile{
+    display:block;
+    width:100%;
+    border:1px solid rgba(255,255,255,0.13);
+    border-radius:14px;
+    padding:12px;
+    text-align:left;
+    color:var(--text);
+    background:rgba(255,255,255,0.05);
+  }
+
+  .mobile-wind-head{
+    font-size:16px;
+    font-weight:850;
+    margin-bottom:6px;
+  }
+
+  .mobile-wind-metrics{
+    display:grid;
+    gap:6px;
+    font-size:14px;
+    color:rgba(255,255,255,0.9);
+  }
+}
+
 /* Small emoji helper used elsewhere (Hourly, etc.) */
 .wx-icon-sm{
   width: 28px;
