@@ -905,8 +905,14 @@ header{
   font-variant-numeric: tabular-nums;
 }
 
-.mobile-wind-tile{
-  display:none;
+.wind-tile{
+  width:100%;
+  border:1px solid rgba(255,255,255,0.13);
+  border-radius:14px;
+  padding:12px;
+  text-align:left;
+  color:var(--text);
+  background:rgba(255,255,255,0.05);
 }
 
 .wind-compass-modal{
@@ -964,6 +970,13 @@ header{
   background: radial-gradient(circle at center, rgba(255,255,255,0.07), rgba(255,255,255,0.01));
 }
 
+.wind-compass-dial{
+  position:relative;
+  width:100%;
+  height:100%;
+  transition:transform 160ms linear;
+}
+
 .wind-compass-north,
 .wind-compass-east,
 .wind-compass-south,
@@ -987,11 +1000,6 @@ header{
   border-radius:8px;
 }
 
-.heading-arrow{
-  height:84px;
-  background:linear-gradient(to top, rgba(120,180,255,0.15), #7ab7ff);
-}
-
 .wind-arrow{
   height:74px;
   background:linear-gradient(to top, rgba(255,147,86,0.16), #ff9356);
@@ -1013,7 +1021,6 @@ header{
   margin-right:5px;
 }
 
-.legend-dot-phone{ background:#7ab7ff; }
 .legend-dot-wind{ background:#ff9356; }
 
 .wind-compass-status{
@@ -1026,30 +1033,17 @@ body.is-modal-open{
   overflow:hidden;
 }
 
-@media (max-width: 740px){
-  .mobile-wind-tile{
-    display:block;
-    width:100%;
-    border:1px solid rgba(255,255,255,0.13);
-    border-radius:14px;
-    padding:12px;
-    text-align:left;
-    color:var(--text);
-    background:rgba(255,255,255,0.05);
-  }
+.wind-tile-head{
+  font-size:16px;
+  font-weight:850;
+  margin-bottom:6px;
+}
 
-  .mobile-wind-head{
-    font-size:16px;
-    font-weight:850;
-    margin-bottom:6px;
-  }
-
-  .mobile-wind-metrics{
-    display:grid;
-    gap:6px;
-    font-size:14px;
-    color:rgba(255,255,255,0.9);
-  }
+.wind-tile-metrics{
+  display:grid;
+  gap:6px;
+  font-size:14px;
+  color:rgba(255,255,255,0.9);
 }
 
 /* Small emoji helper used elsewhere (Hourly, etc.) */
