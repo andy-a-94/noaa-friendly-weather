@@ -1010,6 +1010,10 @@ header{
   line-height:1.1;
 }
 
+body.is-modal-open .wind-tile-speed{
+  font-size:16px;
+}
+
 
 .wind-tile-gust{
   margin-top:2px;
@@ -1205,8 +1209,8 @@ body.is-modal-open{
   border: 1px solid rgba(255,255,255,0.10);
 }
 .shoe-icon-img{
-  width: 70%;
-  height: 70%;
+  width: 92%;
+  height: 92%;
   object-fit: contain;
 }
 .shoe-text{
