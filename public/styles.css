@@ -171,7 +171,7 @@ header{
   border-radius: 18px;
   padding: 12px;
   box-shadow: 0 12px 40px rgba(0,0,0,0.25);
-  margin-top: 12px;
+  margin-top: 0;
 }
 
 .card[data-expandable="true"],
@@ -1293,9 +1293,7 @@ body.is-modal-open{
 }
 
 
-.astro-section{
-  margin-top: 12px;
-}
+.astro-section{ margin-top: 0; }
 
 /* ASTRO (Sun & Moon + UV) */
 .astro-tiles{
@@ -1530,9 +1528,7 @@ body.is-modal-open{
   color: rgba(255,255,255,0.82);
 }
 
-.alerts-card{
-  margin-top: 12px;
-}
+.alerts-card{ margin-top: 0; }
 
 .graph-controls{
   display:flex;
