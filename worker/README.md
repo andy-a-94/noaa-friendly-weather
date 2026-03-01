@@ -12,6 +12,18 @@ This worker now supports anonymous user event tracking and CSV export.
    - `vars.TRACKING_SALT`
    - `vars.EXPORT_API_TOKEN`
 3. (Optional) Create Analytics Engine dataset for high-volume aggregation.
+   - If Cloudflare asks for **dataset name**, use: `weather_user_events`
+   - If Cloudflare asks for **dataset binding**, use: `EVENTS_ANALYTICS`
+   - These match `worker/wrangler.jsonc`. You can rename both, but they must stay in sync.
+
+### What to enter in the Cloudflare UI
+
+When enabling Analytics Engine in the dashboard:
+
+- **Dataset name**: `weather_user_events`
+- **Binding variable**: `EVENTS_ANALYTICS`
+
+If you only want D1 storage + CSV exports and do not want Analytics Engine yet, you can skip this binding entirely.
 
 ## API endpoints
 
