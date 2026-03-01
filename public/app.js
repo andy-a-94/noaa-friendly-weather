@@ -960,12 +960,13 @@ function renderShoe(data) {
     <div class="shoe-wrap">
       <div class="shoe-main">
         <img class="shoe-icon-img" src="${iconSrc}" alt="" aria-hidden="true" />
-        <div class="shoe-text">
-          <div class="shoe-sub">${sub}</div>
+        <div class="shoe-meta-row">
+          <div class="shoe-text">
+            <div class="shoe-sub">${sub}</div>
+          </div>
+          <button class="shoe-info-btn" type="button" aria-label="About Shoe Index">i</button>
         </div>
       </div>
-
-      <button class="shoe-info-btn" type="button" aria-label="About Shoe Index">i</button>
 
       <div class="shoe-popover" hidden>
         <div class="shoe-popover-title">About Shoe Index</div>
