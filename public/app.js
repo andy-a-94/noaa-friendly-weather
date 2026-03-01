@@ -964,7 +964,6 @@ function renderShoe(data) {
           <div class="shoe-text">
             <div class="shoe-sub">${sub}</div>
           </div>
-          <button class="shoe-info-btn" type="button" aria-label="About Shoe Index">i</button>
         </div>
       </div>
 
@@ -1011,7 +1010,7 @@ function renderShoe(data) {
 
   // Toggle popover
   const wrap = els.shoeContent.querySelector(".shoe-wrap");
-  const btn = els.shoeContent.querySelector(".shoe-info-btn");
+  const btn = document.getElementById("shoeInfoBtn");
   const pop = els.shoeContent.querySelector(".shoe-popover");
 
   const close = () => { if (pop) pop.hidden = true; };
