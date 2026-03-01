@@ -958,17 +958,14 @@ function renderShoe(data) {
 
   els.shoeContent.innerHTML = `
     <div class="shoe-wrap">
-      <div class="shoe-row">
-        <div class="shoe-icon-stack">
-          <div class="shoe-icon" aria-hidden="true">
-            <img class="shoe-icon-img" src="${iconSrc}" alt="" />
-          </div>
-          <button class="shoe-info-btn" type="button" aria-label="About Shoe Index">i</button>
-        </div>
+      <div class="shoe-main">
+        <img class="shoe-icon-img" src="${iconSrc}" alt="" aria-hidden="true" />
         <div class="shoe-text">
           <div class="shoe-sub">${sub}</div>
         </div>
       </div>
+
+      <button class="shoe-info-btn" type="button" aria-label="About Shoe Index">i</button>
 
       <div class="shoe-popover" hidden>
         <div class="shoe-popover-title">About Shoe Index</div>

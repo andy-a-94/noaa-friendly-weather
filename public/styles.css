@@ -1186,35 +1186,25 @@ body.is-modal-open{
 /* ✅ SHOE TILE */
 .shoe-wrap{
   position:relative;
+  min-height: 240px;
 }
-.shoe-row{
-  display:flex;
-  gap:12px;
-  align-items:center;
-}
-.shoe-icon-stack{
+.shoe-main{
   display:flex;
   flex-direction:column;
   align-items:center;
-  gap:6px;
-  flex:0 0 auto;
-}
-.shoe-icon{
-  width:50px;
-  height:50px;
-  border-radius: 14px;
-  display:grid;
-  place-items:center;
-  background: rgba(255,255,255,0.06);
-  border: 1px solid rgba(255,255,255,0.10);
+  justify-content:center;
+  gap:10px;
+  min-height: 100%;
+  text-align:center;
 }
 .shoe-icon-img{
-  width: 92%;
-  height: 92%;
+  width: 140px;
+  height: 140px;
   object-fit: contain;
 }
 .shoe-text{
   min-width:0;
+  text-align:center;
 }
 .shoe-title{
   font-weight: 950;
@@ -1229,8 +1219,9 @@ body.is-modal-open{
 }
 
 .shoe-info-btn{
-  position: static;
-  align-self: flex-end;
+  position: absolute;
+  right: 14px;
+  bottom: 14px;
   width: 26px;
   height: 26px;
   border-radius: 999px;
