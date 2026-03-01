@@ -1,5 +1,22 @@
 {
   "name": "noaa-friendly-weather",
   "compatibility_date": "2026-02-19",
-  "main": "src/index.js"
+  "main": "src/index.js",
+  "d1_databases": [
+    {
+      "binding": "EVENTS_DB",
+      "database_name": "noaa-friendly-weather-events",
+      "database_id": "replace-with-your-d1-database-id"
+    }
+  ],
+  "analytics_engine_datasets": [
+    {
+      "binding": "EVENTS_ANALYTICS",
+      "dataset": "weather_user_events"
+    }
+  ],
+  "vars": {
+    "TRACKING_SALT": "replace-with-a-long-random-secret",
+    "EXPORT_API_TOKEN": "replace-with-a-strong-export-token"
+  }
 }

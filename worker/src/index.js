@@ -14,7 +14,7 @@
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, OPTIONS",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type",
 };
 
@@ -41,6 +41,18 @@ function textResponse(text, status = 200) {
   return new Response(text, {
     status,
     headers: { "Content-Type": "text/plain; charset=utf-8", ...CORS_HEADERS },
+  });
+}
+
+function csvResponse(text, filename = "weather-user-events.csv") {
+  return new Response(text, {
+    status: 200,
+    headers: {
+      "Content-Type": "text/csv; charset=utf-8",
+      "Content-Disposition": `attachment; filename=\"${filename}\"`,
+      "Cache-Control": "no-store",
+      ...CORS_HEADERS,
+    },
   });
 }
 
@@ -85,6 +97,166 @@ function clamp(n, lo, hi) {
 
 function safeStr(s) {
   return (s ?? "").toString().trim();
+}
+
+function toFiniteNum(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+function clipText(value, maxLen = 200) {
+  return safeStr(value).slice(0, maxLen);
+}
+
+function cleanEventType(value) {
+  const raw = clipText(value, 60).toLowerCase();
+  return raw.replace(/[^a-z0-9_.-]/g, "_") || "event";
+}
+
+function getUserAgent(request) {
+  return clipText(request.headers.get("user-agent"), 400);
+}
+
+function getIpHashInput(request) {
+  return safeStr(request.headers.get("cf-connecting-ip")) || "unknown";
+}
+
+async function sha256Hex(text) {
+  const bytes = new TextEncoder().encode(text);
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+async function anonymizeIp(request, env) {
+  const ip = getIpHashInput(request);
+  const salt = safeStr(env.TRACKING_SALT) || "weather-default-salt";
+  return sha256Hex(`${salt}:${ip}`);
+}
+
+async function handleTrackEvent(request, env) {
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return jsonResponse({ error: "Invalid JSON body" }, 400);
+  }
+
+  const userId = clipText(body?.userId, 120);
+  if (!userId) return jsonResponse({ error: "Missing userId" }, 400);
+
+  const nowIso = new Date().toISOString();
+  const ipHash = await anonymizeIp(request, env);
+
+  const event = {
+    eventTime: nowIso,
+    userId,
+    sessionId: clipText(body?.sessionId, 120),
+    eventType: cleanEventType(body?.eventType),
+    action: clipText(body?.action, 120),
+    target: clipText(body?.target, 240),
+    page: clipText(body?.page || request.url, 240),
+    searchQuery: clipText(body?.searchQuery, 160),
+    locationLabel: clipText(body?.locationLabel, 160),
+    locationLat: toFiniteNum(body?.locationLat),
+    locationLon: toFiniteNum(body?.locationLon),
+    userLat: toFiniteNum(body?.userLat),
+    userLon: toFiniteNum(body?.userLon),
+    deviceType: clipText(body?.deviceType, 80),
+    userAgent: getUserAgent(request),
+    ipHash,
+    metadataJson: JSON.stringify(body?.metadata || {}),
+  };
+
+  if (env.EVENTS_DB) {
+    await env.EVENTS_DB.prepare(
+      `INSERT INTO user_events (
+         event_time, user_id, session_id, event_type, action, target, page,
+         search_query, location_label, location_lat, location_lon,
+         user_lat, user_lon, device_type, user_agent, ip_hash, metadata_json
+       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).bind(
+      event.eventTime,
+      event.userId,
+      event.sessionId || null,
+      event.eventType,
+      event.action || null,
+      event.target || null,
+      event.page || null,
+      event.searchQuery || null,
+      event.locationLabel || null,
+      event.locationLat,
+      event.locationLon,
+      event.userLat,
+      event.userLon,
+      event.deviceType || null,
+      event.userAgent || null,
+      event.ipHash,
+      event.metadataJson
+    ).run();
+  }
+
+  if (env.EVENTS_ANALYTICS) {
+    env.EVENTS_ANALYTICS.writeDataPoint({
+      indexes: [event.userId, event.eventType],
+      blobs: [event.action || "", event.target || "", event.searchQuery || "", event.locationLabel || ""],
+      doubles: [event.locationLat || 0, event.locationLon || 0, event.userLat || 0, event.userLon || 0],
+    });
+  }
+
+  return jsonResponse({ ok: true });
+}
+
+function csvEscape(value) {
+  const raw = value === null || value === undefined ? "" : String(value);
+  if (!/[",\n]/.test(raw)) return raw;
+  return `"${raw.replace(/"/g, '""')}"`;
+}
+
+function toCsv(rows) {
+  if (!rows.length) return "";
+  const headers = Object.keys(rows[0]);
+  const lines = [headers.join(",")];
+  for (const row of rows) {
+    lines.push(headers.map((k) => csvEscape(row[k])).join(","));
+  }
+  return `${lines.join("\n")}\n`;
+}
+
+async function handleExportEvents(request, env) {
+  const auth = safeStr(request.headers.get("authorization"));
+  const expected = safeStr(env.EXPORT_API_TOKEN);
+  if (!expected || auth !== `Bearer ${expected}`) {
+    return jsonResponse({ error: "Unauthorized" }, 401);
+  }
+  if (!env.EVENTS_DB) return jsonResponse({ error: "EVENTS_DB binding missing" }, 500);
+
+  const url = new URL(request.url);
+  const limit = clamp(Number(url.searchParams.get("limit")) || 5000, 1, 20000);
+  const from = safeStr(url.searchParams.get("from"));
+  const to = safeStr(url.searchParams.get("to"));
+
+  let sql = `
+    SELECT id, event_time, user_id, session_id, event_type, action, target, page,
+           search_query, location_label, location_lat, location_lon,
+           user_lat, user_lon, device_type, user_agent, ip_hash, metadata_json
+    FROM user_events
+    WHERE 1=1
+  `;
+  const binds = [];
+  if (from) {
+    sql += " AND event_time >= ?";
+    binds.push(from);
+  }
+  if (to) {
+    sql += " AND event_time <= ?";
+    binds.push(to);
+  }
+  sql += " ORDER BY event_time DESC LIMIT ?";
+  binds.push(limit);
+
+  const { results } = await env.EVENTS_DB.prepare(sql).bind(...binds).all();
+  const csv = toCsv(Array.isArray(results) ? results : []);
+  return csvResponse(csv || "id,event_time\n", "weather-user-events.csv");
 }
 
 function formatCityState(pointJson) {
@@ -1091,11 +1263,19 @@ export default {
     if (request.method === "OPTIONS") {
       return new Response(null, { status: 204, headers: CORS_HEADERS });
     }
-    if (request.method !== "GET") {
-      return textResponse("Method Not Allowed", 405);
-    }
 
     try {
+      if (url.pathname === "/api/track" && request.method === "POST") {
+        return await handleTrackEvent(request, env);
+      }
+      if (url.pathname === "/api/track/export" && request.method === "GET") {
+        return await handleExportEvents(request, env);
+      }
+
+      if (request.method !== "GET") {
+        return textResponse("Method Not Allowed", 405);
+      }
+
       // ✅ Simple health check to confirm the GitHub-deployed Worker is live
       if (url.pathname === "/api/health") {
         return jsonResponse({ ok: true, worker: "noaa-friendly-weather", source: "github" });
