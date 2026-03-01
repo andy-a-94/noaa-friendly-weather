@@ -44,6 +44,7 @@ const STORAGE_KEYS = {
   lastLat: "aw_lat",
   lastLon: "aw_lon",
   label: "aw_label",
+  userId: "aw_uid",
 };
 
 let expandedTile = null;
@@ -118,6 +119,51 @@ function apiUrl(path, params = {}, base = API_BASE_CANDIDATES[0] || "") {
 
 function shouldTryNextApiBase(statusCode) {
   return statusCode === 404 || statusCode === 405;
+}
+
+
+function getAnonymousUserId() {
+  let id = safeText(localStorage.getItem(STORAGE_KEYS.userId));
+  if (id) return id;
+  id = (typeof crypto !== "undefined" && crypto.randomUUID)
+    ? crypto.randomUUID()
+    : `uid_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+  localStorage.setItem(STORAGE_KEYS.userId, id);
+  return id;
+}
+
+function getSessionId() {
+  const key = "aw_session_id";
+  let sid = safeText(sessionStorage.getItem(key));
+  if (sid) return sid;
+  sid = `${Date.now()}_${Math.random().toString(16).slice(2)}`;
+  sessionStorage.setItem(key, sid);
+  return sid;
+}
+
+function detectDeviceType() {
+  const ua = (navigator.userAgent || "").toLowerCase();
+  if (/mobile|iphone|android/.test(ua)) return "mobile";
+  if (/ipad|tablet/.test(ua)) return "tablet";
+  return "desktop";
+}
+
+function trackEvent(eventType, payload = {}) {
+  const body = {
+    eventType,
+    userId: getAnonymousUserId(),
+    sessionId: getSessionId(),
+    page: window.location.pathname,
+    deviceType: detectDeviceType(),
+    ...payload,
+  };
+
+  fetch(apiUrl("/api/track"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+    keepalive: true,
+  }).catch(() => {});
 }
 
 async function apiFetch(path, params = {}, init = {}) {
@@ -650,6 +696,11 @@ function renderSuggestions(items) {
     `<li class="location-suggestion-item" data-index="${idx}" role="option" aria-selected="false">${safeText(item.label || item.query)}</li>`
   )).join("");
   els.locationSuggestions.hidden = false;
+  trackEvent("search_suggestions_rendered", {
+    action: "render_suggestions",
+    searchQuery: safeText(els.zipInput?.value),
+    metadata: { suggestionCount: suggestionItems.length },
+  });
 }
 
 function setActiveSuggestion(nextIndex) {
@@ -691,6 +742,14 @@ function pickSuggestion(index) {
   const picked = suggestionItems[index];
   if (!picked) return;
   els.zipInput.value = picked.query || picked.label || "";
+  trackEvent("search_suggestion_selected", {
+    action: "select_suggestion",
+    target: safeText(picked.label || picked.query),
+    searchQuery: safeText(els.zipInput.value),
+    locationLabel: safeText(picked.label || picked.query),
+    locationLat: Number(picked.lat),
+    locationLon: Number(picked.lon),
+  });
   clearSuggestions();
   runSearch(els.zipInput.value);
 }
@@ -1760,6 +1819,13 @@ async function loadAndRender({ lat, lon, labelOverride = null, zipForUv = null }
   setLocationLabel(label);
   setStatus("");
 
+  trackEvent("weather_loaded", {
+    action: "weather_rendered",
+    locationLabel: label,
+    locationLat: Number(lat),
+    locationLon: Number(lon),
+  });
+
   renderCurrent(data);
   renderAlerts(data);
   renderToday(data);
@@ -1779,12 +1845,25 @@ async function runSearch(query) {
   const q = safeText(query);
   if (!q) return;
 
+  trackEvent("search_submitted", {
+    action: "submit_search",
+    searchQuery: q,
+  });
+
   clearSuggestions();
   els.zipBtn.disabled = true;
   setStatus("Finding location…");
 
   try {
     const loc = await fetchLocation(q);
+    trackEvent("search_resolved", {
+      action: "location_lookup_success",
+      searchQuery: q,
+      locationLabel: safeText(loc.label),
+      locationLat: Number(loc.lat),
+      locationLon: Number(loc.lon),
+      metadata: { zip: safeText(loc.zip), city: safeText(loc.city), state: safeText(loc.state) },
+    });
     localStorage.setItem(STORAGE_KEYS.search, q);
     els.zipInput.value = q;
 
@@ -1801,6 +1880,11 @@ async function runSearch(query) {
     }
   } catch (err) {
     console.error(err);
+    trackEvent("search_failed", {
+      action: "location_lookup_failed",
+      searchQuery: q,
+      metadata: { error: safeText(err?.message) },
+    });
     setStatus("Could not find that location. Try ZIP or City, ST.");
   } finally {
     els.zipBtn.disabled = false;
@@ -1905,6 +1989,11 @@ if (!storedSearch) {
       async (pos) => {
         const lat = pos.coords.latitude;
         const lon = pos.coords.longitude;
+        trackEvent("geolocation_success", {
+          action: "browser_geolocation_granted",
+          userLat: Number(lat),
+          userLon: Number(lon),
+        });
         try {
           await loadAndRender({ lat, lon, labelOverride: null, zipForUv: null });
         } catch (err) {
@@ -1914,6 +2003,10 @@ if (!storedSearch) {
       },
       async (err) => {
         console.warn(err);
+        trackEvent("geolocation_failed", {
+          action: "browser_geolocation_denied_or_failed",
+          metadata: { code: err?.code || null, message: safeText(err?.message) },
+        });
         const lastLat = Number(localStorage.getItem(STORAGE_KEYS.lastLat));
         const lastLon = Number(localStorage.getItem(STORAGE_KEYS.lastLon));
         if (Number.isFinite(lastLat) && Number.isFinite(lastLon)) {
@@ -1933,6 +2026,17 @@ if (!storedSearch) {
   }
 }
 
+
+
+document.addEventListener("click", (event) => {
+  const target = event.target.closest("button, .card, summary, .location-suggestion-item, .graph-point, .metric-btn");
+  if (!target) return;
+  const text = safeText(target.innerText || target.textContent).slice(0, 120);
+  trackEvent("ui_click", {
+    action: "click",
+    target: text || target.className || target.tagName,
+  });
+});
 init().catch((e) => {
   console.error(e);
   setStatus("Something went wrong loading the app.");
