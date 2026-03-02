@@ -64,6 +64,7 @@ let earthRefreshTimer = null;
 
 const EARTH_SATELLITE_REFRESH_MS = 10 * 60 * 1000;
 const EARTH_SATELLITE_BASE_URL = "https://cdn.star.nesdis.noaa.gov/GOES16/ABI/FD/GEOCOLOR/1808x1808.jpg";
+const EARTH_TILE_FALLBACK_MAX_HEIGHT_PX = 380;
 
 const HOURLY_INITIAL_COUNT = 24;
 const HOURLY_LOAD_STEP = 24;
@@ -811,15 +812,22 @@ function getEarthSatelliteImageUrl() {
   return u.toString();
 }
 
+function getEarthTileMaxHeightPx() {
+  const shoeHeight = els.shoeCard?.offsetHeight || 0;
+  if (shoeHeight > 0) return Math.round(shoeHeight * 2);
+  return EARTH_TILE_FALLBACK_MAX_HEIGHT_PX;
+}
+
 function renderEarthTile() {
   if (!els.earthContent || !els.earthCard) return;
 
   const now = new Date();
   const refreshedAt = now.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
   const satelliteUrl = getEarthSatelliteImageUrl();
+  const maxHeightPx = getEarthTileMaxHeightPx();
 
   els.earthContent.innerHTML = `
-    <div class="earth-tile">
+    <div class="earth-tile" style="--earth-max-height:${maxHeightPx}px;">
       <img
         class="earth-tile-image"
         src="${satelliteUrl}"
