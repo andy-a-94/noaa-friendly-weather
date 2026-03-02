@@ -27,6 +27,9 @@ const els = {
   shoeCard: document.getElementById("shoeCard"),
   shoeContent: document.getElementById("shoeContent"),
 
+  earthCard: document.getElementById("earthCard"),
+  earthContent: document.getElementById("earthContent"),
+
   astroUvCard: document.getElementById("astroUvCard"),
   astroUvContent: document.getElementById("astroUvContent"),
 
@@ -57,6 +60,11 @@ let hourlyVisibleCount = 24;
 let selectedGraphMetric = "precipitation";
 const GRAPH_DEFAULT_VISIBLE_HOURS = 8;
 let graphOutsideClickHandler = null;
+let earthRefreshTimer = null;
+
+const EARTH_SATELLITE_REFRESH_MS = 10 * 60 * 1000;
+const EARTH_SATELLITE_BASE_URL = "https://cdn.star.nesdis.noaa.gov/GOES16/ABI/FD/GEOCOLOR/1808x1808.jpg";
+const EARTH_TILE_FALLBACK_MAX_HEIGHT_PX = 380;
 
 const HOURLY_INITIAL_COUNT = 24;
 const HOURLY_LOAD_STEP = 24;
@@ -764,6 +772,11 @@ async function fetchWeather(lat, lon, zip) {
 }
 
 function resetVisibleSections() {
+  if (earthRefreshTimer) {
+    clearInterval(earthRefreshTimer);
+    earthRefreshTimer = null;
+  }
+
   setExpandedTile(null);
   document.querySelectorAll(".is-expanded").forEach((el) => {
     el.classList.remove("is-expanded");
@@ -774,6 +787,7 @@ function resetVisibleSections() {
   els.todayCard.hidden = true;
   els.windCard.hidden = true;
   els.shoeCard.hidden = true;
+  els.earthCard.hidden = true;
   els.astroUvCard.hidden = true;
   els.hourlyCard.hidden = true;
   els.graphsCard.hidden = true;
@@ -784,11 +798,48 @@ function resetVisibleSections() {
   els.todayContent.innerHTML = "";
   els.windContent.innerHTML = "";
   els.shoeContent.innerHTML = "";
+  els.earthContent.innerHTML = "";
   els.astroUvContent.innerHTML = "";
   els.hourlyContent.innerHTML = "";
   els.graphsContent.innerHTML = "";
   els.dailyContent.innerHTML = "";
   els.alertsContent.innerHTML = "";
+}
+
+function getEarthSatelliteImageUrl() {
+  const u = new URL(EARTH_SATELLITE_BASE_URL);
+  u.searchParams.set("cb", String(Date.now()));
+  return u.toString();
+}
+
+function getEarthTileMaxHeightPx() {
+  const shoeHeight = els.shoeCard?.offsetHeight || 0;
+  if (shoeHeight > 0) return Math.round(shoeHeight * 2);
+  return EARTH_TILE_FALLBACK_MAX_HEIGHT_PX;
+}
+
+function renderEarthTile() {
+  if (!els.earthContent || !els.earthCard) return;
+
+  const now = new Date();
+  const refreshedAt = now.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  const satelliteUrl = getEarthSatelliteImageUrl();
+  const maxHeightPx = getEarthTileMaxHeightPx();
+
+  els.earthContent.innerHTML = `
+    <div class="earth-tile" style="--earth-max-height:${maxHeightPx}px;">
+      <img
+        class="earth-tile-image"
+        src="${satelliteUrl}"
+        alt="Latest near real-time NOAA GOES East full-disk satellite image of Earth"
+        loading="lazy"
+        referrerpolicy="no-referrer"
+      />
+      <div class="earth-tile-meta">Updated ${refreshedAt} (local)</div>
+    </div>
+  `;
+
+  els.earthCard.hidden = false;
 }
 
 function iconFromForecastIconUrl(url, shortForecast) {
@@ -1831,10 +1882,15 @@ async function loadAndRender({ lat, lon, labelOverride = null, zipForUv = null }
   renderToday(data);
   renderWind(data);
   renderShoe(data);      // between Outlook and Sun/Moon
+  renderEarthTile();
   renderAstroUv(data);
   renderHourly(data);
   renderGraphs(data);
   renderDaily(data);
+
+  earthRefreshTimer = window.setInterval(() => {
+    renderEarthTile();
+  }, EARTH_SATELLITE_REFRESH_MS);
 }
 
 function getStoredSearch() {
