@@ -627,99 +627,8 @@ async function fetchEpaUv({ zip, city, state, timeZone }) {
   }
 }
 
-async function fetchOpenMeteoUv({ lat, lon, timeZone }) {
-  const source = { provider: "open-meteo-uv" };
-  const la = Number(lat);
-  const lo = Number(lon);
-  if (!Number.isFinite(la) || !Number.isFinite(lo)) {
-    return { ok: false, current: null, max: null, hourly: [], source: { ...source, ok: false, reason: "missing coordinates" } };
-  }
-
-  const tz = safeStr(timeZone) || "auto";
-  const url = `https://api.open-meteo.com/v1/forecast?latitude=${encodeURIComponent(la)}&longitude=${encodeURIComponent(lo)}&hourly=uv_index&forecast_days=3&timezone=${encodeURIComponent(tz)}`;
-
-  try {
-    const json = await fetchJson(url, {}, 3500);
-    const times = Array.isArray(json?.hourly?.time) ? json.hourly.time : [];
-    const values = Array.isArray(json?.hourly?.uv_index) ? json.hourly.uv_index : [];
-
-    if (!times.length || !values.length) {
-      return { ok: false, current: null, max: null, hourly: [], source: { ...source, ok: true, reason: "no data" } };
-    }
-
-    const todayYmd = ymdInTimeZone(timeZone, new Date());
-    const nowMin = localNowMinutes(timeZone);
-
-    let max = null;
-    let current = null;
-    let currentBestMin = -1;
-    const hourly = [];
-
-    for (let i = 0; i < Math.min(times.length, values.length); i += 1) {
-      const time = safeStr(times[i]);
-      const uv = Number(values[i]);
-      if (!Number.isFinite(uv)) continue;
-
-      const match = time.match(/^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})/);
-      if (!match) continue;
-
-      const day = match[1];
-      const hour = Number(match[2]);
-      const minute = Number(match[3]);
-      if (!Number.isFinite(hour) || !Number.isFinite(minute)) continue;
-
-      hourly.push({ day, hour, value: uv });
-
-      if (day === todayYmd) {
-        if (max === null || uv > max) max = uv;
-
-        const rowMin = hour * 60 + minute;
-        if (rowMin <= nowMin && rowMin > currentBestMin) {
-          current = uv;
-          currentBestMin = rowMin;
-        }
-      }
-    }
-
-    return {
-      ok: true,
-      current: current === null ? null : current,
-      max: max === null ? null : max,
-      hourly,
-      source: { ...source, ok: true },
-    };
-  } catch (e) {
-    return {
-      ok: false,
-      current: null,
-      max: null,
-      hourly: [],
-      source: {
-        ...source,
-        ok: false,
-        status: e.status || 502,
-        reason: e.message || "fetch failed",
-        bodySnippet: e.bodySnippet,
-      },
-    };
-  }
-}
-
-async function fetchUvCombined({ zip, city, state, timeZone, lat, lon }) {
-  const epa = await fetchEpaUv({ zip, city, state, timeZone });
-  if (epa.ok && Array.isArray(epa.hourly) && epa.hourly.length) return epa;
-
-  const om = await fetchOpenMeteoUv({ lat, lon, timeZone });
-  if (!om.ok) return epa;
-
-  return {
-    ...om,
-    source: {
-      ...om.source,
-      fallbackFrom: epa?.source?.provider || "epa-uv",
-      fallbackReason: epa?.source?.reason || (epa?.source?.status ? `status ${epa.source.status}` : "no data"),
-    },
-  };
+async function fetchUvCombined({ zip, city, state, timeZone }) {
+  return fetchEpaUv({ zip, city, state, timeZone });
 }
 
 /* ---------------- Open-Meteo Soil Moisture (Archive; cached) ---------------- */
@@ -815,65 +724,92 @@ function formatWeekdayName(isoDay, timeZone) {
   }
 }
 
-async function fetchOpenMeteoExtendedDaily({ lat, lon, timeZone }) {
-  const source = { provider: "open-meteo-daily" };
-  const la = Number(lat);
-  const lo = Number(lon);
-  if (!Number.isFinite(la) || !Number.isFinite(lo)) return [];
+function isoDayShift(isoDay, deltaDays) {
+  const base = Date.parse(`${safeStr(isoDay)}T00:00:00Z`);
+  if (!Number.isFinite(base)) return null;
+  return ymdUtc(addDaysUtc(new Date(base), deltaDays));
+}
 
-  const tz = safeStr(timeZone) || "auto";
-  const url =
-    `https://api.open-meteo.com/v1/forecast?latitude=${encodeURIComponent(la)}` +
-    `&longitude=${encodeURIComponent(lo)}` +
-    `&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,wind_speed_10m_max` +
-    `&forecast_days=14&temperature_unit=fahrenheit&wind_speed_unit=mph&precipitation_unit=inch` +
-    `&timezone=${encodeURIComponent(tz)}`;
+function windToMph(value, uom) {
+  const v = Number(value);
+  if (!Number.isFinite(v)) return null;
+  const unit = safeStr(uom).toLowerCase();
+  if (unit.includes("km_h")) return v * 0.621371;
+  if (unit.includes("m_s")) return v * 2.23694;
+  return v;
+}
 
-  try {
-    const json = await fetchJson(url, {}, 3500);
-    const daily = json?.daily || {};
-    const dates = Array.isArray(daily.time) ? daily.time : [];
-    const maxTemps = Array.isArray(daily.temperature_2m_max) ? daily.temperature_2m_max : [];
-    const minTemps = Array.isArray(daily.temperature_2m_min) ? daily.temperature_2m_min : [];
-    const pops = Array.isArray(daily.precipitation_probability_max) ? daily.precipitation_probability_max : [];
-    const winds = Array.isArray(daily.wind_speed_10m_max) ? daily.wind_speed_10m_max : [];
-    const codes = Array.isArray(daily.weather_code) ? daily.weather_code : [];
+function pickShortForecast(popMax, skyAvg) {
+  const pop = Number(popMax);
+  const sky = Number(skyAvg);
+  if (Number.isFinite(pop) && pop >= 60) return "Rain Likely";
+  if (Number.isFinite(pop) && pop >= 30) return "Chance Rain";
+  if (Number.isFinite(sky) && sky >= 80) return "Cloudy";
+  if (Number.isFinite(sky) && sky >= 55) return "Mostly Cloudy";
+  if (Number.isFinite(sky) && sky >= 30) return "Partly Cloudy";
+  return "Mostly Sunny";
+}
 
-    const out = [];
-    for (let i = 7; i < Math.min(dates.length, 14); i += 1) {
-      const day = safeStr(dates[i]);
-      if (!day) continue;
-      const temp = Number(maxTemps[i]);
-      const lowTemp = Number(minTemps[i]);
-      const pop = Number(pops[i]);
-      const wind = Number(winds[i]);
-      const code = Number(codes[i]);
+function summarizeGridDay(seriesValues, dayYmd, timeZone) {
+  const values = [];
+  for (const item of (Array.isArray(seriesValues) ? seriesValues : [])) {
+    const interval = parseNwsValidTime(item?.validTime);
+    if (!interval) continue;
+    const midMs = interval.startMs + (interval.endMs - interval.startMs) / 2;
+    if (ymdInTimeZone(timeZone, new Date(midMs)) !== dayYmd) continue;
+    const v = Number(item?.value);
+    if (Number.isFinite(v)) values.push(v);
+  }
+  return values;
+}
 
-      out.push({
-        number: 1000 + i,
-        name: formatWeekdayName(day, tz),
-        startTime: `${day}T12:00:00Z`,
-        endTime: `${day}T23:59:59Z`,
-        isDaytime: true,
-        temperature: Number.isFinite(temp) ? Math.round(temp) : null,
-        overnightLow: Number.isFinite(lowTemp) ? Math.round(lowTemp) : null,
-        temperatureUnit: "F",
-        windSpeed: Number.isFinite(wind) ? `${Math.round(wind)} mph` : "",
-        windDirection: "",
-        shortForecast: weatherCodeToShortForecast(code),
-        detailedForecast: "Extended forecast.",
-        probabilityOfPrecipitation: {
-          unitCode: "wmoUnit:percent",
-          value: Number.isFinite(pop) ? clamp(Math.round(pop), 0, 100) : null,
-        },
-        _source: source.provider,
-      });
+function fetchNbmExtendedDailyFromGrid({ gridProperties, timeZone, day0Ymd }) {
+  const gp = gridProperties || {};
+  const days = [];
+  for (let offset = 7; offset <= 10; offset += 1) {
+    const day = isoDayShift(day0Ymd, offset);
+    if (!day) continue;
+
+    const tempsC = summarizeGridDay(gp?.temperature?.values, day, timeZone);
+    const popVals = summarizeGridDay(gp?.probabilityOfPrecipitation?.values, day, timeZone);
+    const skyVals = summarizeGridDay(gp?.skyCover?.values, day, timeZone);
+    const windVals = summarizeGridDay(gp?.windSpeed?.values, day, timeZone);
+
+    const tempMaxF = tempsC.length ? Math.round(cToF(Math.max(...tempsC))) : null;
+    const tempMinF = tempsC.length ? Math.round(cToF(Math.min(...tempsC))) : null;
+    const popMax = popVals.length ? clamp(Math.round(Math.max(...popVals)), 0, 100) : null;
+    const skyAvg = skyVals.length ? (skyVals.reduce((a, b) => a + b, 0) / skyVals.length) : null;
+
+    const windMphSamples = windVals
+      .map((v) => windToMph(v, gp?.windSpeed?.uom))
+      .filter((v) => Number.isFinite(v));
+    const windMph = windMphSamples.length ? Math.round(Math.max(...windMphSamples)) : null;
+
+    if (tempMaxF === null && tempMinF === null && popMax === null && skyAvg === null) {
+      continue;
     }
 
-    return out;
-  } catch {
-    return [];
+    days.push({
+      number: 2000 + offset,
+      name: formatWeekdayName(day, timeZone),
+      startTime: `${day}T12:00:00Z`,
+      endTime: `${day}T23:59:59Z`,
+      isDaytime: true,
+      temperature: tempMaxF,
+      overnightLow: tempMinF,
+      temperatureUnit: "F",
+      windSpeed: Number.isFinite(windMph) ? `${windMph} mph` : "",
+      windDirection: "",
+      shortForecast: pickShortForecast(popMax, skyAvg),
+      detailedForecast: "Extended guidance from NBM grid data.",
+      probabilityOfPrecipitation: {
+        unitCode: "wmoUnit:percent",
+        value: popMax,
+      },
+      _source: "nbm-grid",
+    });
   }
+  return days;
 }
 
 async function fetchOpenMeteoSoilArchive({ lat, lon }) {
@@ -1082,12 +1018,11 @@ async function handleWeather(lat, lon, zip) {
     gridUrl ? fetchJson(gridUrl, { headers: NWS_HEADERS }, 4500) : Promise.resolve(null),
     alertsUrl ? fetchJson(alertsUrl, { headers: NWS_HEADERS }, 4500) : Promise.resolve(null),
     fetchUsnoAstro({ lat: la, lon: lo, timeZone }),
-    fetchUvCombined({ zip: safeStr(zip), city, state, timeZone, lat: la, lon: lo }),
+    fetchUvCombined({ zip: safeStr(zip), city, state, timeZone }),
     fetchOpenMeteoSoilArchive({ lat: la, lon: lo }), // ✅ Archive soil moisture + max 6h (cached)
-    fetchOpenMeteoExtendedDaily({ lat: la, lon: lo, timeZone }),
   ]);
 
-  const [dailyRes, hourlyRes, gridRes, alertsRes, astroRes, uvRes, soilRes, extendedDailyRes] = fetches;
+  const [dailyRes, hourlyRes, gridRes, alertsRes, astroRes, uvRes, soilRes] = fetches;
 
   if (dailyRes.status !== "fulfilled" || hourlyRes.status !== "fulfilled") {
     return jsonResponse({ error: "Failed to fetch forecast data" }, 502);
@@ -1098,8 +1033,13 @@ async function handleWeather(lat, lon, zip) {
 
   const hourlyPeriods = Array.isArray(hourlyJson?.properties?.periods) ? hourlyJson.properties.periods : [];
   const dailyPeriods = Array.isArray(dailyJson?.properties?.periods) ? [...dailyJson.properties.periods] : [];
-  const extendedDailyPeriods = (extendedDailyRes.status === "fulfilled" && Array.isArray(extendedDailyRes.value))
-    ? extendedDailyRes.value
+  const day0Ymd = dailyPeriods.length ? safeStr(dailyPeriods[0]?.startTime).slice(0, 10) : "";
+  const extendedDailyPeriods = (gridRes.status === "fulfilled" && gridRes.value?.properties && day0Ymd)
+    ? fetchNbmExtendedDailyFromGrid({
+      gridProperties: gridRes.value.properties,
+      timeZone,
+      day0Ymd,
+    })
     : [];
   if (extendedDailyPeriods.length) {
     dailyPeriods.push(...extendedDailyPeriods);
