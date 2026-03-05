@@ -41,8 +41,6 @@ const els = {
   dailyCard: document.getElementById("dailyCard"),
   dailyContent: document.getElementById("dailyContent"),
 
-  refreshInfoBtn: document.getElementById("refreshInfoBtn"),
-  refreshInfoPopover: document.getElementById("refreshInfoPopover"),
   refreshInfoContent: document.getElementById("refreshInfoContent"),
 };
 
@@ -854,34 +852,6 @@ function renderRefreshInfo(data = null) {
     const suffix = item?.ok === false ? " (unavailable)" : "";
     return `<li><span class="refresh-info-source">${source}:</span> <span class="refresh-info-time">${when}${suffix}</span></li>`;
   }).join("")}</ul>`;
-}
-
-function setupRefreshInfo() {
-  const btn = els.refreshInfoBtn;
-  const pop = els.refreshInfoPopover;
-  if (!btn || !pop) return;
-
-  const close = () => {
-    pop.hidden = true;
-    btn.setAttribute("aria-expanded", "false");
-  };
-
-  btn.addEventListener("click", (e) => {
-    e.stopPropagation();
-    const nextOpen = pop.hidden;
-    pop.hidden = !nextOpen;
-    btn.setAttribute("aria-expanded", nextOpen ? "true" : "false");
-    if (nextOpen) renderRefreshInfo();
-  });
-
-  document.addEventListener("click", (e) => {
-    if (e.target.closest("#refreshInfoBtn") || e.target.closest("#refreshInfoPopover")) return;
-    close();
-  });
-
-  document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") close();
-  });
 }
 
 function getEarthSatelliteImageUrl() {
@@ -2031,7 +2001,6 @@ async function init() {
   setupFlippableCards();
   setupAlertDisclosure();
   setupWindCompassModal();
-  setupRefreshInfo();
 
   [els.currentCard].forEach((card) => {
     card.setAttribute("data-expandable", "true");
