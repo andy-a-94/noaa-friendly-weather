@@ -577,7 +577,14 @@ async function fetchEpaUv({ zip, city, state, timeZone }) {
 
     const arr = await fetchJson(url, {}, 3500);
     if (!Array.isArray(arr) || arr.length === 0) {
-      return { ok: false, current: null, max: null, source: { ...source, ok: true, reason: "no data" } };
+      return {
+        ok: true,
+        current: null,
+        max: null,
+        hourly: [],
+        sourceDataAt: null,
+        source: { ...source, ok: true, reason: "no data" },
+      };
     }
 
     const todayYmd = ymdInTimeZone(timeZone, new Date());
@@ -1099,6 +1106,7 @@ async function handleWeather(lat, lon, zip) {
   ]);
 
   const [dailyRes, hourlyRes, gridRes, alertsRes, astroRes, uvRes, soilRes] = fetches;
+  const fetchedAtIso = new Date().toISOString();
 
   if (dailyRes.status !== "fulfilled" || hourlyRes.status !== "fulfilled") {
     return jsonResponse({ error: "Failed to fetch forecast data" }, 502);
@@ -1110,17 +1118,17 @@ async function handleWeather(lat, lon, zip) {
   const forecastSourceAt = pickFirstIsoString(
     dailyJson?.properties?.updateTime,
     dailyJson?.properties?.generatedAt,
-    dailyJson?.properties?.periods?.[0]?.startTime,
+    fetchedAtIso,
   );
   const hourlySourceAt = pickFirstIsoString(
     hourlyJson?.properties?.updateTime,
     hourlyJson?.properties?.generatedAt,
-    hourlyJson?.properties?.periods?.[0]?.startTime,
+    fetchedAtIso,
   );
   const gridSourceAt = (gridRes.status === "fulfilled")
     ? pickFirstIsoString(
       gridRes.value?.properties?.updateTime,
-      gridRes.value?.properties?.validTimes,
+      fetchedAtIso,
     )
     : null;
   const alertsSourceAt = (alertsRes.status === "fulfilled") ? latestAlertSourceTime(alertsRes.value) : null;
