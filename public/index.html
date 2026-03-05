@@ -119,16 +119,14 @@
           <li>USNO Astronomical Applications: sun and moon timing data.</li>
           <li>EPA + Open-Meteo: UV and supplemental environmental data.</li>
         </ul>
+        <div class="refresh-info-section">
+          <h3>Latest source refresh</h3>
+          <div id="refreshInfoContent" class="refresh-info-content">Load a location to see source refresh times.</div>
+        </div>
       </details>
     </footer>
   </main>
 
   <script src="./app.js" defer></script>
-
-  <button id="refreshInfoBtn" class="refresh-info-btn" type="button" aria-label="Data refresh details" aria-expanded="false">i</button>
-  <section id="refreshInfoPopover" class="refresh-info-popover" hidden>
-    <h3>Latest source refresh</h3>
-    <div id="refreshInfoContent" class="refresh-info-content">Load a location to see source refresh times.</div>
-  </section>
 </body>
 </html>

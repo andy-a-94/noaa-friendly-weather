@@ -1702,38 +1702,19 @@ body.is-modal-open{
 }
 
 
-.refresh-info-btn{
-  position: fixed;
-  right: 16px;
-  bottom: 16px;
-  z-index: 60;
-  width: 36px;
-  height: 36px;
-  border-radius: 999px;
-  border: 1px solid rgba(255,255,255,0.28);
-  background: rgba(9,14,30,0.92);
-  color: rgba(255,255,255,0.95);
-  font-weight: 800;
-  cursor: pointer;
-  box-shadow: 0 10px 25px rgba(0,0,0,0.35);
+
+
+
+.refresh-info-section{
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255,255,255,0.12);
 }
 
-.refresh-info-popover{
-  position: fixed;
-  right: 16px;
-  bottom: 58px;
-  z-index: 60;
-  width: min(320px, calc(100vw - 24px));
-  background: rgba(10,16,32,0.96);
-  border: 1px solid rgba(255,255,255,0.14);
-  border-radius: 14px;
-  padding: 12px;
-  box-shadow: 0 14px 35px rgba(0,0,0,0.4);
-}
-
-.refresh-info-popover h3{
+.refresh-info-section h3{
   margin: 0 0 8px;
-  font-size: 14px;
+  font-size: 13px;
+  color: rgba(255,255,255,0.86);
 }
 
 .refresh-info-content{
