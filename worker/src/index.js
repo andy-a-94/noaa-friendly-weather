@@ -551,17 +551,21 @@ async function handleLocation(query) {
 /* ---------------- EPA UV ---------------- */
 
 async function fetchEpaUv({ zip, city, state, timeZone }) {
-  const base = "https://data.epa.gov/dmapservice";
   const source = { provider: "epa-uv" };
 
-  let url = "";
+  let endpointPath = "";
   if (/^\d{5}$/.test(safeStr(zip))) {
-    url = `${base}/getEnvirofactsUVHOURLY/ZIP/${encodeURIComponent(zip)}/json`;
+    endpointPath = `getEnvirofactsUVHOURLY/ZIP/${encodeURIComponent(zip)}`;
   } else if (city && state) {
-    url = `${base}/getEnvirofactsUVHOURLY/CITY/${encodeURIComponent(city)}/STATE/${encodeURIComponent(state)}/json`;
+    endpointPath = `getEnvirofactsUVHOURLY/CITY/${encodeURIComponent(city)}/STATE/${encodeURIComponent(state)}`;
   } else {
     return { ok: false, current: null, max: null, source: { ...source, ok: false, reason: "missing location" } };
   }
+
+  const urls = [
+    `https://data.epa.gov/efservice/${endpointPath}/JSON`,
+    `https://data.epa.gov/dmapservice/${endpointPath}/json`,
+  ];
 
   try {
     // Cache by normalized location + local date + hourly bucket.
@@ -586,7 +590,22 @@ async function fetchEpaUv({ zip, city, state, timeZone }) {
       return j;
     }
 
-    const arr = await fetchJson(url, { headers: EPA_HEADERS }, 3500);
+    let arr = null;
+    let lastErr = null;
+    for (const url of urls) {
+      try {
+        const result = await fetchJson(url, { headers: EPA_HEADERS }, 3500);
+        if (Array.isArray(result)) {
+          arr = result;
+          break;
+        }
+      } catch (err) {
+        lastErr = err;
+      }
+    }
+
+    if (!arr && lastErr) throw lastErr;
+
     if (!Array.isArray(arr) || arr.length === 0) {
       return {
         ok: true,
