@@ -23,6 +23,11 @@ const NWS_HEADERS = {
   "Accept": "application/geo+json",
 };
 
+const EPA_HEADERS = {
+  "User-Agent": "AlmanacWeather (almanacweather.com)",
+  "Accept": "application/json",
+};
+
 const DEFAULT_TIMEOUT_MS = 4500;
 
 function jsonResponse(obj, status = 200, extraHeaders = {}) {
@@ -581,7 +586,7 @@ async function fetchEpaUv({ zip, city, state, timeZone }) {
       return j;
     }
 
-    const arr = await fetchJson(url, {}, 3500);
+    const arr = await fetchJson(url, { headers: EPA_HEADERS }, 3500);
     if (!Array.isArray(arr) || arr.length === 0) {
       return {
         ok: true,
@@ -1150,7 +1155,6 @@ async function handleWeather(lat, lon, zip) {
     ? pickFirstIsoString(
       uvRes.value?.sourceDataAt,
       uvRes.value?.hourly?.[0]?.day,
-      fetchedAtIso,
     )
     : null;
   const soilSourceAt = (soilRes.status === "fulfilled") ? pickFirstIsoString(soilRes.value?.sourceDataAt) : null;
@@ -1325,7 +1329,13 @@ async function handleWeather(lat, lon, zip) {
         { source: "NOAA Grid", pulledAt: gridSourceAt, ok: gridRes.status === "fulfilled" },
         { source: "NOAA Alerts", pulledAt: alertsSourceAt, ok: alertsRes.status === "fulfilled" },
         { source: "USNO Astro", pulledAt: astroSourceAt, ok: astroRes.status === "fulfilled" && !!astroRes.value?.ok },
-        { source: "EPA UV", pulledAt: uvSourceAt, ok: uvRes.status === "fulfilled" && !!uvRes.value?.ok },
+        {
+          source: "EPA UV",
+          pulledAt: uvSourceAt,
+          ok: uvRes.status === "fulfilled" && !!uvRes.value?.ok,
+          reason: uvRes.status === "fulfilled" ? safeStr(uvRes.value?.source?.reason) : "fetch failed",
+          status: uvRes.status === "fulfilled" ? uvRes.value?.source?.status : null,
+        },
         { source: "Open-Meteo Soil", pulledAt: soilSourceAt, ok: soilRes.status === "fulfilled" && !!soilRes.value?.ok },
       ],
     },
