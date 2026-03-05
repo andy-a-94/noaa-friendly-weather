@@ -525,6 +525,28 @@ async function fetchEpaUv({ zip, city, state, timeZone }) {
   }
 
   try {
+    // Cache by normalized location + local date + hourly bucket.
+    // This keeps UV current/max fresh each hour while reducing EPA calls.
+    const now = new Date();
+    const ymd = ymdInTimeZone(timeZone, now);
+    const hourBucket = Math.floor(localNowMinutes(timeZone) / 60); // 0..23
+    const cacheId = /^\d{5}$/.test(safeStr(zip))
+      ? `zip:${safeStr(zip)}`
+      : `city:${safeStr(city).toLowerCase()}|state:${safeStr(state).toUpperCase()}`;
+    const cacheKeyUrl =
+      `https://cache.almanacweather.com/uv` +
+      `?loc=${encodeURIComponent(cacheId)}` +
+      `&date=${encodeURIComponent(ymd)}` +
+      `&h=${encodeURIComponent(String(hourBucket))}`;
+
+    const cache = caches.default;
+    const cacheReq = new Request(cacheKeyUrl, { method: "GET" });
+    const cached = await cache.match(cacheReq);
+    if (cached) {
+      const j = await cached.json();
+      return j;
+    }
+
     const arr = await fetchJson(url, {}, 3500);
     if (!Array.isArray(arr) || arr.length === 0) {
       return { ok: false, current: null, max: null, source: { ...source, ok: true, reason: "no data" } };
@@ -604,13 +626,23 @@ async function fetchEpaUv({ zip, city, state, timeZone }) {
       .sort((a, b) => a[0] - b[0])
       .map(([hour, value]) => ({ day: todayYmd, hour, value }));
 
-    return {
+    const payload = {
       ok: true,
       current: current === null ? null : current,
       max: max === null ? null : max,
       hourly,
       source: { ...source, ok: true },
     };
+
+    const resp = new Response(JSON.stringify(payload), {
+      headers: {
+        "Content-Type": "application/json; charset=utf-8",
+        "Cache-Control": "public, max-age=3600", // 1 hour
+      },
+    });
+    await cache.put(cacheReq, resp.clone());
+
+    return payload;
   } catch (e) {
     return {
       ok: false,
