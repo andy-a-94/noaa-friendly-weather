@@ -849,7 +849,13 @@ function renderRefreshInfo(data = null) {
   els.refreshInfoContent.innerHTML = `<ul class="refresh-info-list">${sourceTimes.map((item) => {
     const source = safeText(item?.source) || "Source";
     const when = formatRefreshTimestamp(item?.pulledAt, lastRefreshMeta?.timeZone);
-    const suffix = (item?.ok === false && when !== "Unavailable") ? " (unavailable)" : "";
+    let suffix = "";
+    if (item?.ok === false) {
+      const reason = safeText(item?.reason);
+      const status = Number.isFinite(Number(item?.status)) ? ` ${Number(item.status)}` : "";
+      const details = reason ? `: ${reason}${status}` : "";
+      suffix = ` (unavailable${details})`;
+    }
     return `<li><span class="refresh-info-source">${source}:</span> <span class="refresh-info-time">${when}${suffix}</span></li>`;
   }).join("")}</ul>`;
 }
