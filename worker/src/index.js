@@ -99,6 +99,34 @@ function safeStr(s) {
   return (s ?? "").toString().trim();
 }
 
+function pickFirstIsoString(...candidates) {
+  for (const value of candidates) {
+    const s = safeStr(value);
+    if (!s) continue;
+    if (Number.isFinite(Date.parse(s))) return s;
+  }
+  return null;
+}
+
+function latestAlertSourceTime(alertsJson) {
+  const feats = Array.isArray(alertsJson?.features) ? alertsJson.features : [];
+  let best = null;
+  let bestMs = -1;
+
+  for (const feat of feats) {
+    const p = feat?.properties || {};
+    const iso = pickFirstIsoString(p?.sent, p?.effective, p?.onset, p?.expires, p?.ends);
+    if (!iso) continue;
+    const ms = Date.parse(iso);
+    if (ms > bestMs) {
+      bestMs = ms;
+      best = iso;
+    }
+  }
+
+  return best;
+}
+
 function toFiniteNum(value) {
   const n = Number(value);
   return Number.isFinite(n) ? n : null;
@@ -626,11 +654,16 @@ async function fetchEpaUv({ zip, city, state, timeZone }) {
       .sort((a, b) => a[0] - b[0])
       .map(([hour, value]) => ({ day: todayYmd, hour, value }));
 
+    const sourceDataAt = Number.isFinite(currentBestMin) && currentBestMin >= 0
+      ? `${todayYmd}T${String(Math.floor(currentBestMin / 60)).padStart(2, "0")}:${String(currentBestMin % 60).padStart(2, "0")}:00`
+      : (hourly.length ? `${hourly[0].day}T${String(hourly[0].hour).padStart(2, "0")}:00:00` : null);
+
     const payload = {
       ok: true,
       current: current === null ? null : current,
       max: max === null ? null : max,
       hourly,
+      sourceDataAt,
       source: { ...source, ok: true },
     };
 
@@ -648,6 +681,7 @@ async function fetchEpaUv({ zip, city, state, timeZone }) {
       ok: false,
       current: null,
       max: null,
+      sourceDataAt: null,
       source: {
         ...source,
         ok: false,
@@ -890,7 +924,9 @@ async function fetchOpenMeteoSoilArchive({ lat, lon }) {
     const sixHMs = 6 * 3600 * 1000;
 
     let max6h = null;
+    let max6hAt = null;
     let latest = null;
+    let latestAt = null;
     let latestMs = -1;
 
     if (Array.isArray(times) && Array.isArray(vals) && times.length && vals.length) {
@@ -905,11 +941,15 @@ async function fetchOpenMeteoSoilArchive({ lat, lon }) {
         if (tMs <= nowMs && tMs > latestMs) {
           latestMs = tMs;
           latest = v;
+          latestAt = times[i];
         }
 
         // Track max over last 6 hours
         if (tMs <= nowMs && tMs >= (nowMs - sixHMs)) {
-          if (max6h === null || v > max6h) max6h = v;
+          if (max6h === null || v > max6h) {
+            max6h = v;
+            max6hAt = times[i];
+          }
         }
       }
     }
@@ -921,6 +961,7 @@ async function fetchOpenMeteoSoilArchive({ lat, lon }) {
       soilMoisture0To7cm: Number.isFinite(picked) ? picked : null,
       unit: "m3/m3",
       method: (max6h !== null) ? "max_last_6h" : (latest !== null ? "latest_non_null_48h" : "none"),
+      sourceDataAt: (max6h !== null) ? max6hAt : latestAt,
       source: { ...source, ok: true },
       shoe: null, // filled later after we consider rain boost
     };
@@ -940,6 +981,7 @@ async function fetchOpenMeteoSoilArchive({ lat, lon }) {
       soilMoisture0To7cm: null,
       unit: "m3/m3",
       method: "error",
+      sourceDataAt: null,
       shoe: null,
       source: { ...source, ok: false, status: e.status || 502, reason: e.message || "fetch failed", bodySnippet: e.bodySnippet },
     };
@@ -961,7 +1003,7 @@ async function fetchUsnoAstro({ lat, lon, timeZone }) {
 
     const j = await fetchJson(url, {}, 3500);
     if (j?.error) {
-      return { ok: false, source: { ...source, ok: false, reason: "api error" } };
+      return { ok: false, sourceDataAt: null, source: { ...source, ok: false, reason: "api error" } };
     }
 
     const data = j?.properties?.data;
@@ -998,6 +1040,7 @@ async function fetchUsnoAstro({ lat, lon, timeZone }) {
       moonPhase: moonPhase || null,
       moonIlluminationPct,
       isDaytimeNow,
+      sourceDataAt: `${date}T00:00:00`,
       source: { ...source, ok: true },
     };
   } catch (e) {
@@ -1010,6 +1053,7 @@ async function fetchUsnoAstro({ lat, lon, timeZone }) {
       moonPhase: null,
       moonIlluminationPct: null,
       isDaytimeNow: false,
+      sourceDataAt: null,
       source: { ...source, ok: false, status: e.status || 502, reason: e.message, bodySnippet: e.bodySnippet },
     };
   }
@@ -1044,16 +1088,6 @@ async function handleWeather(lat, lon, zip) {
 
   const alertsUrl = zoneId ? `https://api.weather.gov/alerts/active?zone=${encodeURIComponent(zoneId)}` : null;
 
-  const refreshPulledAt = {
-    noaaForecast: new Date().toISOString(),
-    noaaHourly: new Date().toISOString(),
-    noaaGrid: new Date().toISOString(),
-    noaaAlerts: new Date().toISOString(),
-    usnoAstro: new Date().toISOString(),
-    epaUv: new Date().toISOString(),
-    openMeteoSoil: new Date().toISOString(),
-  };
-
   const fetches = await Promise.allSettled([
     fetchJson(forecastUrl, { headers: NWS_HEADERS }, 4500),
     fetchJson(hourlyUrl, { headers: NWS_HEADERS }, 4500),
@@ -1072,6 +1106,37 @@ async function handleWeather(lat, lon, zip) {
 
   const dailyJson = dailyRes.value;
   const hourlyJson = hourlyRes.value;
+
+  const forecastSourceAt = pickFirstIsoString(
+    dailyJson?.properties?.updateTime,
+    dailyJson?.properties?.generatedAt,
+    dailyJson?.properties?.periods?.[0]?.startTime,
+  );
+  const hourlySourceAt = pickFirstIsoString(
+    hourlyJson?.properties?.updateTime,
+    hourlyJson?.properties?.generatedAt,
+    hourlyJson?.properties?.periods?.[0]?.startTime,
+  );
+  const gridSourceAt = (gridRes.status === "fulfilled")
+    ? pickFirstIsoString(
+      gridRes.value?.properties?.updateTime,
+      gridRes.value?.properties?.validTimes,
+    )
+    : null;
+  const alertsSourceAt = (alertsRes.status === "fulfilled") ? latestAlertSourceTime(alertsRes.value) : null;
+  const astroSourceAt = (astroRes.status === "fulfilled")
+    ? pickFirstIsoString(
+      astroRes.value?.sourceDataAt,
+      astroRes.value?.date,
+    )
+    : null;
+  const uvSourceAt = (uvRes.status === "fulfilled")
+    ? pickFirstIsoString(
+      uvRes.value?.sourceDataAt,
+      uvRes.value?.hourly?.[0]?.day,
+    )
+    : null;
+  const soilSourceAt = (soilRes.status === "fulfilled") ? pickFirstIsoString(soilRes.value?.sourceDataAt) : null;
 
   const hourlyPeriods = Array.isArray(hourlyJson?.properties?.periods) ? hourlyJson.properties.periods : [];
   const dailyPeriods = Array.isArray(dailyJson?.properties?.periods) ? [...dailyJson.properties.periods] : [];
@@ -1238,13 +1303,13 @@ async function handleWeather(lat, lon, zip) {
 
     refreshMeta: {
       sourceTimes: [
-        { source: "NOAA Forecast", pulledAt: refreshPulledAt.noaaForecast, ok: dailyRes.status === "fulfilled" },
-        { source: "NOAA Hourly", pulledAt: refreshPulledAt.noaaHourly, ok: hourlyRes.status === "fulfilled" },
-        { source: "NOAA Grid", pulledAt: refreshPulledAt.noaaGrid, ok: gridRes.status === "fulfilled" },
-        { source: "NOAA Alerts", pulledAt: refreshPulledAt.noaaAlerts, ok: alertsRes.status === "fulfilled" },
-        { source: "USNO Astro", pulledAt: refreshPulledAt.usnoAstro, ok: astroRes.status === "fulfilled" && !!astroRes.value?.ok },
-        { source: "EPA UV", pulledAt: refreshPulledAt.epaUv, ok: uvRes.status === "fulfilled" && !!uvRes.value?.ok },
-        { source: "Open-Meteo Soil", pulledAt: refreshPulledAt.openMeteoSoil, ok: soilRes.status === "fulfilled" && !!soilRes.value?.ok },
+        { source: "NOAA Forecast", pulledAt: forecastSourceAt, ok: dailyRes.status === "fulfilled" },
+        { source: "NOAA Hourly", pulledAt: hourlySourceAt, ok: hourlyRes.status === "fulfilled" },
+        { source: "NOAA Grid", pulledAt: gridSourceAt, ok: gridRes.status === "fulfilled" },
+        { source: "NOAA Alerts", pulledAt: alertsSourceAt, ok: alertsRes.status === "fulfilled" },
+        { source: "USNO Astro", pulledAt: astroSourceAt, ok: astroRes.status === "fulfilled" && !!astroRes.value?.ok },
+        { source: "EPA UV", pulledAt: uvSourceAt, ok: uvRes.status === "fulfilled" && !!uvRes.value?.ok },
+        { source: "Open-Meteo Soil", pulledAt: soilSourceAt, ok: soilRes.status === "fulfilled" && !!soilRes.value?.ok },
       ],
     },
   });
