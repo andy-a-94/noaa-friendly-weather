@@ -40,6 +40,10 @@ const els = {
 
   dailyCard: document.getElementById("dailyCard"),
   dailyContent: document.getElementById("dailyContent"),
+
+  refreshInfoBtn: document.getElementById("refreshInfoBtn"),
+  refreshInfoPopover: document.getElementById("refreshInfoPopover"),
+  refreshInfoContent: document.getElementById("refreshInfoContent"),
 };
 
 const STORAGE_KEYS = {
@@ -61,6 +65,7 @@ let selectedGraphMetric = "precipitation";
 const GRAPH_DEFAULT_VISIBLE_HOURS = 8;
 let graphOutsideClickHandler = null;
 let earthRefreshTimer = null;
+let lastRefreshMeta = null;
 
 const EARTH_SATELLITE_REFRESH_MS = 10 * 60 * 1000;
 const EARTH_SATELLITE_BASE_URL = "https://cdn.star.nesdis.noaa.gov/GOES16/ABI/FD/GEOCOLOR/1808x1808.jpg";
@@ -804,6 +809,79 @@ function resetVisibleSections() {
   els.graphsContent.innerHTML = "";
   els.dailyContent.innerHTML = "";
   els.alertsContent.innerHTML = "";
+  lastRefreshMeta = null;
+  renderRefreshInfo();
+}
+
+
+function formatRefreshTimestamp(iso, timeZone) {
+  const raw = safeText(iso);
+  if (!raw) return "Unavailable";
+  try {
+    return new Intl.DateTimeFormat("en-US", {
+      timeZone: timeZone || undefined,
+      month: "numeric",
+      day: "numeric",
+      year: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    }).format(new Date(raw)).toLowerCase();
+  } catch {
+    return "Unavailable";
+  }
+}
+
+function renderRefreshInfo(data = null) {
+  if (data?.refreshMeta) {
+    lastRefreshMeta = {
+      timeZone: data?.timeZone || null,
+      sourceTimes: Array.isArray(data.refreshMeta.sourceTimes) ? data.refreshMeta.sourceTimes : [],
+    };
+  }
+
+  if (!els.refreshInfoContent) return;
+
+  const sourceTimes = Array.isArray(lastRefreshMeta?.sourceTimes) ? lastRefreshMeta.sourceTimes : [];
+  if (!sourceTimes.length) {
+    els.refreshInfoContent.textContent = "Load a location to see source refresh times.";
+    return;
+  }
+
+  els.refreshInfoContent.innerHTML = `<ul class="refresh-info-list">${sourceTimes.map((item) => {
+    const source = safeText(item?.source) || "Source";
+    const when = formatRefreshTimestamp(item?.pulledAt, lastRefreshMeta?.timeZone);
+    const suffix = item?.ok === false ? " (unavailable)" : "";
+    return `<li><span class="refresh-info-source">${source}:</span> <span class="refresh-info-time">${when}${suffix}</span></li>`;
+  }).join("")}</ul>`;
+}
+
+function setupRefreshInfo() {
+  const btn = els.refreshInfoBtn;
+  const pop = els.refreshInfoPopover;
+  if (!btn || !pop) return;
+
+  const close = () => {
+    pop.hidden = true;
+    btn.setAttribute("aria-expanded", "false");
+  };
+
+  btn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    const nextOpen = pop.hidden;
+    pop.hidden = !nextOpen;
+    btn.setAttribute("aria-expanded", nextOpen ? "true" : "false");
+    if (nextOpen) renderRefreshInfo();
+  });
+
+  document.addEventListener("click", (e) => {
+    if (e.target.closest("#refreshInfoBtn") || e.target.closest("#refreshInfoPopover")) return;
+    close();
+  });
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") close();
+  });
 }
 
 function getEarthSatelliteImageUrl() {
@@ -1887,6 +1965,7 @@ async function loadAndRender({ lat, lon, labelOverride = null, zipForUv = null }
   renderHourly(data);
   renderGraphs(data);
   renderDaily(data);
+  renderRefreshInfo(data);
 
   earthRefreshTimer = window.setInterval(() => {
     renderEarthTile();
@@ -1952,6 +2031,7 @@ async function init() {
   setupFlippableCards();
   setupAlertDisclosure();
   setupWindCompassModal();
+  setupRefreshInfo();
 
   [els.currentCard].forEach((card) => {
     card.setAttribute("data-expandable", "true");

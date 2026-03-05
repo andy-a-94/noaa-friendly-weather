@@ -1012,6 +1012,16 @@ async function handleWeather(lat, lon, zip) {
 
   const alertsUrl = zoneId ? `https://api.weather.gov/alerts/active?zone=${encodeURIComponent(zoneId)}` : null;
 
+  const refreshPulledAt = {
+    noaaForecast: new Date().toISOString(),
+    noaaHourly: new Date().toISOString(),
+    noaaGrid: new Date().toISOString(),
+    noaaAlerts: new Date().toISOString(),
+    usnoAstro: new Date().toISOString(),
+    epaUv: new Date().toISOString(),
+    openMeteoSoil: new Date().toISOString(),
+  };
+
   const fetches = await Promise.allSettled([
     fetchJson(forecastUrl, { headers: NWS_HEADERS }, 4500),
     fetchJson(hourlyUrl, { headers: NWS_HEADERS }, 4500),
@@ -1193,6 +1203,18 @@ async function handleWeather(lat, lon, zip) {
     uv: uv ? uv : null,
 
     soil: soil ? soil : null,
+
+    refreshMeta: {
+      sourceTimes: [
+        { source: "NOAA Forecast", pulledAt: refreshPulledAt.noaaForecast, ok: dailyRes.status === "fulfilled" },
+        { source: "NOAA Hourly", pulledAt: refreshPulledAt.noaaHourly, ok: hourlyRes.status === "fulfilled" },
+        { source: "NOAA Grid", pulledAt: refreshPulledAt.noaaGrid, ok: gridRes.status === "fulfilled" },
+        { source: "NOAA Alerts", pulledAt: refreshPulledAt.noaaAlerts, ok: alertsRes.status === "fulfilled" },
+        { source: "USNO Astro", pulledAt: refreshPulledAt.usnoAstro, ok: astroRes.status === "fulfilled" && !!astroRes.value?.ok },
+        { source: "EPA UV", pulledAt: refreshPulledAt.epaUv, ok: uvRes.status === "fulfilled" && !!uvRes.value?.ok },
+        { source: "Open-Meteo Soil", pulledAt: refreshPulledAt.openMeteoSoil, ok: soilRes.status === "fulfilled" && !!soilRes.value?.ok },
+      ],
+    },
   });
 }
 
