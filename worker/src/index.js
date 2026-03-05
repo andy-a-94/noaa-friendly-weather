@@ -8,7 +8,7 @@
  * Data sources:
  *  - NWS /api.weather.gov (forecast, hourly, grid, alerts)
  *  - USNO AA Dept (sun/moon + moon phase): https://aa.usno.navy.mil/api/rstt/oneday
- *  - EPA UV (optional; daytime display): https://data.epa.gov/dmapservice/
+ *  - Open-Meteo Forecast (UV index): https://api.open-meteo.com/v1/forecast
  *  - Open-Meteo (soil moisture for shoe rating): https://archive-api.open-meteo.com/v1/archive
  */
 
@@ -21,11 +21,6 @@ const CORS_HEADERS = {
 const NWS_HEADERS = {
   "User-Agent": "AlmanacWeather (almanacweather.com)",
   "Accept": "application/geo+json",
-};
-
-const EPA_HEADERS = {
-  "User-Agent": "AlmanacWeather (almanacweather.com)",
-  "Accept": "application/json",
 };
 
 const DEFAULT_TIMEOUT_MS = 4500;
@@ -548,37 +543,26 @@ async function handleLocation(query) {
   });
 }
 
-/* ---------------- EPA UV ---------------- */
+/* ---------------- Open-Meteo UV ---------------- */
 
-async function fetchEpaUv({ zip, city, state, timeZone }) {
-  const source = { provider: "epa-uv" };
-
-  let endpointPath = "";
-  if (/^\d{5}$/.test(safeStr(zip))) {
-    endpointPath = `getEnvirofactsUVHOURLY/ZIP/${encodeURIComponent(zip)}`;
-  } else if (city && state) {
-    endpointPath = `getEnvirofactsUVHOURLY/CITY/${encodeURIComponent(city)}/STATE/${encodeURIComponent(state)}`;
-  } else {
-    return { ok: false, current: null, max: null, source: { ...source, ok: false, reason: "missing location" } };
+async function fetchOpenMeteoUv({ lat, lon, timeZone }) {
+  const source = { provider: "open-meteo-forecast" };
+  const la2 = round2(lat);
+  const lo2 = round2(lon);
+  if (la2 === null || lo2 === null) {
+    return { ok: false, current: null, max: null, sourceDataAt: null, source: { ...source, ok: false, reason: "invalid lat/lon" } };
   }
 
-  const urls = [
-    `https://data.epa.gov/efservice/${endpointPath}/JSON`,
-    `https://data.epa.gov/dmapservice/${endpointPath}/json`,
-  ];
-
   try {
-    // Cache by normalized location + local date + hourly bucket.
-    // This keeps UV current/max fresh each hour while reducing EPA calls.
+    // Cache by rounded location + local date + hourly bucket.
+    // UV index updates most usefully on an hourly cadence.
     const now = new Date();
     const ymd = ymdInTimeZone(timeZone, now);
     const hourBucket = Math.floor(localNowMinutes(timeZone) / 60); // 0..23
-    const cacheId = /^\d{5}$/.test(safeStr(zip))
-      ? `zip:${safeStr(zip)}`
-      : `city:${safeStr(city).toLowerCase()}|state:${safeStr(state).toUpperCase()}`;
     const cacheKeyUrl =
       `https://cache.almanacweather.com/uv` +
-      `?loc=${encodeURIComponent(cacheId)}` +
+      `?lat=${encodeURIComponent(String(la2))}` +
+      `&lon=${encodeURIComponent(String(lo2))}` +
       `&date=${encodeURIComponent(ymd)}` +
       `&h=${encodeURIComponent(String(hourBucket))}`;
 
@@ -590,106 +574,66 @@ async function fetchEpaUv({ zip, city, state, timeZone }) {
       return j;
     }
 
-    let arr = null;
-    let lastErr = null;
-    for (const url of urls) {
-      try {
-        const result = await fetchJson(url, { headers: EPA_HEADERS }, 3500);
-        if (Array.isArray(result)) {
-          arr = result;
-          break;
-        }
-      } catch (err) {
-        lastErr = err;
-      }
-    }
+    const omTimeZone = safeStr(timeZone) || "auto";
+    const url =
+      `https://api.open-meteo.com/v1/forecast` +
+      `?latitude=${encodeURIComponent(String(la2))}` +
+      `&longitude=${encodeURIComponent(String(lo2))}` +
+      `&timezone=${encodeURIComponent(omTimeZone)}` +
+      `&hourly=uv_index` +
+      `&daily=uv_index_max`;
 
-    if (!arr && lastErr) throw lastErr;
+    const om = await fetchJson(url, {}, 3500);
 
-    if (!Array.isArray(arr) || arr.length === 0) {
-      return {
-        ok: true,
-        current: null,
-        max: null,
-        hourly: [],
-        sourceDataAt: null,
-        source: { ...source, ok: true, reason: "no data" },
-      };
-    }
-
-    const todayYmd = ymdInTimeZone(timeZone, new Date());
+    const todayYmd = ymdInTimeZone(timeZone, now);
     const nowMin = localNowMinutes(timeZone);
+    const times = Array.isArray(om?.hourly?.time) ? om.hourly.time : [];
+    const uvVals = Array.isArray(om?.hourly?.uv_index) ? om.hourly.uv_index : [];
 
-    let max = null;
     let current = null;
     let currentBestMin = -1;
-    const hourlyMap = new Map();
+    const hourly = [];
 
-    const monMap = {
-      jan: "01", feb: "02", mar: "03", apr: "04", may: "05", jun: "06",
-      jul: "07", aug: "08", sep: "09", oct: "10", nov: "11", dec: "12",
-    };
-
-    for (const row of arr) {
-      const dt = safeStr(row.DATE_TIME);
-      const uv = Number(row.UV_VALUE);
-
+    const n = Math.min(times.length, uvVals.length);
+    for (let i = 0; i < n; i += 1) {
+      const ts = safeStr(times[i]);
+      const uv = Number(uvVals[i]);
       if (!Number.isFinite(uv)) continue;
 
-      let y, m, d, hh, mm;
+      const day = ts.slice(0, 10);
+      const hm = ts.slice(11, 16);
+      const hh = Number(hm.slice(0, 2));
+      const mm = Number(hm.slice(3, 5));
+      if (!day || !Number.isFinite(hh) || !Number.isFinite(mm)) continue;
+      if (day !== todayYmd) continue;
 
-      let m1 = dt.match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/);
-      if (m1) {
-        y = m1[1]; m = m1[2]; d = m1[3]; hh = m1[4]; mm = m1[5];
-      } else {
-        let m2 = dt.match(/^(\d{2})\/(\d{2})\/(\d{4})[ T](\d{2}):(\d{2})/);
-        if (m2) {
-          y = m2[3]; m = m2[1]; d = m2[2]; hh = m2[4]; mm = m2[5];
-        } else {
-          const m3 = dt.match(/^([A-Za-z]{3})\/(\d{1,2})\/(\d{4})\s+(\d{1,2})(?::(\d{2}))?\s*(AM|PM)$/i);
-          if (!m3) continue;
+      hourly.push({ day, hour: hh, value: uv });
 
-          const mon = monMap[m3[1].toLowerCase()];
-          if (!mon) continue;
-
-          y = m3[3];
-          m = mon;
-          d = String(m3[2]).padStart(2, "0");
-
-          let hour12 = Number(m3[4]);
-          const minute = m3[5] ? Number(m3[5]) : 0;
-          const ampm = String(m3[6]).toUpperCase();
-
-          if (!Number.isFinite(hour12) || !Number.isFinite(minute)) continue;
-          hour12 = clamp(hour12, 1, 12);
-
-          let hour24 = hour12 % 12;
-          if (ampm === "PM") hour24 += 12;
-
-          hh = String(hour24).padStart(2, "0");
-          mm = String(clamp(minute, 0, 59)).padStart(2, "0");
-        }
-      }
-
-      const rowYmd = `${y}-${m}-${d}`;
-      if (rowYmd !== todayYmd) continue;
-
-      const rowHour = Number(hh);
-      const rowMin = rowHour * 60 + Number(mm);
-      if (max === null || uv > max) max = uv;
-
-      const prevForHour = hourlyMap.get(rowHour);
-      if (!Number.isFinite(prevForHour) || uv > prevForHour) hourlyMap.set(rowHour, uv);
-
+      const rowMin = hh * 60 + mm;
       if (rowMin <= nowMin && rowMin > currentBestMin) {
         current = uv;
         currentBestMin = rowMin;
       }
     }
 
-    const hourly = [...hourlyMap.entries()]
-      .sort((a, b) => a[0] - b[0])
-      .map(([hour, value]) => ({ day: todayYmd, hour, value }));
+    const dailyTimes = Array.isArray(om?.daily?.time) ? om.daily.time : [];
+    const dailyMaxVals = Array.isArray(om?.daily?.uv_index_max) ? om.daily.uv_index_max : [];
+    let max = null;
+    for (let i = 0; i < Math.min(dailyTimes.length, dailyMaxVals.length); i += 1) {
+      if (safeStr(dailyTimes[i]) !== todayYmd) continue;
+      const v = Number(dailyMaxVals[i]);
+      if (Number.isFinite(v)) {
+        max = v;
+        break;
+      }
+    }
+    if (!Number.isFinite(max) && hourly.length) {
+      max = hourly.reduce((acc, h) => {
+        const v = Number(h?.value);
+        if (!Number.isFinite(v)) return acc;
+        return acc === null || v > acc ? v : acc;
+      }, null);
+    }
 
     const sourceDataAt = Number.isFinite(currentBestMin) && currentBestMin >= 0
       ? `${todayYmd}T${String(Math.floor(currentBestMin / 60)).padStart(2, "0")}:${String(currentBestMin % 60).padStart(2, "0")}:00`
@@ -730,8 +674,8 @@ async function fetchEpaUv({ zip, city, state, timeZone }) {
   }
 }
 
-async function fetchUvCombined({ zip, city, state, timeZone }) {
-  return fetchEpaUv({ zip, city, state, timeZone });
+async function fetchUvCombined({ lat, lon, timeZone }) {
+  return fetchOpenMeteoUv({ lat, lon, timeZone });
 }
 
 /* ---------------- Open-Meteo Soil Moisture (Archive; cached) ---------------- */
@@ -869,7 +813,7 @@ function summarizeGridDay(seriesValues, dayYmd, timeZone) {
 function fetchNbmExtendedDailyFromGrid({ gridProperties, timeZone, day0Ymd }) {
   const gp = gridProperties || {};
   const days = [];
-  for (let offset = 7; offset <= 10; offset += 1) {
+  for (let offset = 7; offset <= 13; offset += 1) {
     const day = isoDayShift(day0Ymd, offset);
     if (!day) continue;
 
@@ -1131,7 +1075,7 @@ async function handleWeather(lat, lon, zip) {
     gridUrl ? fetchJson(gridUrl, { headers: NWS_HEADERS }, 4500) : Promise.resolve(null),
     alertsUrl ? fetchJson(alertsUrl, { headers: NWS_HEADERS }, 4500) : Promise.resolve(null),
     fetchUsnoAstro({ lat: la, lon: lo, timeZone }),
-    fetchUvCombined({ zip: safeStr(zip), city, state, timeZone }),
+    fetchUvCombined({ lat: la, lon: lo, timeZone }),
     fetchOpenMeteoSoilArchive({ lat: la, lon: lo }), // ✅ Archive soil moisture + max 6h (cached)
   ]);
 
@@ -1349,7 +1293,7 @@ async function handleWeather(lat, lon, zip) {
         { source: "NOAA Alerts", pulledAt: alertsSourceAt, ok: alertsRes.status === "fulfilled" },
         { source: "USNO Astro", pulledAt: astroSourceAt, ok: astroRes.status === "fulfilled" && !!astroRes.value?.ok },
         {
-          source: "EPA UV",
+          source: "Open-Meteo UV",
           pulledAt: uvSourceAt,
           ok: uvRes.status === "fulfilled" && !!uvRes.value?.ok,
           reason: uvRes.status === "fulfilled" ? safeStr(uvRes.value?.source?.reason) : "fetch failed",
