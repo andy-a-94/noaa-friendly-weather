@@ -331,6 +331,12 @@ function ymdInTimeZone(timeZone, dateObj = new Date()) {
       month: "2-digit",
       day: "2-digit",
     });
+    const parts = dtf.formatToParts(dateObj);
+    const get = (t) => parts.find((p) => p.type === t)?.value;
+    const y = get("year");
+    const m = get("month");
+    const d = get("day");
+    if (y && m && d) return `${y}-${m}-${d}`;
     return dtf.format(dateObj);
   } catch {
     const y = dateObj.getUTCFullYear();
@@ -1131,7 +1137,9 @@ async function handleWeather(lat, lon, zip) {
       fetchedAtIso,
     )
     : null;
-  const alertsSourceAt = (alertsRes.status === "fulfilled") ? latestAlertSourceTime(alertsRes.value) : null;
+  const alertsSourceAt = (alertsRes.status === "fulfilled")
+    ? pickFirstIsoString(latestAlertSourceTime(alertsRes.value), fetchedAtIso)
+    : null;
   const astroSourceAt = (astroRes.status === "fulfilled")
     ? pickFirstIsoString(
       astroRes.value?.sourceDataAt,
@@ -1142,6 +1150,7 @@ async function handleWeather(lat, lon, zip) {
     ? pickFirstIsoString(
       uvRes.value?.sourceDataAt,
       uvRes.value?.hourly?.[0]?.day,
+      fetchedAtIso,
     )
     : null;
   const soilSourceAt = (soilRes.status === "fulfilled") ? pickFirstIsoString(soilRes.value?.sourceDataAt) : null;
