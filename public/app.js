@@ -677,20 +677,13 @@ function getNowMinutesInTimeZone(timeZone) {
 
 /* ---------- Moon display helpers ---------- */
 
-function moonIllumFromPhaseLabel(phaseLabel) {
+function moonPhaseFromLabel(phaseLabel) {
   const p = safeText(phaseLabel).toLowerCase();
-  if (!p) return { illum: null, waxing: null, label: "" };
-
-  let illum = null;
-  if (p.includes("new")) illum = 0;
-  else if (p.includes("full")) illum = 1;
-  else if (p.includes("gibbous")) illum = 0.75;
-  else if (p.includes("quarter")) illum = 0.5;
-  else if (p.includes("crescent")) illum = 0.25;
+  if (!p) return { waxing: null, label: "" };
 
   const waxing = p.includes("waxing") ? true : (p.includes("waning") ? false : null);
   const label = safeText(phaseLabel) || "—";
-  return { illum, waxing, label };
+  return { waxing, label };
 }
 
 async function fetchLocation(query) {
@@ -1233,7 +1226,7 @@ function renderAstroUv(data) {
    const moonrise = formatHHMMTo12h(moonriseRaw);
    const moonset  = formatHHMMTo12h(moonsetRaw);
 
-  const { illum, label: phaseLabel } = moonIllumFromPhaseLabel(astro.moonPhase);
+  const { label: phaseLabel } = moonPhaseFromLabel(astro.moonPhase);
 
   const uv = data?.uv;
   const showUv = !!astro.isDaytimeNow;
@@ -1274,9 +1267,21 @@ function renderAstroUv(data) {
   const sunArcSvgHeightPx = 60;
   const sunYPx = sunArcSvgTopPx + clamp(ySvg / 55, 0, 1) * sunArcSvgHeightPx;
 
-  // Keep calculated moon illumination text from NOAA astro data,
-  // while the moon visual itself comes from NASA SVS frame imagery.
-  const moonIllumPct = (typeof illum === "number") ? Math.round(illum * 100) : null;
+  // Prefer numeric moon illumination from USNO astro data.
+  // Fall back to coarse phase-label buckets if the value is missing.
+  const moonIlluminationRaw = Number(astro.moonIlluminationPct);
+  let moonIllumPct = Number.isFinite(moonIlluminationRaw)
+    ? Math.round(clamp(moonIlluminationRaw, 0, 100))
+    : null;
+
+  if (moonIllumPct === null) {
+    const phaseLower = safeText(astro.moonPhase).toLowerCase();
+    if (phaseLower.includes("new")) moonIllumPct = 0;
+    else if (phaseLower.includes("full")) moonIllumPct = 100;
+    else if (phaseLower.includes("gibbous")) moonIllumPct = 75;
+    else if (phaseLower.includes("quarter")) moonIllumPct = 50;
+    else if (phaseLower.includes("crescent")) moonIllumPct = 25;
+  }
 
   const showSunDot = !!(typeof sunT === "number") && !beforeSunrise && !afterSunset;
 
