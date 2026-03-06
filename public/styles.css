@@ -1461,14 +1461,15 @@ body.is-modal-open{
 }
 
 .moon-image{
-  width: min(100%, 200px);
-  max-width: 200px;
+  width: min(100%, 150px);
+  max-width: 150px;
   aspect-ratio: 1 / 1;
   border-radius: 50%;
+  clip-path: circle(46.5% at 50% 50%);
   object-fit: cover;
   flex: 0 0 auto;
   box-shadow: 0 0 20px rgba(255, 255, 255, 0.2);
-  background: radial-gradient(circle at 35% 30%, rgba(255,255,255,0.3), rgba(80,90,110,0.35));
+  background: transparent;
 }
 
 .moon-label{
