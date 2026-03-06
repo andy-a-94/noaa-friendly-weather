@@ -68,9 +68,9 @@ let lastRefreshMeta = null;
 const EARTH_SATELLITE_REFRESH_MS = 10 * 60 * 1000;
 const EARTH_SATELLITE_BASE_URL = "https://cdn.star.nesdis.noaa.gov/GOES16/ABI/FD/GEOCOLOR/1808x1808.jpg";
 const EARTH_TILE_FALLBACK_MAX_HEIGHT_PX = 380;
-const NASA_MOON_BASE_URL = "https://svs.gsfc.nasa.gov/vis/a000000/a005100/a005187/frames/730x730_1x1_30p/moon";
+const NASA_MOON_BASE_URL = "https://svs.gsfc.nasa.gov/vis/a000000/a005400/a005418/frames/730x730_1x1_30p/moon";
 
-// NASA SVS dataset 5187 uses hour-of-year frame IDs (0001..8760).
+// NASA SVS dataset 5418 (2026 Moon Phase and Libration) uses hour-of-year frame IDs (0001..8760).
 // We compute this once per page load and reuse it for the moon tile image.
 function getUtcHourOfYearFrame(date = new Date()) {
   const startOfYearUtcMs = Date.UTC(date.getUTCFullYear(), 0, 1, 0, 0, 0);
@@ -83,7 +83,7 @@ function getUtcHourOfYearFrame(date = new Date()) {
   const utcHour = date.getUTCHours();
   const hourOfYear = (elapsedDays * 24) + utcHour + 1;
 
-  // NASA Dataset 5187 ships frames 0001..8760.
+  // NASA Dataset 5418 ships frames 0001..8760.
   // In leap years, UTC hour-of-year can exceed 8760, so wrap to dataset bounds.
   const wrappedHour = ((hourOfYear - 1) % 8760) + 1;
   return String(wrappedHour).padStart(4, "0");
