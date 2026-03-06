@@ -1460,41 +1460,15 @@ body.is-modal-open{
   min-height: 90px; /* keeps Sun/Moon tiles feeling equal-height */
 }
 
-.moon-disc{
-  width: 58px;
-  height: 58px;
-  border-radius: 999px;
-  position:relative;
-  flex: 0 0 auto;
-
-  background: radial-gradient(circle at 35% 30%,
-    rgba(69,78,96,0.85),
-    rgba(45,53,70,0.92) 55%,
-    rgba(28,34,48,0.95));
-  box-shadow: inset 0 -9px 14px rgba(0,0,0,0.28);
-  overflow:hidden;
-}
-
-/* Phase mask: slide a light disc across a dark base for natural crescents/gibbous phases. */
-
-.moon-disc.is-waning{
-  transform: scaleX(-1);
-}
-
-.moon-disc::after{
-  content:"";
-  position:absolute;
-  top: 0;
-  left: var(--moon-offset, 0px);
-  width: 58px;
-  height: 58px;
+.moon-image{
+  width: min(100%, 200px);
+  max-width: 200px;
+  aspect-ratio: 1 / 1;
   border-radius: 50%;
-  background: radial-gradient(circle at 35% 30%,
-    rgba(255,255,255,0.97),
-    rgba(224,229,239,0.95) 60%,
-    rgba(176,186,204,0.92));
-  box-shadow: 0 0 5px rgba(0,0,0,0.15);
-  filter: blur(0.4px);
+  object-fit: cover;
+  flex: 0 0 auto;
+  box-shadow: 0 0 20px rgba(255, 255, 255, 0.2);
+  background: radial-gradient(circle at 35% 30%, rgba(255,255,255,0.3), rgba(80,90,110,0.35));
 }
 
 .moon-label{

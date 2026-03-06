@@ -68,6 +68,29 @@ let lastRefreshMeta = null;
 const EARTH_SATELLITE_REFRESH_MS = 10 * 60 * 1000;
 const EARTH_SATELLITE_BASE_URL = "https://cdn.star.nesdis.noaa.gov/GOES16/ABI/FD/GEOCOLOR/1808x1808.jpg";
 const EARTH_TILE_FALLBACK_MAX_HEIGHT_PX = 380;
+const NASA_MOON_BASE_URL = "https://svs.gsfc.nasa.gov/vis/a000000/a005100/a005187/frames/730x730_1x1_30p/moon";
+
+// NASA SVS dataset 5187 uses hour-of-year frame IDs (0001..8760).
+// We compute this once per page load and reuse it for the moon tile image.
+function getUtcHourOfYearFrame(date = new Date()) {
+  const startOfYearUtcMs = Date.UTC(date.getUTCFullYear(), 0, 1, 0, 0, 0);
+  const elapsedMs = date.getTime() - startOfYearUtcMs;
+
+  // Prompt formula:
+  //   (days elapsed since Jan 1 * 24) + current UTC hour + 1
+  // Use UTC-only math to avoid local timezone drift.
+  const elapsedDays = Math.floor(elapsedMs / (24 * 60 * 60 * 1000));
+  const utcHour = date.getUTCHours();
+  const hourOfYear = (elapsedDays * 24) + utcHour + 1;
+
+  // NASA Dataset 5187 ships frames 0001..8760.
+  // In leap years, UTC hour-of-year can exceed 8760, so wrap to dataset bounds.
+  const wrappedHour = ((hourOfYear - 1) % 8760) + 1;
+  return String(wrappedHour).padStart(4, "0");
+}
+
+const NASA_MOON_FRAME = getUtcHourOfYearFrame();
+const NASA_MOON_IMAGE_URL = `${NASA_MOON_BASE_URL}.${NASA_MOON_FRAME}.jpg`;
 
 const HOURLY_INITIAL_COUNT = 24;
 const HOURLY_LOAD_STEP = 24;
@@ -1210,7 +1233,7 @@ function renderAstroUv(data) {
    const moonrise = formatHHMMTo12h(moonriseRaw);
    const moonset  = formatHHMMTo12h(moonsetRaw);
 
-  const { illum, waxing, label: phaseLabel } = moonIllumFromPhaseLabel(astro.moonPhase);
+  const { illum, label: phaseLabel } = moonIllumFromPhaseLabel(astro.moonPhase);
 
   const uv = data?.uv;
   const showUv = !!astro.isDaytimeNow;
@@ -1251,25 +1274,9 @@ function renderAstroUv(data) {
   const sunArcSvgHeightPx = 60;
   const sunYPx = sunArcSvgTopPx + clamp(ySvg / 55, 0, 1) * sunArcSvgHeightPx;
 
-  // --- Moon phase visual: compute light-mask offset in px ---
-  // We render a dark base disc and slide a same-sized light disc across it.
-  // This keeps gibbous phases from looking "scooped out" while preserving
-  // left/right orientation for waxing vs waning.
-  // - illum 0   => offset diameter (light fully off-disc)
-  // - illum 0.5 => offset radius   (half lit)
-  // - illum 1   => offset 0        (fully lit)
+  // Keep calculated moon illumination text from NOAA astro data,
+  // while the moon visual itself comes from NASA SVS frame imagery.
   const moonIllumPct = (typeof illum === "number") ? Math.round(illum * 100) : null;
-
-  const diameter = 58; // must match .moon-disc size in CSS
-  const normalizedIllum = (typeof illum === "number") ? clamp(illum, 0, 1) : 0.5;
-  const shift = (1 - normalizedIllum) * diameter;
-
-  // Waxing and waning both use the same base light-mask geometry.
-  // For waning phases we mirror the disc in CSS so the same silhouette
-  // becomes left-lit without introducing asymmetric clipping artifacts.
-  let moonOffsetPx = 0;
-  if (waxing === true || waxing === false) moonOffsetPx = shift;
-  const moonWaningClass = waxing === false ? " is-waning" : "";
 
   const showSunDot = !!(typeof sunT === "number") && !beforeSunrise && !afterSunset;
 
@@ -1303,13 +1310,19 @@ function renderAstroUv(data) {
         </div>
       </div>
 
-      <div class="astro-tile moon-tile" style="--moon-offset:${moonOffsetPx}px;">
+      <div class="astro-tile moon-tile">
         <div class="astro-tile-head">
           <div class="astro-tile-title">Moon</div>
         </div>
 
         <div class="moon-wrap">
-          <div class="moon-disc${moonWaningClass}" aria-hidden="true"></div>
+          <img
+            class="moon-image"
+            src="${NASA_MOON_IMAGE_URL}"
+            alt="NASA SVS moon visualization for UTC hour ${NASA_MOON_FRAME}"
+            loading="lazy"
+            decoding="async"
+          />
           <div class="moon-label">
             <div class="moon-phase">${phaseLabel || "—"}</div>
             <div class="moon-sub moon-times">↑ ${moonrise || "—"} • ↓ ${moonset || "—"}</div>
