@@ -1216,11 +1216,11 @@ body.is-modal-open{
 .shoe-main{
   display:flex;
   flex-direction:column;
-  align-items:center;
+  align-items:flex-start;
   justify-content:flex-start;
   gap:6px;
   min-height: 0;
-  text-align:center;
+  text-align:left;
   padding: 2px 0;
 }
 .shoe-icon-img{
@@ -1245,10 +1245,11 @@ body.is-modal-open{
   line-height: 1.2;
 }
 .shoe-sub{
-  margin-top: 2px;
+  margin-top: 4px;
   color: var(--muted);
-  font-weight: 650;
-  font-size: 13px;
+  font-weight: 750;
+  font-size: 12px;
+  line-height: 1.25;
 }
 
 .shoe-info-btn{
@@ -1461,8 +1462,8 @@ body.is-modal-open{
 }
 
 .moon-image{
-  width: min(100%, 120px);
-  max-width: 120px;
+  width: min(100%, 148px);
+  max-width: 148px;
   aspect-ratio: 1 / 1;
   border-radius: 50%;
   clip-path: circle(49.8% at 50% 50%);
