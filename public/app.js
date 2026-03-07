@@ -93,6 +93,10 @@ const NASA_MOON_FRAME = getUtcHourOfYearFrame();
 const NASA_MOON_IMAGE_URL = `${NASA_MOON_BASE_URL}.${NASA_MOON_FRAME}.jpg`;
 
 function formatMoonIlluminationPct(value) {
+  if (typeof value === "string") {
+    const cleaned = value.trim().replace(/%$/, "");
+    if (cleaned.length > 0) value = cleaned;
+  }
   const n = Number(value);
   if (!Number.isFinite(n)) return null;
   const pct = n <= 1 ? (n * 100) : n;
@@ -1158,6 +1162,7 @@ function renderShoe(data) {
         <img class="shoe-icon-img" src="${iconSrc}" alt="" aria-hidden="true" />
         <div class="shoe-meta-row">
           <div class="shoe-text">
+            <div class="shoe-title">${label}</div>
             <div class="shoe-sub">${sub}</div>
           </div>
         </div>
