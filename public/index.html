@@ -4,13 +4,43 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Almanac Weather</title>
+  <meta name="description" content="Almanac Weather offers local NOAA weather forecasts, severe weather alerts, wind, UV, hourly and daily outlooks, plus earth and moon context in one fast dashboard." />
   <meta name="theme-color" content="#0b1230" />
+  <meta name="robots" content="index, follow" />
+  <link rel="canonical" href="https://www.almanacweather.com/" />
+
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="Almanac Weather" />
+  <meta property="og:description" content="Local NOAA forecasts, alerts, and easy weather context in a single view." />
+  <meta property="og:url" content="https://www.almanacweather.com/" />
+  <meta property="og:image" content="https://www.almanacweather.com/logo_og.png" />
+  <meta property="og:image:alt" content="Almanac Weather logo" />
+
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="Almanac Weather" />
+  <meta name="twitter:description" content="Local NOAA forecasts, alerts, and easy weather context in a single view." />
+  <meta name="twitter:image" content="https://www.almanacweather.com/logo_og.png" />
 
   <!-- For Cloudflare Pages preview builds you can set a worker base URL here.
        For production (www.almanacweather.com) leave blank and it will use same-origin /api. -->
   <meta name="worker-base-url" content="" />
 
   <link rel="stylesheet" href="./styles.css" />
+
+  <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      "name": "Almanac Weather",
+      "url": "https://www.almanacweather.com/",
+      "description": "NOAA-powered local weather forecasts, alerts, and atmospheric context.",
+      "publisher": {
+        "@type": "Organization",
+        "name": "Almanac Weather",
+        "url": "https://www.almanacweather.com/"
+      }
+    }
+  </script>
 </head>
 
 <body>
@@ -111,6 +141,9 @@
     </section>
 
     <footer class="foot">
+      <nav class="footer-links" aria-label="Footer">
+        <a class="footer-link" href="./about.html">About Almanac Weather</a>
+      </nav>
       <details class="data-sources" id="dataSources">
         <summary>Data Sources</summary>
         <ul>
