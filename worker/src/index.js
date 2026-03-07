@@ -162,7 +162,36 @@ function hasAllowedTrackContentLength(request) {
   const raw = request.headers.get("content-length");
   if (!raw) return true;
   const n = Number(raw);
-  return Number.isFinite(n) && n > 0 && n <= TRACK_MAX_BODY_BYTES;
+  return Number.isFinite(n) && n >= 0 && n <= TRACK_MAX_BODY_BYTES;
+}
+
+async function readRequestBodyWithLimit(request, maxBytes) {
+  if (!request.body) return "";
+
+  const reader = request.body.getReader();
+  const chunks = [];
+  let total = 0;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    const chunk = value || new Uint8Array(0);
+    total += chunk.byteLength;
+    if (total > maxBytes) {
+      throw new Error("PAYLOAD_TOO_LARGE");
+    }
+    chunks.push(chunk);
+  }
+
+  const merged = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    merged.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+
+  return new TextDecoder().decode(merged);
 }
 
 function validateTrackLocation(value, min, max) {
@@ -242,8 +271,12 @@ async function handleTrackEvent(request, env) {
 
   let body;
   try {
-    body = await request.json();
-  } catch {
+    const rawBody = await readRequestBodyWithLimit(request, TRACK_MAX_BODY_BYTES);
+    body = rawBody ? JSON.parse(rawBody) : null;
+  } catch (err) {
+    if (err?.message === "PAYLOAD_TOO_LARGE") {
+      return jsonResponse({ error: `Payload too large (max ${TRACK_MAX_BODY_BYTES} bytes)` }, 413);
+    }
     return jsonResponse({ error: "Invalid JSON body" }, 400);
   }
 
