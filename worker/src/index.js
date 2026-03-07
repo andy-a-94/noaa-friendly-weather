@@ -8,7 +8,7 @@
  * Data sources:
  *  - NWS /api.weather.gov (forecast, hourly, grid, alerts)
  *  - USNO AA Dept (sun/moon + moon phase): https://aa.usno.navy.mil/api/rstt/oneday
- *  - Open-Meteo Forecast (UV index): https://api.open-meteo.com/v1/forecast
+ *  - Open-Meteo Forecast (UV index + 14-day extension): https://api.open-meteo.com/v1/forecast
  *  - Open-Meteo (soil moisture for shoe rating): https://archive-api.open-meteo.com/v1/archive
  */
 
@@ -862,6 +862,86 @@ function fetchNbmExtendedDailyFromGrid({ gridProperties, timeZone, day0Ymd }) {
   return days;
 }
 
+async function fetchOpenMeteoExtendedDailyForecast({ lat, lon, timeZone }) {
+  const source = { provider: "open-meteo-forecast", product: "14-day-daily" };
+
+  const la2 = round2(lat);
+  const lo2 = round2(lon);
+  if (la2 === null || lo2 === null) {
+    return { ok: false, periods: [], source: { ...source, ok: false, reason: "invalid lat/lon" } };
+  }
+
+  const tz = safeStr(timeZone) || "UTC";
+
+  try {
+    const url =
+      `https://api.open-meteo.com/v1/forecast` +
+      `?latitude=${encodeURIComponent(String(la2))}` +
+      `&longitude=${encodeURIComponent(String(lo2))}` +
+      `&temperature_unit=fahrenheit` +
+      `&wind_speed_unit=mph` +
+      `&precipitation_unit=inch` +
+      `&forecast_days=14` +
+      `&timezone=${encodeURIComponent(tz)}` +
+      `&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,wind_speed_10m_max,weather_code`;
+
+    const om = await fetchJson(url, {}, 3200);
+
+    const days = Array.isArray(om?.daily?.time) ? om.daily.time : [];
+    const maxTemps = Array.isArray(om?.daily?.temperature_2m_max) ? om.daily.temperature_2m_max : [];
+    const minTemps = Array.isArray(om?.daily?.temperature_2m_min) ? om.daily.temperature_2m_min : [];
+    const popMaxVals = Array.isArray(om?.daily?.precipitation_probability_max) ? om.daily.precipitation_probability_max : [];
+    const windMaxVals = Array.isArray(om?.daily?.wind_speed_10m_max) ? om.daily.wind_speed_10m_max : [];
+    const weatherCodes = Array.isArray(om?.daily?.weather_code) ? om.daily.weather_code : [];
+
+    const periods = [];
+    for (let i = 0; i < days.length; i += 1) {
+      const day = safeStr(days[i]);
+      if (!day) continue;
+
+      const maxF = toFiniteNum(maxTemps[i]);
+      const minF = toFiniteNum(minTemps[i]);
+      const pop = toFiniteNum(popMaxVals[i]);
+      const wind = toFiniteNum(windMaxVals[i]);
+      const weatherCode = toFiniteNum(weatherCodes[i]);
+
+      periods.push({
+        number: 3000 + i,
+        name: formatWeekdayName(day, tz),
+        startTime: `${day}T12:00:00Z`,
+        endTime: `${day}T23:59:59Z`,
+        isDaytime: true,
+        temperature: maxF === null ? null : Math.round(maxF),
+        overnightLow: minF === null ? null : Math.round(minF),
+        temperatureUnit: "F",
+        windSpeed: Number.isFinite(wind) ? `${Math.round(wind)} mph` : "",
+        windDirection: "",
+        shortForecast: weatherCodeToShortForecast(weatherCode),
+        detailedForecast: "Extended outlook from Open-Meteo daily forecast.",
+        probabilityOfPrecipitation: {
+          unitCode: "wmoUnit:percent",
+          value: Number.isFinite(pop) ? clamp(Math.round(pop), 0, 100) : null,
+        },
+        _source: "open-meteo-extended",
+      });
+    }
+
+    return {
+      ok: true,
+      periods,
+      sourceDataAt: pickFirstIsoString(om?.daily?.time?.[0], new Date().toISOString()),
+      source: { ...source, ok: true },
+    };
+  } catch (e) {
+    return {
+      ok: false,
+      periods: [],
+      sourceDataAt: null,
+      source: { ...source, ok: false, status: e.status || 502, reason: e.message || "fetch failed", bodySnippet: e.bodySnippet },
+    };
+  }
+}
+
 async function fetchOpenMeteoSoilArchive({ lat, lon }) {
   const source = { provider: "open-meteo-archive" };
 
@@ -1189,9 +1269,10 @@ async function handleWeather(lat, lon, zip) {
     fetchNasaMoonData(),
     fetchUvCombined({ lat: la, lon: lo, timeZone }),
     fetchOpenMeteoSoilArchive({ lat: la, lon: lo }), // ✅ Archive soil moisture + max 6h (cached)
+    fetchOpenMeteoExtendedDailyForecast({ lat: la, lon: lo, timeZone }),
   ]);
 
-  const [dailyRes, hourlyRes, gridRes, alertsRes, astroRes, nasaMoonRes, uvRes, soilRes] = fetches;
+  const [dailyRes, hourlyRes, gridRes, alertsRes, astroRes, nasaMoonRes, uvRes, soilRes, extendedRes] = fetches;
   const fetchedAtIso = new Date().toISOString();
 
   if (dailyRes.status !== "fulfilled" || hourlyRes.status !== "fulfilled") {
@@ -1236,6 +1317,9 @@ async function handleWeather(lat, lon, zip) {
     )
     : null;
   const soilSourceAt = (soilRes.status === "fulfilled") ? pickFirstIsoString(soilRes.value?.sourceDataAt) : null;
+  const extendedSourceAt = (extendedRes.status === "fulfilled")
+    ? pickFirstIsoString(extendedRes.value?.sourceDataAt)
+    : null;
 
   const hourlyPeriods = Array.isArray(hourlyJson?.properties?.periods) ? hourlyJson.properties.periods : [];
   const dailyPeriods = Array.isArray(dailyJson?.properties?.periods) ? [...dailyJson.properties.periods] : [];
@@ -1249,6 +1333,25 @@ async function handleWeather(lat, lon, zip) {
     : [];
   if (extendedDailyPeriods.length) {
     dailyPeriods.push(...extendedDailyPeriods);
+  }
+
+  if (extendedRes.status === "fulfilled" && extendedRes.value?.ok) {
+    const existingDays = new Set(
+      dailyPeriods
+        .filter((p) => p && p.isDaytime)
+        .map((p) => safeStr(p?.startTime).slice(0, 10))
+        .filter(Boolean),
+    );
+
+    const openMeteoPeriods = Array.isArray(extendedRes.value?.periods) ? extendedRes.value.periods : [];
+    const missingExtended = openMeteoPeriods.filter((p) => {
+      const ymd = safeStr(p?.startTime).slice(0, 10);
+      return ymd && !existingDays.has(ymd);
+    });
+
+    if (missingExtended.length) {
+      dailyPeriods.push(...missingExtended);
+    }
   }
 
   const current = hourlyPeriods.length ? hourlyPeriods[0] : null;
@@ -1425,6 +1528,13 @@ async function handleWeather(lat, lon, zip) {
           status: uvRes.status === "fulfilled" ? uvRes.value?.source?.status : null,
         },
         { source: "Open-Meteo Soil", pulledAt: soilSourceAt, ok: soilRes.status === "fulfilled" && !!soilRes.value?.ok },
+        {
+          source: "Open-Meteo Extended",
+          pulledAt: extendedSourceAt,
+          ok: extendedRes.status === "fulfilled" && !!extendedRes.value?.ok,
+          reason: extendedRes.status === "fulfilled" ? safeStr(extendedRes.value?.source?.reason) : "fetch failed",
+          status: extendedRes.status === "fulfilled" ? extendedRes.value?.source?.status : null,
+        },
       ],
     },
   });
