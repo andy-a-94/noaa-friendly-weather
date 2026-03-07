@@ -24,6 +24,9 @@ const NWS_HEADERS = {
 };
 
 const DEFAULT_TIMEOUT_MS = 4500;
+const NASA_MOON_DATASET_ID = "a005587";
+const NASA_MOON_JSON_BASE_URL = `https://svs.gsfc.nasa.gov/vis/a000000/a005500/${NASA_MOON_DATASET_ID}`;
+const NASA_MOON_FRAME_BASE_URL = `${NASA_MOON_JSON_BASE_URL}/frames/730x730_1x1_30p/moon`;
 
 function jsonResponse(obj, status = 200, extraHeaders = {}) {
   return new Response(JSON.stringify(obj, null, 2), {
@@ -1040,6 +1043,114 @@ async function fetchUsnoAstro({ lat, lon, timeZone }) {
   }
 }
 
+function getUtcHourOfYear(dateObj = new Date()) {
+  const year = dateObj.getUTCFullYear();
+  const startUtcMs = Date.UTC(year, 0, 1, 0, 0, 0);
+  const elapsedMs = dateObj.getTime() - startUtcMs;
+  const elapsedHours = Math.floor(elapsedMs / (60 * 60 * 1000));
+  const hourOfYear = elapsedHours + 1;
+  const wrappedHour = ((hourOfYear - 1) % 8760) + 1;
+
+  return {
+    year,
+    frame: String(wrappedHour).padStart(4, "0"),
+    hourBucket: elapsedHours,
+  };
+}
+
+function toMoonIlluminationPct(raw) {
+  const v = Number(raw);
+  if (!Number.isFinite(v)) return null;
+  const pct = v <= 1 ? v * 100 : v;
+  return clamp(pct, 0, 100);
+}
+
+function findNasaMoonRecord(rows, frame) {
+  if (!Array.isArray(rows) || !rows.length) return null;
+
+  const byFrameValue = rows.find((row) => {
+    const frameCandidate = String(row?.frame ?? row?.index ?? "").padStart(4, "0");
+    return frameCandidate === frame;
+  });
+  if (byFrameValue) return byFrameValue;
+
+  const byFilename = rows.find((row) => {
+    const imageName = safeStr(row?.image || row?.file || row?.filename || row?.name);
+    return imageName.includes(`.${frame}.`);
+  });
+  if (byFilename) return byFilename;
+
+  const idx = Number(frame) - 1;
+  if (Number.isInteger(idx) && idx >= 0 && idx < rows.length) return rows[idx];
+
+  return null;
+}
+
+async function fetchNasaMoonData() {
+  const source = { provider: "nasa-svs-5587" };
+  const now = new Date();
+  const { year, frame, hourBucket } = getUtcHourOfYear(now);
+  const cacheKeyUrl =
+    `https://cache.almanacweather.com/nasa-moon` +
+    `?year=${encodeURIComponent(String(year))}` +
+    `&hour=${encodeURIComponent(String(hourBucket))}`;
+
+  try {
+    const cache = caches.default;
+    const cacheReq = new Request(cacheKeyUrl, { method: "GET" });
+    const cached = await cache.match(cacheReq);
+    if (cached) {
+      return await cached.json();
+    }
+
+    const moonInfoUrl = `${NASA_MOON_JSON_BASE_URL}/mooninfo_${year}.json`;
+    const rows = await fetchJson(moonInfoUrl, {}, 3800);
+    const record = findNasaMoonRecord(rows, frame);
+
+    const moonPhase = safeStr(record?.phase || record?.phaseName || record?.curphase);
+    const moonIlluminationPct = toMoonIlluminationPct(
+      record?.fracillum ?? record?.illumination ?? record?.illumination_pct ?? record?.fraction_illuminated
+    );
+
+    const sourceImage = safeStr(record?.image || record?.file || record?.filename || record?.name);
+    const moonImageUrl = sourceImage
+      ? `${NASA_MOON_JSON_BASE_URL}/${sourceImage.replace(/^\/+/, "")}`
+      : `${NASA_MOON_FRAME_BASE_URL}.${frame}.jpg`;
+
+    const payload = {
+      ok: true,
+      frame,
+      year,
+      moonImageUrl,
+      moonPhase: moonPhase || null,
+      moonIlluminationPct,
+      sourceDataAt: `${year}-01-01T00:00:00Z`,
+      source: { ...source, ok: true },
+    };
+
+    const resp = new Response(JSON.stringify(payload), {
+      headers: {
+        "Content-Type": "application/json; charset=utf-8",
+        "Cache-Control": "public, max-age=3600",
+      },
+    });
+    await cache.put(cacheReq, resp.clone());
+
+    return payload;
+  } catch (e) {
+    return {
+      ok: false,
+      frame,
+      year,
+      moonImageUrl: `${NASA_MOON_FRAME_BASE_URL}.${frame}.jpg`,
+      moonPhase: null,
+      moonIlluminationPct: null,
+      sourceDataAt: null,
+      source: { ...source, ok: false, status: e.status || 502, reason: e.message || "fetch failed", bodySnippet: e.bodySnippet },
+    };
+  }
+}
+
 /* ---------------- Main Weather ---------------- */
 
 async function handleWeather(lat, lon, zip) {
@@ -1075,11 +1186,12 @@ async function handleWeather(lat, lon, zip) {
     gridUrl ? fetchJson(gridUrl, { headers: NWS_HEADERS }, 4500) : Promise.resolve(null),
     alertsUrl ? fetchJson(alertsUrl, { headers: NWS_HEADERS }, 4500) : Promise.resolve(null),
     fetchUsnoAstro({ lat: la, lon: lo, timeZone }),
+    fetchNasaMoonData(),
     fetchUvCombined({ lat: la, lon: lo, timeZone }),
     fetchOpenMeteoSoilArchive({ lat: la, lon: lo }), // ✅ Archive soil moisture + max 6h (cached)
   ]);
 
-  const [dailyRes, hourlyRes, gridRes, alertsRes, astroRes, uvRes, soilRes] = fetches;
+  const [dailyRes, hourlyRes, gridRes, alertsRes, astroRes, nasaMoonRes, uvRes, soilRes] = fetches;
   const fetchedAtIso = new Date().toISOString();
 
   if (dailyRes.status !== "fulfilled" || hourlyRes.status !== "fulfilled") {
@@ -1113,6 +1225,9 @@ async function handleWeather(lat, lon, zip) {
       astroRes.value?.sourceDataAt,
       astroRes.value?.date,
     )
+    : null;
+  const nasaMoonSourceAt = (nasaMoonRes.status === "fulfilled")
+    ? pickFirstIsoString(nasaMoonRes.value?.sourceDataAt)
     : null;
   const uvSourceAt = (uvRes.status === "fulfilled")
     ? pickFirstIsoString(
@@ -1206,6 +1321,7 @@ async function handleWeather(lat, lon, zip) {
 
   // Astro & UV
   const astro = (astroRes.status === "fulfilled" && astroRes.value?.ok) ? astroRes.value : (astroRes.status === "fulfilled" ? astroRes.value : null);
+  const nasaMoon = (nasaMoonRes.status === "fulfilled" && nasaMoonRes.value) ? nasaMoonRes.value : null;
   const uv = (uvRes.status === "fulfilled" && uvRes.value) ? uvRes.value : null;
 
   // Soil
@@ -1276,8 +1392,10 @@ async function handleWeather(lat, lon, zip) {
       sunset: astro.sunset,
       moonrise: astro.moonrise,
       moonset: astro.moonset,
-      moonPhase: astro.moonPhase,
-      moonIlluminationPct: astro.moonIlluminationPct,
+      moonPhase: nasaMoon?.ok && nasaMoon.moonPhase ? nasaMoon.moonPhase : astro.moonPhase,
+      moonIlluminationPct: nasaMoon?.ok && isFiniteNum(nasaMoon.moonIlluminationPct) ? nasaMoon.moonIlluminationPct : astro.moonIlluminationPct,
+      moonImageUrl: nasaMoon?.moonImageUrl || null,
+      moonFrame: nasaMoon?.frame || null,
       isDaytimeNow: astro.isDaytimeNow,
     } : (astro ? { ...astro, ok: false } : null),
 
@@ -1292,6 +1410,13 @@ async function handleWeather(lat, lon, zip) {
         { source: "NOAA Grid", pulledAt: gridSourceAt, ok: gridRes.status === "fulfilled" },
         { source: "NOAA Alerts", pulledAt: alertsSourceAt, ok: alertsRes.status === "fulfilled" },
         { source: "USNO Astro", pulledAt: astroSourceAt, ok: astroRes.status === "fulfilled" && !!astroRes.value?.ok },
+        {
+          source: "NASA Moon",
+          pulledAt: nasaMoonSourceAt,
+          ok: nasaMoonRes.status === "fulfilled" && !!nasaMoonRes.value?.ok,
+          reason: nasaMoonRes.status === "fulfilled" ? safeStr(nasaMoonRes.value?.source?.reason) : "fetch failed",
+          status: nasaMoonRes.status === "fulfilled" ? nasaMoonRes.value?.source?.status : null,
+        },
         {
           source: "Open-Meteo UV",
           pulledAt: uvSourceAt,

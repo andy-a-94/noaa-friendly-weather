@@ -92,6 +92,13 @@ function getUtcHourOfYearFrame(date = new Date()) {
 const NASA_MOON_FRAME = getUtcHourOfYearFrame();
 const NASA_MOON_IMAGE_URL = `${NASA_MOON_BASE_URL}.${NASA_MOON_FRAME}.jpg`;
 
+function formatMoonIlluminationPct(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return null;
+  const pct = n <= 1 ? (n * 100) : n;
+  return Math.round(clamp(pct, 0, 100));
+}
+
 const HOURLY_INITIAL_COUNT = 24;
 const HOURLY_LOAD_STEP = 24;
 const DAILY_DAYS_VISIBLE = 14;
@@ -1269,10 +1276,10 @@ function renderAstroUv(data) {
 
   // Prefer numeric moon illumination from USNO astro data.
   // Fall back to coarse phase-label buckets if the value is missing.
-  const moonIlluminationRaw = Number(astro.moonIlluminationPct);
-  let moonIllumPct = Number.isFinite(moonIlluminationRaw)
-    ? Math.round(clamp(moonIlluminationRaw, 0, 100))
-    : null;
+  let moonIllumPct = formatMoonIlluminationPct(astro.moonIlluminationPct);
+
+  const moonImageUrl = safeText(astro.moonImageUrl) || NASA_MOON_IMAGE_URL;
+  const moonFrame = safeText(astro.moonFrame) || NASA_MOON_FRAME;
 
   if (moonIllumPct === null) {
     const phaseLower = safeText(astro.moonPhase).toLowerCase();
@@ -1323,8 +1330,8 @@ function renderAstroUv(data) {
         <div class="moon-wrap">
           <img
             class="moon-image"
-            src="${NASA_MOON_IMAGE_URL}"
-            alt="NASA SVS moon visualization for UTC hour ${NASA_MOON_FRAME}"
+            src="${moonImageUrl}"
+            alt="NASA SVS moon visualization for UTC hour ${moonFrame}"
             loading="lazy"
             decoding="async"
           />
