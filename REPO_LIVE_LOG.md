@@ -78,9 +78,72 @@ Data sources and provider wiring
 
 Cloudflare settings and operational wiring
 - Operational guidance is documented in `worker/README.md`.
+- Current zone baseline (for `almanacweather.com`) is tuned for Cloudflare Free plan constraints.
+- Plan/capability notes:
+  - Plan: Free.
+  - Free plan rate limiting does not support advanced URI field matching (for example `http.request.uri` in advanced patterns); rule design should use path matching (`http.request.uri.path`).
+  - Managed Rules UI can appear inconsistent on Free, but exported zone settings indicate the Cloudflare managed ruleset is active.
+  - Bot controls are broader/coarser at this tier versus paid plans.
 - Recommended production route patterns:
   - `almanacweather.com/api/*`
   - `www.almanacweather.com/api/*`
+- Rate limiting posture:
+  - One API-focused rate limiting rule is currently deployed.
+  - Rule intent is burst-abuse reduction before requests fully reach Worker logic.
+  - Authoring guidance (Free-plan safe defaults):
+    - Prefer `starts_with(http.request.uri.path, "/api/")` for route groups.
+    - Prefer `http.request.uri.path eq "/exact/path"` for sensitive endpoints.
+    - Avoid relying on query-string-based matching in rate limit expressions on Free.
+  - Tuning guidance:
+    - If false positives occur, raise threshold before stacking many new rules.
+    - If one endpoint is targeted, split it into a dedicated endpoint-specific rate limit.
+- Custom WAF posture:
+  - A custom WAF rule is in place for `GET /api/track/export` using exact path targeting.
+  - Rule is intended as an outer edge control before Worker auth/token logic runs.
+  - If this route becomes single-origin operationally, later hardening can include IP allowlisting/Zone Lockdown.
+  - If script/tool access is impacted by browser challenge behavior, prefer precise allowlist/block logic over challenge-style friction.
+- Bot/challenge posture:
+  - Bot Fight Mode: ON (zone-level broad mitigation).
+  - AI crawler control: Block AI Bots on all pages.
+  - Browser Integrity Check: ON.
+  - JS Detections: ON.
+  - Challenge Passage: 30 minutes.
+  - Operational implication:
+    - Broad controls are helpful for common automated abuse.
+    - If legitimate API flows break after security changes, first review Bot Fight Mode and challenge-related events.
+- Managed/platform protections:
+  - Cloudflare managed ruleset: active (per settings export).
+  - HTTP DDoS protection: always active.
+  - Network-layer DDoS protection: always active.
+  - Security level: always protected.
+  - I’m Under Attack Mode: OFF during normal operation.
+  - Guidance: reserve Under Attack Mode for active incidents because it is intentionally disruptive.
+- Intentionally off for current app shape:
+  - AI Labyrinth Beta.
+  - Custom fallthrough rules.
+  - Email Address Obfuscation.
+  - Hotlink Protection.
+  - Leaked credentials detection.
+  - Rate limit authentication requests.
+  - mTLS rules.
+  - Schema validation.
+  - User agent blocking.
+  - Rationale: limited fit for current public-weather + limited-admin route model, and/or increased complexity/false-positive risk at current scale.
+- App-specific security shape reminder:
+  - Public routes: `/api/location/suggest`, `/api/location`, `/api/weather`, `/api/health`, `/api/track`.
+  - Most sensitive current public route: `/api/track/export`.
+  - Sensitivity ordering for future hardening:
+    1. `/api/track/export` (highest)
+    2. `/api/track` (moderate)
+    3. `/api/weather`, `/api/location`, `/api/location/suggest` (public/high-volume)
+    4. `/api/health` (low sensitivity; keep simple)
+  - Strategy implication: keep protections broad on normal public weather APIs, and apply stricter controls to export/admin-like routes.
+- Future operational checks:
+  - Review Cloudflare Security Events before adding new controls.
+  - Tune rate limits from observed traffic patterns, not assumptions.
+  - Revisit `/api/track/export` with IP allowlist if access origin becomes stable.
+  - For new admin/export/debug/internal endpoints, apply stricter controls than public weather routes.
+  - Add rules narrowly and test after each change: homepage load, location/ZIP search, weather response, suggest flow, and export/admin path behavior.
 - Required runtime binding:
   - D1 binding variable: `EVENTS_DB`.
 - Optional runtime binding:
