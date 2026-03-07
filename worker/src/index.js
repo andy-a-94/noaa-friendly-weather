@@ -24,9 +24,18 @@ const NWS_HEADERS = {
 };
 
 const DEFAULT_TIMEOUT_MS = 4500;
+const TRACK_MAX_BODY_BYTES = 8 * 1024;
+const TRACK_RATE_WINDOW_MS = 60 * 1000;
+const TRACK_IP_LIMIT_PER_WINDOW = 120;
+const TRACK_USER_LIMIT_PER_WINDOW = 60;
 const NASA_MOON_DATASET_ID = "a005587";
 const NASA_MOON_JSON_BASE_URL = `https://svs.gsfc.nasa.gov/vis/a000000/a005500/${NASA_MOON_DATASET_ID}`;
 const NASA_MOON_FRAME_BASE_URL = `${NASA_MOON_JSON_BASE_URL}/frames/730x730_1x1_30p/moon`;
+
+const trackRateState = {
+  ip: new Map(),
+  user: new Map(),
+};
 
 function jsonResponse(obj, status = 200, extraHeaders = {}) {
   return new Response(JSON.stringify(obj, null, 2), {
@@ -144,6 +153,68 @@ function cleanEventType(value) {
   return raw.replace(/[^a-z0-9_.-]/g, "_") || "event";
 }
 
+function isValidDeviceType(value) {
+  const v = safeStr(value).toLowerCase();
+  return !v || v === "mobile" || v === "tablet" || v === "desktop";
+}
+
+function hasAllowedTrackContentLength(request) {
+  const raw = request.headers.get("content-length");
+  if (!raw) return true;
+  const n = Number(raw);
+  return Number.isFinite(n) && n > 0 && n <= TRACK_MAX_BODY_BYTES;
+}
+
+function validateTrackLocation(value, min, max) {
+  if (value === null || value === undefined || value === "") return true;
+  const n = Number(value);
+  return Number.isFinite(n) && n >= min && n <= max;
+}
+
+function nowWindow(nowMs = Date.now()) {
+  return Math.floor(nowMs / TRACK_RATE_WINDOW_MS);
+}
+
+function cleanupTrackRateMap(mapObj, currentWindow) {
+  if (mapObj.size < 2000) return;
+  for (const [key, slot] of mapObj) {
+    if (slot.window !== currentWindow) mapObj.delete(key);
+  }
+}
+
+function incrementTrackRate(mapObj, key, limit, currentWindow) {
+  if (!key) return { ok: true, count: 0, limit };
+
+  const prev = mapObj.get(key);
+  if (!prev || prev.window !== currentWindow) {
+    mapObj.set(key, { window: currentWindow, count: 1 });
+    return { ok: true, count: 1, limit };
+  }
+
+  prev.count += 1;
+  mapObj.set(key, prev);
+  if (prev.count > limit) {
+    return { ok: false, count: prev.count, limit };
+  }
+
+  return { ok: true, count: prev.count, limit };
+}
+
+function enforceTrackRateLimit(request, userId) {
+  const currentWindow = nowWindow();
+  cleanupTrackRateMap(trackRateState.ip, currentWindow);
+  cleanupTrackRateMap(trackRateState.user, currentWindow);
+
+  const ipKey = getIpHashInput(request);
+  const ipResult = incrementTrackRate(trackRateState.ip, ipKey, TRACK_IP_LIMIT_PER_WINDOW, currentWindow);
+  if (!ipResult.ok) return { ok: false, type: "ip", limit: TRACK_IP_LIMIT_PER_WINDOW };
+
+  const userResult = incrementTrackRate(trackRateState.user, userId, TRACK_USER_LIMIT_PER_WINDOW, currentWindow);
+  if (!userResult.ok) return { ok: false, type: "user", limit: TRACK_USER_LIMIT_PER_WINDOW };
+
+  return { ok: true };
+}
+
 function getUserAgent(request) {
   return clipText(request.headers.get("user-agent"), 400);
 }
@@ -165,6 +236,10 @@ async function anonymizeIp(request, env) {
 }
 
 async function handleTrackEvent(request, env) {
+  if (!hasAllowedTrackContentLength(request)) {
+    return jsonResponse({ error: `Payload too large (max ${TRACK_MAX_BODY_BYTES} bytes)` }, 413);
+  }
+
   let body;
   try {
     body = await request.json();
@@ -172,8 +247,37 @@ async function handleTrackEvent(request, env) {
     return jsonResponse({ error: "Invalid JSON body" }, 400);
   }
 
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    return jsonResponse({ error: "Invalid event payload" }, 400);
+  }
+
   const userId = clipText(body?.userId, 120);
   if (!userId) return jsonResponse({ error: "Missing userId" }, 400);
+  if (!isValidDeviceType(body?.deviceType)) {
+    return jsonResponse({ error: "Invalid deviceType" }, 400);
+  }
+
+  if (
+    !validateTrackLocation(body?.locationLat, -90, 90) ||
+    !validateTrackLocation(body?.userLat, -90, 90) ||
+    !validateTrackLocation(body?.locationLon, -180, 180) ||
+    !validateTrackLocation(body?.userLon, -180, 180)
+  ) {
+    return jsonResponse({ error: "Invalid location coordinate values" }, 400);
+  }
+
+  const rateLimit = enforceTrackRateLimit(request, userId);
+  if (!rateLimit.ok) {
+    return jsonResponse(
+      {
+        error: "Rate limit exceeded",
+        rateLimitType: rateLimit.type,
+        limitPerMinute: rateLimit.limit,
+      },
+      429,
+      { "Retry-After": "60" }
+    );
+  }
 
   const nowIso = new Date().toISOString();
   const ipHash = await anonymizeIp(request, env);
@@ -380,17 +484,28 @@ function parseNwsValidTime(validTime) {
   const startMs = Date.parse(startStr);
   if (!Number.isFinite(startMs) || !durStr) return null;
 
-  let durMs = 0;
-  const hm = durStr.match(/^PT(?:(\d+)H)?(?:(\d+)M)?/i);
-  if (hm) {
-    const h = Number(hm[1] || 0);
-    const m = Number(hm[2] || 0);
-    durMs = (h * 3600 + m * 60) * 1000;
-  } else {
-    return null;
-  }
+  const durMs = parseIso8601DurationToMs(durStr);
   if (durMs <= 0) return null;
   return { startMs, endMs: startMs + durMs };
+}
+
+function parseIso8601DurationToMs(durationStr) {
+  const raw = safeStr(durationStr).toUpperCase();
+  if (!raw) return null;
+
+  // Supports: PT2H, PT30M, P1D, P1DT6H, P2DT30M, P1DT6H30M15S
+  const m = raw.match(/^P(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?)?$/);
+  if (!m) return null;
+
+  const d = Number(m[1] || 0);
+  const h = Number(m[2] || 0);
+  const min = Number(m[3] || 0);
+  const sec = Number(m[4] || 0);
+
+  const hasAny = d > 0 || h > 0 || min > 0 || sec > 0;
+  if (!hasAny) return null;
+
+  return (((d * 24 + h) * 60 + min) * 60 + sec) * 1000;
 }
 
 function valueAt(seriesValues, targetMs) {
