@@ -1466,7 +1466,7 @@ body.is-modal-open{
   max-width: 148px;
   aspect-ratio: 1 / 1;
   border-radius: 50%;
-  clip-path: circle(49.96% at 50% 50%);
+  clip-path: circle(42% at 50% 50%);
   object-fit: cover;
   object-position: center;
   flex: 0 0 auto;
