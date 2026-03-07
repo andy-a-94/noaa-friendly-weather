@@ -1723,6 +1723,27 @@ body.is-modal-open{
   margin-top: 16px;
 }
 
+.footer-links{
+  margin-bottom: 10px;
+}
+
+.footer-link{
+  display: inline-block;
+  color: rgba(208, 232, 255, 0.95);
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.footer-link:hover{
+  color: #ffffff;
+}
+
+.footer-link:focus-visible{
+  outline: 2px solid rgba(120,180,255,0.7);
+  outline-offset: 2px;
+}
+
 .data-sources{
   border-top: 1px solid rgba(255,255,255,0.12);
   padding-top: 8px;
