@@ -1465,11 +1465,15 @@ body.is-modal-open{
   max-width: 150px;
   aspect-ratio: 1 / 1;
   border-radius: 50%;
-  clip-path: circle(46.5% at 50% 50%);
+  /* Crop slightly inside the moon limb to fully hide the black JPEG edge ring. */
+  clip-path: circle(45.5% at 50% 50%);
   object-fit: cover;
   flex: 0 0 auto;
-  box-shadow: 0 0 20px rgba(255, 255, 255, 0.2);
+  box-shadow: none;
   background: transparent;
+  /* Extra guard: feather the outer rim to transparent so no ring is visible. */
+  -webkit-mask-image: radial-gradient(circle at center, #000 0 44.6%, transparent 45.6%);
+  mask-image: radial-gradient(circle at center, #000 0 44.6%, transparent 45.6%);
 }
 
 .moon-label{
