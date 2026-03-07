@@ -924,12 +924,12 @@ header{
 
 .wind-tile{
   width:100%;
-  border:1px solid rgba(255,255,255,0.13);
+  border:1px solid transparent;
   border-radius:14px;
   padding:12px;
   text-align:left;
   color:var(--text);
-  background:rgba(255,255,255,0.05);
+  background:transparent;
 }
 
 .wind-tile-main{
@@ -1461,8 +1461,8 @@ body.is-modal-open{
 }
 
 .moon-image{
-  width: min(100%, 150px);
-  max-width: 150px;
+  width: min(100%, 120px);
+  max-width: 120px;
   aspect-ratio: 1 / 1;
   border-radius: 50%;
   /* Crop slightly inside the moon limb to fully hide the black JPEG edge ring. */
