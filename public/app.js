@@ -685,11 +685,20 @@ function getNowMinutesInTimeZone(timeZone) {
 /* ---------- Moon display helpers ---------- */
 
 function moonPhaseFromLabel(phaseLabel) {
-  const p = safeText(phaseLabel).toLowerCase();
+  const raw = safeText(phaseLabel);
+  const p = raw.toLowerCase();
   if (!p) return { waxing: null, label: "" };
 
   const waxing = p.includes("waxing") ? true : (p.includes("waning") ? false : null);
-  const label = safeText(phaseLabel) || "—";
+  const hasKnownPhaseWord = /(wax|wan|new|full|quarter|crescent|gibbous)/i.test(p);
+  if (!hasKnownPhaseWord) return { waxing, label: "" };
+
+  const label = raw
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+
   return { waxing, label };
 }
 
@@ -1336,9 +1345,9 @@ function renderAstroUv(data) {
             decoding="async"
           />
           <div class="moon-label">
-            <div class="moon-phase">${phaseLabel || "—"}</div>
+            ${moonIllumPct !== null ? `<div class="moon-sub moon-illum">💡 ${moonIllumPct}% illuminated</div>` : ""}
+            <div class="moon-phase">${phaseLabel || "Moon Phase"}</div>
             <div class="moon-sub moon-times">↑ ${moonrise || "—"} • ↓ ${moonset || "—"}</div>
-            ${moonIllumPct !== null ? `<div class="moon-sub moon-illum">💡 ${moonIllumPct}%</div>` : ""}
           </div>
         </div>
       </div>

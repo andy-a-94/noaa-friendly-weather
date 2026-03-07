@@ -1145,6 +1145,13 @@ function toMoonIlluminationPct(raw) {
   return clamp(pct, 0, 100);
 }
 
+function isDescriptiveMoonPhase(value) {
+  const phase = safeStr(value);
+  if (!phase) return false;
+  if (!/[a-z]/i.test(phase)) return false;
+  return /(wax|wan|new|full|quarter|crescent|gibbous)/i.test(phase);
+}
+
 function findNasaMoonRecord(rows, frame) {
   if (!Array.isArray(rows) || !rows.length) return null;
 
@@ -1495,8 +1502,10 @@ async function handleWeather(lat, lon, zip) {
       sunset: astro.sunset,
       moonrise: astro.moonrise,
       moonset: astro.moonset,
-      moonPhase: nasaMoon?.ok && nasaMoon.moonPhase ? nasaMoon.moonPhase : astro.moonPhase,
-      moonIlluminationPct: nasaMoon?.ok && isFiniteNum(nasaMoon.moonIlluminationPct) ? nasaMoon.moonIlluminationPct : astro.moonIlluminationPct,
+      moonPhase: (nasaMoon?.ok && isDescriptiveMoonPhase(nasaMoon.moonPhase)) ? nasaMoon.moonPhase : astro.moonPhase,
+      moonIlluminationPct: isFiniteNum(astro.moonIlluminationPct)
+        ? astro.moonIlluminationPct
+        : (nasaMoon?.ok && isFiniteNum(nasaMoon.moonIlluminationPct) ? nasaMoon.moonIlluminationPct : null),
       moonImageUrl: nasaMoon?.moonImageUrl || null,
       moonFrame: nasaMoon?.frame || null,
       isDaytimeNow: astro.isDaytimeNow,
