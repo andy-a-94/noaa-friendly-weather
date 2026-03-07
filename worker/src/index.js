@@ -158,11 +158,19 @@ function isValidDeviceType(value) {
   return !v || v === "mobile" || v === "tablet" || v === "desktop";
 }
 
-function hasAllowedTrackContentLength(request) {
+function getTrackContentLengthValidation(request) {
   const raw = request.headers.get("content-length");
-  if (!raw) return true;
+  if (!raw) return { ok: false, reason: "missing" };
+
   const n = Number(raw);
-  return Number.isFinite(n) && n >= 0 && n <= TRACK_MAX_BODY_BYTES;
+  if (!Number.isFinite(n) || n < 0) {
+    return { ok: false, reason: "invalid" };
+  }
+  if (n > TRACK_MAX_BODY_BYTES) {
+    return { ok: false, reason: "too_large" };
+  }
+
+  return { ok: true, contentLength: n };
 }
 
 async function readRequestBodyWithLimit(request, maxBytes) {
@@ -265,8 +273,12 @@ async function anonymizeIp(request, env) {
 }
 
 async function handleTrackEvent(request, env) {
-  if (!hasAllowedTrackContentLength(request)) {
-    return jsonResponse({ error: `Payload too large (max ${TRACK_MAX_BODY_BYTES} bytes)` }, 413);
+  const contentLength = getTrackContentLengthValidation(request);
+  if (!contentLength.ok) {
+    if (contentLength.reason === "too_large") {
+      return jsonResponse({ error: `Payload too large (max ${TRACK_MAX_BODY_BYTES} bytes)` }, 413);
+    }
+    return jsonResponse({ error: "Missing or invalid content-length header" }, 411);
   }
 
   let body;
