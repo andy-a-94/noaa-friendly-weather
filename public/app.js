@@ -1147,12 +1147,9 @@ function renderShoe(data) {
 
   const label = useBoosted ? (shoe.boostedLabel || "—") : (baseComputed.label || "—");
 
-  // Keep your existing sub line (soil moisture %), optionally add boost note
+  // Keep sub line focused on soil moisture only.
   const subBase = smOk ? `${Math.round(sm * 100)}% Soil Moisture` : "—";
-  const subBoost = (useBoosted && typeof shoe.boost === "number" && shoe.boost > 0)
-    ? ` • +${shoe.boost} for rain`
-    : "";
-  const sub = `${subBase}${subBoost}`;
+  const sub = subBase;
 
   const iconSrc = shoeIconSrcForLabel(label);
 
